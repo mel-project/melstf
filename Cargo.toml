@@ -1,8 +1,13 @@
 [package]
 name = "themelio-stf"
 version = "0.1.0"
-authors = ["nullchinchilla <nullchinchilla@pm.me>"]
+authors = ["Themelio Labs"]
 edition = "2018"
+
+description = "Core state-transition function and data structures for Themelio"
+license = "MPL-2.0"
+repository = "https://github.com/themeliolabs/themelio-stf"
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

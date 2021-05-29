@@ -25,7 +25,7 @@ pub use state::*;
 use std::ops::{Deref, DerefMut};
 pub use transaction::*;
 
-mod melpow;
+pub mod melpow;
 
 #[cfg(test)]
 #[macro_use]
