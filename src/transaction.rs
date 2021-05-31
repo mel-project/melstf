@@ -279,6 +279,7 @@ impl CoinID {
 #[derive(Serialize, Deserialize, Clone, Arbitrary, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 /// The data bound to a coin ID. Contains the "contents" of a coin, i.e. its constraint hash, value, and coin type.
 pub struct CoinData {
+    #[serde(with = "stdcode::asstr")]
     pub covhash: CovHash,
     pub value: u128,
     // #[serde(with = "stdcode::hex")]

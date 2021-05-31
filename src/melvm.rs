@@ -55,7 +55,6 @@ type ProgramCounter = usize;
     Deserialize,
     Arbitrary,
 )]
-#[serde(transparent)]
 pub struct CovHash(pub HashVal);
 
 impl Display for CovHash {
