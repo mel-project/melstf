@@ -14,7 +14,7 @@ repository = "https://github.com/themeliolabs/themelio-stf"
 [dependencies]
 tmelcrypt="0.1"
 stdcode="0.1"
-cached= "0.23.0"
+cached={version="0.23.0", default-features=false, features=["proc_macro"]}
 num_enum = "0.5.1"
 hex= "0.4.3"
 thiserror= "1.0.25"
@@ -23,7 +23,7 @@ im = { version = "15.0.0", features = ["serde"] }
 arbitrary={ version = "1", features = ["derive"] }
 ethnum= "1.0.3"
 derive_more="0.99"
-dashmap={ version = "4.0.2", features = ["rayon"] }
+dashmap={ version = "4.0.2" }
 parking_lot= "0.11.1"
 log= "0.4.14"
 defmac = "0.2.1"
@@ -31,7 +31,7 @@ serde = { version = "1.0.126", features = ["derive"] }
 
 serde_repr = "0.1.7"
 once_cell= "1.7.2"
-genawaiter= {version = "0.99.1", default-features=false}
+genawaiter= {version = "0.99.1", default-features=false, features=[]}
 num= "0.3.1"
 novasmt= "0.1.6"
 smallvec = "1.6.1"
