@@ -1,10 +1,12 @@
 pub use crate::{CoinData, CoinID, Transaction};
 use crate::{CoinDataHeight, Denom, Header, HexBytes};
 use arbitrary::Arbitrary;
+use derive_more::{From, Into};
 use ethnum::U256;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::convert::TryInto;
+use std::{collections::HashMap, str::FromStr};
+use std::{convert::TryInto, fmt::Display};
+use thiserror::Error;
 use tmelcrypt::HashVal;
 
 /// Heap address where the transaction trying to spend the coin encumbered by this covenant (spender) is put
@@ -37,6 +39,46 @@ pub struct Covenant(#[serde(with = "stdcode::hex")] pub Vec<u8>);
 /// A pointer to the currently executing instruction.
 type ProgramCounter = usize;
 
+/// A newtype representing the hash of a covenant.
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    Hash,
+    PartialOrd,
+    Ord,
+    From,
+    Into,
+    Serialize,
+    Deserialize,
+    Arbitrary,
+)]
+#[serde(transparent)]
+pub struct CovHash(pub HashVal);
+
+impl Display for CovHash {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.to_addr().fmt(f)
+    }
+}
+
+impl FromStr for CovHash {
+    type Err = AddrParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        HashVal::from_addr(s)
+            .ok_or(AddrParseError::CannotParse)
+            .map(|v| v.into())
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum AddrParseError {
+    #[error("cannot parse covhash address")]
+    CannotParse,
+}
+
 #[derive(Clone, Eq, PartialEq, Debug, Hash)]
 /// The execution environment of a covenant.
 pub struct CovenantEnv<'a> {
@@ -67,6 +109,7 @@ impl Covenant {
         }
     }
 
+    /// Checks with respect to a manually instantiated initial heap.
     pub fn check_raw(&self, args: &[Value]) -> bool {
         let mut hm = HashMap::new();
         for (i, v) in args.iter().enumerate() {
@@ -79,8 +122,9 @@ impl Covenant {
         }
     }
 
-    pub fn hash(&self) -> tmelcrypt::HashVal {
-        tmelcrypt::hash_single(&self.0)
+    /// The hash of the covenant.
+    pub fn hash(&self) -> CovHash {
+        tmelcrypt::hash_single(&self.0).into()
     }
 
     /// Returns a legacy ed25519 signature checking covenant, which checks the *first* signature.
@@ -1090,7 +1134,6 @@ impl From<Transaction> for Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use quickcheck;
     use quickcheck_macros::*;
     fn dontcrash(data: &[u8]) {
         let script = Covenant(data.to_vec());
@@ -1155,7 +1198,7 @@ mod tests {
 
     #[quickcheck]
     fn deterministic_execution(bitcode: Vec<u8>) -> bool {
-        let ops = Covenant(bitcode.clone()).to_ops();
+        let ops = Covenant(bitcode).to_ops();
         let tx = Transaction::empty_test();
         match ops {
             None => true,

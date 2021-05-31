@@ -1,5 +1,10 @@
-use crate::{constants::*, melvm, HexBytes};
+use crate::{
+    constants::*,
+    melvm::{self, CovHash, Covenant},
+    HexBytes,
+};
 use arbitrary::Arbitrary;
+use derive_more::{Display, From, Into};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_repr::{Deserialize_repr, Serialize_repr};
@@ -11,7 +16,7 @@ use std::{
     str::FromStr,
 };
 use thiserror::Error;
-use tmelcrypt::HashVal;
+use tmelcrypt::{Ed25519SK, HashVal};
 
 #[derive(
     Clone,
@@ -54,6 +59,26 @@ impl Display for TxKind {
     }
 }
 
+/// A newtype representing the hash of a transaction.
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    Hash,
+    PartialOrd,
+    Ord,
+    From,
+    Into,
+    Serialize,
+    Deserialize,
+    Arbitrary,
+    Display,
+)]
+#[serde(transparent)]
+pub struct TxHash(pub HashVal);
+
 /// Transaction represents an individual, serializable Themelio transaction.
 #[derive(Clone, Arbitrary, Debug, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct Transaction {
@@ -68,7 +93,7 @@ pub struct Transaction {
 }
 
 impl Transaction {
-    pub fn empty_test() -> Self {
+    pub(crate) fn empty_test() -> Self {
         Transaction {
             kind: TxKind::Normal,
             inputs: Vec::new(),
@@ -79,7 +104,8 @@ impl Transaction {
             sigs: Vec::new(),
         }
     }
-    /// checks whether or not the transaction is well formed, respecting coin size bounds and such.
+
+    /// Checks whether or not the transaction is well formed, respecting coin size bounds and such. **Does not** fully validate the transaction.
     pub fn is_well_formed(&self) -> bool {
         // check bounds
         for out in self.outputs.iter() {
@@ -95,18 +121,21 @@ impl Transaction {
         }
         true
     }
+
     /// hash_nosigs returns the hash of the transaction with a zeroed-out signature field. This is what signatures are computed against.
-    pub fn hash_nosigs(&self) -> tmelcrypt::HashVal {
+    pub fn hash_nosigs(&self) -> TxHash {
         let mut s = self.clone();
         s.sigs = vec![];
         let self_bytes = stdcode::serialize(&s).unwrap();
-        tmelcrypt::hash_single(&self_bytes)
+        tmelcrypt::hash_single(&self_bytes).into()
     }
-    /// sign_ed25519 consumes the transaction, appends an ed25519 signature, adn returns it..
-    pub fn signed_ed25519(mut self, sk: tmelcrypt::Ed25519SK) -> Self {
+
+    /// sign_ed25519 consumes the transaction, appends an ed25519 signature, and returns it.
+    pub fn signed_ed25519(mut self, sk: Ed25519SK) -> Self {
         self.sigs.push(sk.sign(&self.hash_nosigs().0).into());
         self
     }
+
     /// total_outputs returns a HashMap mapping each type of coin to its total value. Fees will be included in COINTYPE_TMEL.
     pub fn total_outputs(&self) -> HashMap<Denom, u128> {
         let mut toret = HashMap::new();
@@ -118,8 +147,9 @@ impl Transaction {
         toret.insert(Denom::Mel, old + self.fee);
         toret
     }
+
     /// scripts_as_map returns a HashMap mapping the hash of each script in the transaction to the script itself.
-    pub fn script_as_map(&self) -> HashMap<tmelcrypt::HashVal, melvm::Covenant> {
+    pub fn script_as_map(&self) -> HashMap<CovHash, Covenant> {
         let mut toret = HashMap::new();
         for s in self.scripts.iter() {
             toret.insert(s.hash(), s.clone());
@@ -190,7 +220,7 @@ impl Transaction {
 )]
 /// A coin ID, consisting of a transaction hash and index. Uniquely identifies a coin in Themelio's history.
 pub struct CoinID {
-    pub txhash: tmelcrypt::HashVal,
+    pub txhash: TxHash,
     pub index: u8,
 }
 
@@ -213,7 +243,10 @@ impl FromStr for CoinID {
         }
         let txhash: HashVal = splitted[0].parse()?;
         let index: u8 = splitted[1].parse()?;
-        Ok(CoinID { txhash, index })
+        Ok(CoinID {
+            txhash: txhash.into(),
+            index,
+        })
     }
 }
 
@@ -229,7 +262,7 @@ impl CoinID {
     /// The genesis coin of "zero-zero".
     pub fn zero_zero() -> Self {
         Self {
-            txhash: tmelcrypt::HashVal::default(),
+            txhash: tmelcrypt::HashVal::default().into(),
             index: 0,
         }
     }
@@ -237,7 +270,7 @@ impl CoinID {
     /// The pseudo-coin-ID for the proposer reward for the given height.
     pub fn proposer_reward(height: u64) -> Self {
         CoinID {
-            txhash: tmelcrypt::hash_keyed(b"reward_coin_pseudoid", &height.to_be_bytes()),
+            txhash: tmelcrypt::hash_keyed(b"reward_coin_pseudoid", &height.to_be_bytes()).into(),
             index: 0,
         }
     }
@@ -246,7 +279,7 @@ impl CoinID {
 #[derive(Serialize, Deserialize, Clone, Arbitrary, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 /// The data bound to a coin ID. Contains the "contents" of a coin, i.e. its constraint hash, value, and coin type.
 pub struct CoinData {
-    pub covhash: tmelcrypt::HashVal,
+    pub covhash: CovHash,
     pub value: u128,
     // #[serde(with = "stdcode::hex")]
     pub denom: Denom,
@@ -267,7 +300,7 @@ pub enum Denom {
     NomDosc,
 
     NewCoin,
-    Custom(HashVal),
+    Custom(TxHash),
 }
 
 impl Denom {
@@ -277,7 +310,7 @@ impl Denom {
             Self::Sym => b"s".to_vec(),
             Self::NomDosc => b"d".to_vec(),
             Self::NewCoin => b"".to_vec(),
-            Self::Custom(hash) => hash.to_vec(),
+            Self::Custom(hash) => hash.0.to_vec(),
         }
     }
 
@@ -288,7 +321,7 @@ impl Denom {
             b"d" => Self::NomDosc,
 
             b"" => Self::NewCoin,
-            other => Self::Custom(HashVal(other.try_into().ok()?)),
+            other => Self::Custom(HashVal(other.try_into().ok()?).into()),
         })
     }
 }
@@ -340,9 +373,9 @@ pub(crate) mod tests {
     #[rstest]
     fn test_is_not_well_formed_if_value_gt_max(valid_txx: Vec<Transaction>) {
         // Extract out first coin data from first transaction in valid transactions
-        let valid_tx = valid_txx.iter().next().unwrap().clone();
+        let valid_tx = valid_txx.get(0).unwrap().clone();
         let valid_outputs = valid_tx.outputs;
-        let valid_output = valid_outputs.iter().next().unwrap().clone();
+        let valid_output = valid_outputs.get(0).unwrap().clone();
 
         // Create an invalid tx by setting an invalid output value
         let invalid_output_value = MAX_COINVAL + 1;
@@ -361,11 +394,11 @@ pub(crate) mod tests {
     }
 
     #[rstest(
-        offset => [1 as u128, 2 as u128, 100 as u128]
+        offset => [1u128, 2u128, 100u128]
     )]
     fn test_is_not_well_formed_if_fee_gt_max(offset: u128, valid_txx: Vec<Transaction>) {
         // Extract out first coin data from first transaction in valid transactions
-        let valid_tx = valid_txx.iter().next().unwrap().clone();
+        let valid_tx = valid_txx.get(0).unwrap().clone();
 
         // Create an invalid tx by setting an invalid fee value
         let invalid_tx = Transaction {
@@ -382,9 +415,9 @@ pub(crate) mod tests {
     )]
     fn test_is_not_well_formed_if_io_gt_max(offset: usize, valid_txx: Vec<Transaction>) {
         // Extract out first coin data from first transaction in valid transactions
-        let valid_tx = valid_txx.iter().next().unwrap().clone();
+        let valid_tx = valid_txx.get(0).unwrap().clone();
         let valid_outputs = valid_tx.outputs;
-        let valid_output = valid_outputs.iter().next().unwrap().clone();
+        let valid_output = valid_outputs.get(0).unwrap().clone();
 
         // Create an invalid tx by setting an invalid output value
         let invalid_output_count = 255 + offset;
@@ -403,7 +436,7 @@ pub(crate) mod tests {
     #[rstest]
     fn test_hash_no_sigs(valid_txx: Vec<Transaction>) {
         // Check that valid transaction has a non zero number of signatures
-        let valid_tx = valid_txx.iter().next().unwrap().clone();
+        let valid_tx = valid_txx.get(0).unwrap().clone();
         assert_ne!(valid_tx.sigs.len(), 0);
 
         // Create a transaction from it which has no signatures
@@ -427,14 +460,14 @@ pub(crate) mod tests {
     #[rstest]
     fn test_sign_sigs(valid_txx: Vec<Transaction>) {
         // Create a transaction from it which has no signatures
-        let valid_tx = valid_txx.iter().next().unwrap().clone();
+        let valid_tx = valid_txx.get(0).unwrap().clone();
         assert_ne!(valid_tx.sigs.len(), 0);
-        let mut no_sigs_tx = valid_tx.clone();
+        let mut no_sigs_tx = valid_tx;
         no_sigs_tx.sigs = vec![];
         assert_eq!(no_sigs_tx.sigs.len(), 0);
 
         // sign it N times
-        let mut mult_signature_tx = no_sigs_tx.clone();
+        let mut mult_signature_tx = no_sigs_tx;
         let n = 5;
         for (_pk, sk) in vec![tmelcrypt::ed25519_keygen(); n].iter() {
             mult_signature_tx = mult_signature_tx.signed_ed25519(*sk);
@@ -456,9 +489,9 @@ pub(crate) mod tests {
     #[rstest]
     fn test_sign_sigs_and_verify(valid_txx: Vec<Transaction>) {
         // Create a transaction from it which has no signatures
-        let valid_tx = valid_txx.iter().next().unwrap().clone();
+        let valid_tx = valid_txx.get(0).unwrap().clone();
         assert_ne!(valid_tx.sigs.len(), 0);
-        let mut no_sigs_tx = valid_tx.clone();
+        let mut no_sigs_tx = valid_tx;
         no_sigs_tx.sigs = vec![];
         assert_eq!(no_sigs_tx.sigs.len(), 0);
 
@@ -467,7 +500,7 @@ pub(crate) mod tests {
         let (pk2, sk2) = tmelcrypt::ed25519_keygen();
 
         // sign it
-        let mut tx = no_sigs_tx.clone();
+        let mut tx = no_sigs_tx;
         tx = tx.signed_ed25519(sk1);
         tx = tx.signed_ed25519(sk2);
 
@@ -475,8 +508,8 @@ pub(crate) mod tests {
         let sig1 = tx.sigs[0].clone();
         let sig2 = tx.sigs[1].clone();
 
-        pk1.verify(&tx.hash_nosigs().to_vec(), &sig1);
-        pk2.verify(&tx.hash_nosigs().to_vec(), &sig2);
+        pk1.verify(&tx.hash_nosigs().0.to_vec(), &sig1);
+        pk2.verify(&tx.hash_nosigs().0.to_vec(), &sig2);
 
         assert_eq!(tx.sigs.len(), 2);
     }
@@ -484,7 +517,7 @@ pub(crate) mod tests {
     #[rstest]
     fn test_total_output(valid_txx: Vec<Transaction>) {
         // create transaction
-        let mut valid_tx = valid_txx.iter().next().unwrap().clone();
+        let mut valid_tx = valid_txx.get(0).unwrap().clone();
         let (pk, _sk) = tmelcrypt::ed25519_keygen();
         let scr = melvm::Covenant::std_ed25519_pk_legacy(pk);
 
@@ -517,7 +550,7 @@ pub(crate) mod tests {
     #[rstest]
     fn test_script_as_map(valid_txx: Vec<Transaction>) {
         // create transaction
-        let valid_tx = valid_txx.iter().next().unwrap().clone();
+        let valid_tx = valid_txx.get(0).unwrap().clone();
         let (pk, _sk) = tmelcrypt::ed25519_keygen();
         let _scr = melvm::Covenant::std_ed25519_pk_legacy(pk);
 

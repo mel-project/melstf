@@ -1,5 +1,9 @@
 pub use crate::stake::*;
-use crate::{constants::*, melvm::Covenant, preseal_melmint, CoinDataHeight, Denom};
+use crate::{
+    constants::*,
+    melvm::{CovHash, Covenant},
+    preseal_melmint, CoinDataHeight, Denom, TxHash,
+};
 use crate::{smtmapping::*, CoinData};
 use crate::{transaction as txn, CoinID};
 use applytx::StateHandle;
@@ -38,9 +42,9 @@ pub enum StateError {
     #[error("insufficient fees (requires {0})")]
     InsufficientFees(u128),
     #[error("referenced non-existent script {:?}", .0)]
-    NonexistentScript(tmelcrypt::HashVal),
+    NonexistentScript(CovHash),
     #[error("does not satisfy script {:?}", .0)]
-    ViolatesScript(tmelcrypt::HashVal),
+    ViolatesScript(CovHash),
     #[error("invalid sequential proof of work")]
     InvalidMelPoW,
     #[error("auction bid at wrong time")]
@@ -61,7 +65,7 @@ pub struct GenesisConfig {
     /// Initial supply of free money. This will be put at the zero-zero coin ID.
     pub init_coindata: CoinData,
     /// Mapping of initial stakeholders.
-    pub stakes: BTreeMap<HashVal, StakeDoc>,
+    pub stakes: BTreeMap<TxHash, StakeDoc>,
     /// Initial fee pool, in micromels. Half-life is approximately 15 days.
     pub init_fee_pool: u128,
 }
@@ -88,7 +92,7 @@ impl GenesisConfig {
                 .map(|v| Ed25519PK(hex::decode(v).unwrap().try_into().unwrap()))
                 .map(|pubkey| {
                     (
-                        tmelcrypt::hash_single(&pubkey.0), // A nonexistent hash
+                        tmelcrypt::hash_single(&pubkey.0).into(), // A nonexistent hash
                         StakeDoc {
                             pubkey,
                             e_start: 0,
@@ -121,7 +125,7 @@ impl GenesisConfig {
             .map(|v| Ed25519PK(hex::decode(v).unwrap().try_into().unwrap()))
             .map(|pubkey| {
                 (
-                    tmelcrypt::hash_single(&pubkey.0),
+                    tmelcrypt::hash_single(&pubkey.0).into(),
                     StakeDoc {
                         pubkey,
                         e_start: 0,
@@ -163,8 +167,8 @@ pub struct State {
 
     pub height: u64,
     pub history: SmtMapping<u64, Header>,
-    pub coins: SmtMapping<txn::CoinID, txn::CoinDataHeight>,
-    pub transactions: SmtMapping<HashVal, txn::Transaction>,
+    pub coins: SmtMapping<CoinID, CoinDataHeight>,
+    pub transactions: SmtMapping<TxHash, Transaction>,
 
     pub fee_pool: u128,
     pub fee_multiplier: u128,
@@ -173,7 +177,7 @@ pub struct State {
     pub dosc_speed: u128,
     pub pools: PoolMapping,
 
-    pub stakes: SmtMapping<HashVal, StakeDoc>,
+    pub stakes: StakeMapping,
 }
 
 fn read_bts(r: &mut impl Read, n: usize) -> Option<Vec<u8>> {
@@ -203,7 +207,6 @@ impl State {
                 for (k, v) in cfg.stakes.iter() {
                     stakes.insert(*k, *v);
                 }
-                dbg!(stakes.root_hash());
                 stakes
             },
         };
@@ -282,7 +285,7 @@ impl State {
     pub fn test_genesis(
         db: novasmt::Forest,
         start_micro_mels: u128,
-        start_cov_hash: tmelcrypt::HashVal,
+        start_cov_hash: CovHash,
         start_stakeholders: &[tmelcrypt::Ed25519PK],
     ) -> Self {
         assert!(start_micro_mels <= MAX_COINVAL);
@@ -296,7 +299,7 @@ impl State {
         };
         empty.coins.insert(
             txn::CoinID {
-                txhash: tmelcrypt::HashVal([0; 32]),
+                txhash: TxHash(Default::default()),
                 index: 0,
             },
             txn::CoinDataHeight {
@@ -306,7 +309,7 @@ impl State {
         );
         for (i, stakeholder) in start_stakeholders.iter().enumerate() {
             empty.stakes.insert(
-                tmelcrypt::hash_single(&(i as u128).to_be_bytes()),
+                tmelcrypt::hash_single(&(i as u128).to_be_bytes()).into(),
                 StakeDoc {
                     pubkey: *stakeholder,
                     e_start: 0,
@@ -419,11 +422,6 @@ impl State {
 pub struct SealedState(State, Option<ProposerAction>);
 
 impl SealedState {
-    /// Forcibly creates a SealedState.
-    pub(crate) fn force_new(state: State) -> Self {
-        Self(state, None)
-    }
-
     /// Returns a reference to the State finalized within.
     pub fn inner_ref(&self) -> &State {
         &self.0
@@ -535,7 +533,7 @@ impl SealedState {
     pub fn confirm(
         self,
         cproof: ConsensusProof,
-        previous_state: Option<&State>,
+        _previous_state: Option<&State>,
     ) -> Option<ConfirmedState> {
         Some(ConfirmedState {
             state: self,
@@ -550,7 +548,7 @@ pub struct ProposerAction {
     /// Change in fee. This is scaled to the proper size.
     pub fee_multiplier_delta: i8,
     /// Where to sweep fees.
-    pub reward_dest: HashVal,
+    pub reward_dest: CovHash,
 }
 
 pub type ConsensusProof = BTreeMap<Ed25519PK, Vec<u8>>;
@@ -632,33 +630,6 @@ impl Block {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AbbrBlock {
     pub header: Header,
-    pub txhashes: BTreeSet<HashVal>,
+    pub txhashes: BTreeSet<TxHash>,
     pub proposer_action: Option<ProposerAction>,
-}
-
-#[cfg(test)]
-pub(crate) mod tests {
-    use crate::testing::fixtures::valid_txx;
-    use crate::Transaction;
-    use rstest::*;
-
-    #[rstest]
-    #[ignore]
-    fn test_apply_tx_batch_not_well_formed_errors() {
-        // create a batch of transactions
-        // ensure at least one of them is not well formed
-        // call apply tx batch
-        // verify you get a state error
-    }
-
-    #[rstest]
-    #[ignore]
-    fn test_apply_tx_batch(valid_txx: Vec<Transaction>) {
-        // create a batch of transactions
-        // valid_txx()
-        // call apply tx batch
-
-        // verify result is ok
-    }
-    // TODO: add tests for State::seal & SealedState methods
 }

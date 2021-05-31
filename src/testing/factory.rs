@@ -2,23 +2,20 @@
 // For structs which don't have serialization support
 // build the structure manually or use a custom function with sub-factories where appropriate.
 
-use std::collections::HashMap;
-
 use crate::{
-    melvm, Block, CoinData, CoinDataHeight, CoinID, Denom, GenesisConfig, Header, NetID,
-    ProposerAction, StakeDoc, Transaction, TxKind,
+    melvm, CoinData, CoinDataHeight, CoinID, Denom, ProposerAction, StakeDoc, Transaction, TxKind,
 };
 
 beaver::define! {
     pub CoinIDFactory (CoinID) {
-        txhash -> |_| tmelcrypt::HashVal::random(),
+        txhash -> |_| tmelcrypt::HashVal::random().into(),
         index -> |n| n as u8,
     }
 }
 
 beaver::define! {
     pub CoinDataFactory (CoinData) {
-        covhash -> |_| tmelcrypt::HashVal::random(),
+        covhash -> |_| tmelcrypt::HashVal::random().into(),
         value -> |n| n as u128,
         denom -> |_| Denom::Mel,
         additional_data -> |_| vec![],
@@ -66,7 +63,7 @@ beaver::define! {
 beaver::define! {
     pub ProposerActionFactory (ProposerAction) {
         fee_multiplier_delta -> |n| n as i8,
-        reward_dest -> |_| tmelcrypt::HashVal::random(),
+        reward_dest -> |_| tmelcrypt::HashVal::random().into(),
     }
 }
 

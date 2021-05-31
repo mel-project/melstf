@@ -7,7 +7,7 @@ use tmelcrypt::HashVal;
 
 use crate::{
     melpow, melvm::CovenantEnv, CoinData, CoinDataHeight, CoinID, Denom, NetID, StakeDoc, State,
-    StateError, Transaction, TxKind, COVHASH_DESTROY, STAKE_EPOCH,
+    StateError, Transaction, TxHash, TxKind, COVHASH_DESTROY, STAKE_EPOCH,
 };
 
 use super::melmint;
@@ -17,19 +17,19 @@ pub(crate) struct StateHandle<'a> {
     state: &'a mut State,
 
     coin_cache: DashMap<CoinID, Option<CoinDataHeight>>,
-    transactions_cache: DashMap<HashVal, Transaction>,
+    transactions_cache: DashMap<TxHash, Transaction>,
 
     fee_pool_cache: u128,
     tips_cache: u128,
 
     dosc_speed_cache: Mutex<u128>,
 
-    stakes_cache: DashMap<HashVal, StakeDoc>,
+    stakes_cache: DashMap<TxHash, StakeDoc>,
 }
 
-fn faucet_dedup_pseudocoin(txhash: HashVal) -> CoinID {
+fn faucet_dedup_pseudocoin(txhash: TxHash) -> CoinID {
     CoinID {
-        txhash: tmelcrypt::hash_keyed(b"fdp", &txhash),
+        txhash: tmelcrypt::hash_keyed(b"fdp", &txhash.0).into(),
         index: 0,
     }
 }
@@ -70,7 +70,7 @@ impl<'a> StateHandle<'a> {
                                 denom: Denom::Mel,
                                 value: 0,
                                 additional_data: vec![],
-                                covhash: HashVal::default(),
+                                covhash: HashVal::default().into(),
                             },
                             height: 0,
                         },
@@ -331,7 +331,7 @@ impl<'a> StateHandle<'a> {
         self.coin_cache.insert(coin_id, None);
     }
 
-    fn get_stake(&self, txhash: HashVal) -> Option<StakeDoc> {
+    fn get_stake(&self, txhash: TxHash) -> Option<StakeDoc> {
         if let Some(cached_sd) = self.stakes_cache.get(&txhash).as_deref() {
             return Some(cached_sd).cloned();
         }
@@ -341,7 +341,7 @@ impl<'a> StateHandle<'a> {
         None
     }
 
-    fn set_stake(&self, txhash: HashVal, sdoc: StakeDoc) {
+    fn set_stake(&self, txhash: TxHash, sdoc: StakeDoc) {
         self.stakes_cache.insert(txhash, sdoc);
     }
 }

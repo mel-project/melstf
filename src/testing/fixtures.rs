@@ -38,12 +38,12 @@ pub fn keypair() -> (Ed25519PK, Ed25519SK) {
 
 #[fixture]
 pub fn genesis_covenant_keypair() -> (Ed25519PK, Ed25519SK) {
-    (*GENESIS_COVENANT_KEYPAIR).clone()
+    *GENESIS_COVENANT_KEYPAIR
 }
 
 #[fixture]
 pub fn genesis_covenant(genesis_covenant_keypair: (Ed25519PK, Ed25519SK)) -> Covenant {
-    melvm::Covenant::std_ed25519_pk_legacy(genesis_covenant_keypair.0).clone()
+    melvm::Covenant::std_ed25519_pk_legacy(genesis_covenant_keypair.0)
 }
 
 #[fixture]
@@ -96,7 +96,7 @@ pub fn genesis_state(
     // Insert stake holders
     for (i, (&keypair, &syms_staked)) in genesis_stakeholders.iter().enumerate() {
         state.stakes.insert(
-            tmelcrypt::hash_single(&(i as u64).to_be_bytes()),
+            tmelcrypt::hash_single(&(i as u64).to_be_bytes()).into(),
             StakeDoc {
                 pubkey: keypair.0,
                 e_start: GENESIS_EPOCH_START,
@@ -141,7 +141,7 @@ pub fn tx_send_mel_from_seed_coin(
     let tx = tx_factory.build(|tx| {
         tx.fee = fee;
         tx.scripts = vec![genesis_covenant.clone()];
-        tx.inputs = vec![genesis_mel_coin_id.clone()];
+        tx.inputs = vec![genesis_mel_coin_id];
         tx.outputs = vec![coin_data_receiver.clone(), coin_data_change.clone()];
     });
 
@@ -159,10 +159,10 @@ pub fn valid_txx(keypair: (Ed25519PK, Ed25519SK)) -> Vec<Transaction> {
     let (pk, sk) = keypair;
     let scr = melvm::Covenant::std_ed25519_pk_legacy(pk);
     let mut trng = rand::thread_rng();
-    let txx = random_valid_txx(
+    random_valid_txx(
         &mut trng,
         CoinID {
-            txhash: tmelcrypt::HashVal([0; 32]),
+            txhash: tmelcrypt::HashVal([0; 32]).into(),
             index: 0,
         },
         CoinData {
@@ -174,6 +174,5 @@ pub fn valid_txx(keypair: (Ed25519PK, Ed25519SK)) -> Vec<Transaction> {
         sk,
         &scr,
         1577000,
-    );
-    txx
+    )
 }
