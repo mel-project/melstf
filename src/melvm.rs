@@ -39,7 +39,7 @@ pub struct Covenant(#[serde(with = "stdcode::hex")] pub Vec<u8>);
 /// A pointer to the currently executing instruction.
 type ProgramCounter = usize;
 
-/// A newtype representing the hash of a covenant.
+/// An address is the hash of a MelVM covenant. In Bitcoin terminology, all Themelio addresses are "pay-to-script-hash".
 #[derive(
     Copy,
     Clone,
@@ -55,15 +55,22 @@ type ProgramCounter = usize;
     Deserialize,
     Arbitrary,
 )]
-pub struct CovHash(pub HashVal);
+pub struct Address(pub HashVal);
 
-impl Display for CovHash {
+impl Address {
+    /// Returns the address that represents destruction of a coin.
+    pub fn coin_destroy() -> Self {
+        Address(Default::default())
+    }
+}
+
+impl Display for Address {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.to_addr().fmt(f)
     }
 }
 
-impl FromStr for CovHash {
+impl FromStr for Address {
     type Err = AddrParseError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         HashVal::from_addr(s)
@@ -122,7 +129,7 @@ impl Covenant {
     }
 
     /// The hash of the covenant.
-    pub fn hash(&self) -> CovHash {
+    pub fn hash(&self) -> Address {
         tmelcrypt::hash_single(&self.0).into()
     }
 

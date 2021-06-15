@@ -6,8 +6,10 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use tmelcrypt::HashVal;
 
 use crate::{
-    melpow, melvm::CovenantEnv, CoinData, CoinDataHeight, CoinID, Denom, NetID, StakeDoc, State,
-    StateError, Transaction, TxHash, TxKind, COVHASH_DESTROY, STAKE_EPOCH,
+    melpow,
+    melvm::{Address, CovenantEnv},
+    CoinData, CoinDataHeight, CoinID, Denom, NetID, StakeDoc, State, StateError, Transaction,
+    TxHash, TxKind, STAKE_EPOCH,
 };
 
 use super::melmint;
@@ -217,7 +219,7 @@ impl<'a> StateHandle<'a> {
                 coin_data.denom = Denom::Custom(tx.hash_nosigs());
             }
             // if covenant hash is zero, this destroys the coins permanently
-            if coin_data.covhash != COVHASH_DESTROY {
+            if coin_data.covhash != Address::coin_destroy() {
                 self.set_coin(
                     CoinID {
                         txhash: tx.hash_nosigs(),

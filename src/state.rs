@@ -1,7 +1,7 @@
 pub use crate::stake::*;
 use crate::{
     constants::*,
-    melvm::{CovHash, Covenant},
+    melvm::{Address, Covenant},
     preseal_melmint, CoinDataHeight, Denom, TxHash,
 };
 use crate::{smtmapping::*, CoinData};
@@ -42,9 +42,9 @@ pub enum StateError {
     #[error("insufficient fees (requires {0})")]
     InsufficientFees(u128),
     #[error("referenced non-existent script {:?}", .0)]
-    NonexistentScript(CovHash),
+    NonexistentScript(Address),
     #[error("does not satisfy script {:?}", .0)]
-    ViolatesScript(CovHash),
+    ViolatesScript(Address),
     #[error("invalid sequential proof of work")]
     InvalidMelPoW,
     #[error("auction bid at wrong time")]
@@ -285,7 +285,7 @@ impl State {
     pub fn test_genesis(
         db: novasmt::Forest,
         start_micro_mels: u128,
-        start_cov_hash: CovHash,
+        start_cov_hash: Address,
         start_stakeholders: &[tmelcrypt::Ed25519PK],
     ) -> Self {
         assert!(start_micro_mels <= MAX_COINVAL);
@@ -548,7 +548,7 @@ pub struct ProposerAction {
     /// Change in fee. This is scaled to the proper size.
     pub fee_multiplier_delta: i8,
     /// Where to sweep fees.
-    pub reward_dest: CovHash,
+    pub reward_dest: Address,
 }
 
 pub type ConsensusProof = BTreeMap<Ed25519PK, Vec<u8>>;

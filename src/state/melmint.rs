@@ -73,11 +73,9 @@ fn create_builtins(mut state: State) -> State {
     let mut def = PoolState::new_empty();
     let _ = def.deposit(MICRO_CONVERTER * 1000, MICRO_CONVERTER * 1000);
     if state.pools.get(&Denom::Sym).0.is_none() {
-        dbg!(state.pools.root_hash());
         state.pools.insert(Denom::Sym, def)
     }
     if state.pools.get(&Denom::NomDosc).0.is_none() {
-        dbg!(state.pools.root_hash());
         state.pools.insert(Denom::NomDosc, def)
     }
     assert!(state.pools.val_iter().count() >= 2);
@@ -93,7 +91,7 @@ fn process_swaps(mut state: State) -> State {
         .filter(|tx| {
             tx.kind == TxKind::Swap
                 && !tx.outputs.is_empty()
-                && state.coins.get(&tx.get_coinid(0)).0.is_some()
+                && state.coins.get(&tx.output_coinid(0)).0.is_some()
                 && state
                     .pools
                     .get(&Denom::from_bytes(&tx.data).unwrap_or(Denom::NewCoin)) // Newcoin is something that never should appear
@@ -148,7 +146,7 @@ fn process_swaps(mut state: State) -> State {
         let (mel_withdrawn, tok_withdrawn) = pool_state.swap_many(total_mels, total_toks);
 
         for mut swap in relevant_swaps {
-            let correct_coinid = swap.get_coinid(0);
+            let correct_coinid = swap.output_coinid(0);
 
             if swap.outputs[0].denom == Denom::Mel {
                 log::warn!("swapping output {}-0 to {:?}", swap.hash_nosigs(), pool);
@@ -187,8 +185,8 @@ fn process_deposits(mut state: State) -> State {
         .filter(|tx| {
             tx.kind == TxKind::LiqDeposit
                 && tx.outputs.len() >= 2
-                && state.coins.get(&tx.get_coinid(0)).0.is_some()
-                && state.coins.get(&tx.get_coinid(1)).0.is_some()
+                && state.coins.get(&tx.output_coinid(0)).0.is_some()
+                && state.coins.get(&tx.output_coinid(1)).0.is_some()
                 && (tx.outputs[0].denom == Denom::Mel && tx.outputs[1].denom.to_bytes() == tx.data)
         })
         .collect::<Vec<_>>();
@@ -227,7 +225,7 @@ fn process_deposits(mut state: State) -> State {
         };
         // divvy up the liqs
         for mut deposit in relevant_txx {
-            let correct_coinid = deposit.get_coinid(0);
+            let correct_coinid = deposit.output_coinid(0);
             let my_mtsqrt = deposit.outputs[0]
                 .value
                 .sqrt()
@@ -242,7 +240,7 @@ fn process_deposits(mut state: State) -> State {
                     height: state.height,
                 },
             );
-            state.coins.delete(&deposit.get_coinid(1));
+            state.coins.delete(&deposit.output_coinid(1));
         }
     }
     state
@@ -257,7 +255,7 @@ fn process_withdrawals(mut state: State) -> State {
         .filter(|tx| {
             tx.kind == TxKind::LiqWithdraw
                 && tx.outputs.len() == 1
-                && state.coins.get(&tx.get_coinid(0)).0.is_some()
+                && state.coins.get(&tx.output_coinid(0)).0.is_some()
                 && state
                     .pools
                     .get(&Denom::from_bytes(&tx.data).unwrap_or(Denom::NewCoin))
@@ -289,8 +287,8 @@ fn process_withdrawals(mut state: State) -> State {
         state.pools.insert(pool, pool_state);
         // divvy up the mel and tok
         for mut deposit in relevant_txx {
-            let coinid_0 = deposit.get_coinid(0);
-            let coinid_1 = deposit.get_coinid(1);
+            let coinid_0 = deposit.output_coinid(0);
+            let coinid_1 = deposit.output_coinid(1);
 
             let my_liqs = deposit.outputs[0].value;
             deposit.outputs[0].denom = Denom::Mel;

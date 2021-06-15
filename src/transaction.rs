@@ -1,6 +1,6 @@
 use crate::{
     constants::*,
-    melvm::{self, CovHash, Covenant},
+    melvm::{self, Address, Covenant},
     HexBytes,
 };
 use arbitrary::Arbitrary;
@@ -149,7 +149,7 @@ impl Transaction {
     }
 
     /// scripts_as_map returns a HashMap mapping the hash of each script in the transaction to the script itself.
-    pub fn script_as_map(&self) -> HashMap<CovHash, Covenant> {
+    pub fn script_as_map(&self) -> HashMap<Address, Covenant> {
         let mut toret = HashMap::new();
         for s in self.scripts.iter() {
             toret.insert(s.hash(), s.clone());
@@ -186,8 +186,8 @@ impl Transaction {
             .saturating_sub(input_boon)
     }
 
-    /// Convenience function that constructs a CoinID that points to a certain index of this function. Panics if the index is out of bounds.
-    pub fn get_coinid(&self, index: u8) -> CoinID {
+    /// Convenience function that constructs a CoinID that points to a certain output of this transaction. Panics if the index is out of bounds.
+    pub fn output_coinid(&self, index: u8) -> CoinID {
         assert!((index as usize) < self.outputs.len());
         CoinID {
             txhash: self.hash_nosigs(),
@@ -280,7 +280,7 @@ impl CoinID {
 /// The data bound to a coin ID. Contains the "contents" of a coin, i.e. its constraint hash, value, and coin type.
 pub struct CoinData {
     #[serde(with = "stdcode::asstr")]
-    pub covhash: CovHash,
+    pub covhash: Address,
     pub value: u128,
     // #[serde(with = "stdcode::hex")]
     pub denom: Denom,
