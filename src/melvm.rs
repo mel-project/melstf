@@ -483,7 +483,7 @@ impl Executor {
             // If done with body of loop
             if self.pc > state.end {
                 // But not finished with all iterations, and did not jump outside the loop
-                if state.iterations_left > 0 && self.pc.saturating_sub(state.end) == 1 {
+                if state.iterations_left > 0  && self.pc.saturating_sub(state.end) == 1 {
                     log::trace!("{} iterations left", state.iterations_left);
                     // loop again
                     state.iterations_left -= 1;
@@ -746,9 +746,12 @@ impl Executor {
             OpCode::Loop(iterations, op_count) => {
                 if *iterations > 0 && *op_count > 0 {
                     self.loop_state.push(LoopState {
+                        // start after loop instruction
                         begin: self.pc + 1,
+                        // final op is inclusive
                         end: self.pc + *op_count as usize,
-                        iterations_left: *iterations,
+                        // dec happens after an iteration so -1 for first loop
+                        iterations_left: *iterations-1,
                     });
                 } else {
                     return None;
