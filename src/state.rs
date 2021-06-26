@@ -24,6 +24,8 @@ use self::melswap::PoolMapping;
 mod applytx;
 pub(crate) mod melmint;
 pub(crate) mod melswap;
+mod poolkey;
+pub use poolkey::PoolKey;
 
 // TODO: Move these structs into state package
 // ie: split this into modules such as
