@@ -520,9 +520,8 @@ impl SealedState {
                 block.header,
                 transactions.len()
             );
-            assert!(basis.inner_ref().pools.val_iter().count() >= 2);
-            for pool_info in basis.inner_ref().pools.val_iter() {
-                dbg!(pool_info);
+            for tx in block.transactions.iter() {
+                log::warn!("{:?}", tx);
             }
             return Err(StateError::WrongHeader);
         }

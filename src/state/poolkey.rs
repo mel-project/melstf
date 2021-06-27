@@ -3,12 +3,24 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::Denom;
 
 /// A key identifying a pool.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct PoolKey {
     pub left: Denom,
     pub right: Denom,
 }
 
 impl PoolKey {
+    /// Pool key with something and mel
+    pub fn mel_and(other: Denom) -> Self {
+        assert!(other != Denom::Mel);
+        Self {
+            left: other,
+            right: Denom::Mel,
+        }
+        .to_canonical()
+        .unwrap()
+    }
+
     /// Ensures that this pool key is canonical. If the two denoms are the same, returns None.
     #[allow(clippy::comparison_chain)]
     pub fn to_canonical(&self) -> Option<Self> {
@@ -27,6 +39,11 @@ impl PoolKey {
         }
     }
 
+    /// Denomination of the pool liquidity token
+    pub fn liq_token_denom(&self) -> Denom {
+        Denom::Custom(tmelcrypt::hash_keyed(b"liq", self.to_bytes()).into())
+    }
+
     fn to_bytes(&self) -> Vec<u8> {
         if self.left == Denom::Mel {
             self.right.to_bytes()
@@ -39,7 +56,7 @@ impl PoolKey {
         }
     }
 
-    fn from_bytes(vec: &[u8]) -> Option<Self> {
+    pub fn from_bytes(vec: &[u8]) -> Option<Self> {
         if vec.len() > 32 {
             // first 32 bytes must all be zero
             if vec[..32] != [0u8; 32] {

@@ -1,6 +1,6 @@
 [package]
 name = "themelio-stf"
-version = "0.4.0-alpha.0"
+version = "0.3.3"
 authors = ["Themelio Labs"]
 edition = "2018"
 
@@ -34,6 +34,7 @@ genawaiter= {version = "0.99.1", default-features=false, features=[]}
 num= "0.3.1"
 novasmt= "0.1.6"
 smallvec = "1.6.1"
+tap="1"
 rustc-hash = "1.1.0"
 
 [target.'cfg(fuzzing)'.dependencies] 
