@@ -354,7 +354,7 @@ impl State {
         self = preseal_melmint(self);
         assert!(self.pools.val_iter().count() >= 2);
 
-        let after_tip_901 = self.height >= 42700;
+        let after_tip_901 = self.height >= TIP_901_HEIGHT;
 
         // apply the proposer action
         if let Some(action) = action {

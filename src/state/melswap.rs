@@ -27,20 +27,21 @@ impl PoolState {
 
     /// Executes a swap.
     #[must_use]
-    pub fn swap_many(&mut self, mels: u128, tokens: u128) -> (u128, u128) {
+    pub fn swap_many(&mut self, lefts: u128, rights: u128) -> (u128, u128) {
         // deposit the tokens. intentionally saturate so that "overflowing" tokens are drained.
-        self.lefts = self.lefts.saturating_add(mels);
-        self.rights = self.rights.saturating_add(tokens);
+        self.lefts = self.lefts.saturating_add(lefts);
+        self.rights = self.rights.saturating_add(rights);
         // "indiscriminately" use this new price to calculate how much of the other token to withdraw.
         let exchange_rate = Ratio::new(BigInt::from(self.lefts), BigInt::from(self.rights));
-        let tok_to_withdraw: u128 = (BigRational::from(BigInt::from(mels)) / exchange_rate.clone()
+        let rights_to_withdraw: u128 = (BigRational::from(BigInt::from(lefts))
+            / exchange_rate.clone()
             * BigRational::from(BigInt::from(995))
             / BigRational::from(BigInt::from(1000)))
         .floor()
         .numer()
         .try_into()
         .unwrap_or(u128::MAX);
-        let mel_to_withdraw: u128 = (BigRational::from(BigInt::from(tokens))
+        let lefts_to_withdraw: u128 = (BigRational::from(BigInt::from(rights))
             * exchange_rate
             * BigRational::from(BigInt::from(995))
             / BigRational::from(BigInt::from(1000)))
@@ -49,29 +50,29 @@ impl PoolState {
         .try_into()
         .unwrap_or(u128::MAX);
         // do the withdrawal
-        self.lefts -= mel_to_withdraw;
-        self.rights -= tok_to_withdraw;
+        self.lefts -= lefts_to_withdraw;
+        self.rights -= rights_to_withdraw;
 
         self.price_accum = self
             .price_accum
             .overflowing_add((self.lefts).saturating_mul(MICRO_CONVERTER) / (self.rights))
             .0;
 
-        (mel_to_withdraw, tok_to_withdraw)
+        (lefts_to_withdraw, rights_to_withdraw)
     }
 
     /// Deposits a set amount into the state, returning how many liquidity tokens were created.
     #[must_use]
-    pub fn deposit(&mut self, mels: u128, tokens: u128) -> u128 {
+    pub fn deposit(&mut self, lefts: u128, rights: u128) -> u128 {
         if self.liqs == 0 {
-            self.lefts = mels;
-            self.rights = tokens;
-            self.liqs = mels;
-            mels
+            self.lefts = lefts;
+            self.rights = rights;
+            self.liqs = lefts;
+            lefts
         } else {
             // we first truncate mels and tokens because they can't overflow the state
-            let mels = mels.saturating_add(self.lefts) - self.lefts;
-            let tokens = tokens.saturating_add(self.rights) - self.rights;
+            let mels = lefts.saturating_add(self.lefts) - self.lefts;
+            let tokens = rights.saturating_add(self.rights) - self.rights;
 
             let delta_l_squared = (BigRational::from(BigInt::from(self.liqs).pow(2))
                 * Ratio::new(
@@ -95,14 +96,15 @@ impl PoolState {
         }
     }
 
-    /// Redeems a set amount of liquidity tokens, returning mels and tokens.
+    /// Redeems a set amount of liquidity tokens, returning lefts and rights.
     #[must_use]
     pub fn withdraw(&mut self, liqs: u128) -> (u128, u128) {
         assert!(self.liqs >= liqs);
         let withdrawn_fraction = Ratio::new(BigUint::from(liqs), BigUint::from(self.liqs));
-        let mels =
+        let lefts =
             Ratio::new(BigUint::from(self.lefts), BigUint::from(1u32)) * withdrawn_fraction.clone();
-        let toks = Ratio::new(BigUint::from(self.rights), BigUint::from(1u32)) * withdrawn_fraction;
+        let rights =
+            Ratio::new(BigUint::from(self.rights), BigUint::from(1u32)) * withdrawn_fraction;
         self.liqs -= liqs;
         if self.liqs == 0 {
             let toret = (self.lefts, self.rights);
@@ -111,8 +113,8 @@ impl PoolState {
             toret
         } else {
             let toret = (
-                mels.floor().numer().try_into().unwrap(),
-                toks.floor().numer().try_into().unwrap(),
+                lefts.floor().numer().try_into().unwrap(),
+                rights.floor().numer().try_into().unwrap(),
             );
             self.lefts -= toret.0;
             self.rights -= toret.1;
@@ -120,7 +122,7 @@ impl PoolState {
         }
     }
 
-    /// Returns the implied price as a fraction.
+    /// Returns the implied price as lefts per right.
     #[must_use]
     pub fn implied_price(&self) -> BigRational {
         Ratio::new(BigInt::from(self.lefts), BigInt::from(self.rights))

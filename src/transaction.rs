@@ -305,7 +305,7 @@ pub enum Denom {
 }
 
 impl Denom {
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(self) -> Vec<u8> {
         match self {
             Self::Mel => b"m".to_vec(),
             Self::Sym => b"s".to_vec(),

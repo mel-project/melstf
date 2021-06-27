@@ -14,7 +14,7 @@ repository = "https://github.com/themeliolabs/themelio-stf"
 [dependencies]
 tmelcrypt="0.1"
 stdcode="0.1.1"
-cached={version="0.23.0", default-features=false, features=["proc_macro"]}
+# cached={version="0.23.0", default-features=false, features=["proc_macro"]}
 num_enum = "0.5.1"
 hex= "0.4.3"
 thiserror= "1.0.25"
@@ -36,9 +36,11 @@ novasmt= "0.1.6"
 smallvec = "1.6.1"
 tap="1"
 rustc-hash = "1.1.0"
+stacker="0.1"
 
 [target.'cfg(fuzzing)'.dependencies] 
 honggfuzz="0.5"
+env_logger="0.8"
 
 [dev-dependencies]
 rstest = "0.6.4"
@@ -50,6 +52,7 @@ quickcheck_macros = "0.9.1"
 logos= "0.11.4"
 rand= "0.7.3"
 criterion="0.3"
+
 
 [[bench]]
 name = "bench"

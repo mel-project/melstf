@@ -10,6 +10,12 @@ pub struct PoolKey {
 }
 
 impl PoolKey {
+    /// Pool key with two tokens
+    pub fn new(x: Denom, y: Denom) -> Self {
+        assert!(x != y);
+        Self { left: x, right: y }.to_canonical().unwrap()
+    }
+
     /// Pool key with something and mel
     pub fn mel_and(other: Denom) -> Self {
         assert!(other != Denom::Mel);
@@ -23,7 +29,7 @@ impl PoolKey {
 
     /// Ensures that this pool key is canonical. If the two denoms are the same, returns None.
     #[allow(clippy::comparison_chain)]
-    pub fn to_canonical(&self) -> Option<Self> {
+    pub fn to_canonical(self) -> Option<Self> {
         if self.left.to_bytes() < self.right.to_bytes() {
             Some(Self {
                 left: self.left,
@@ -44,7 +50,7 @@ impl PoolKey {
         Denom::Custom(tmelcrypt::hash_keyed(b"liq", self.to_bytes()).into())
     }
 
-    fn to_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(self) -> Vec<u8> {
         if self.left == Denom::Mel {
             self.right.to_bytes()
         } else if self.right == Denom::Mel {
