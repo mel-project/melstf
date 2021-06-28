@@ -1,7 +1,7 @@
 use crate::{
     constants::*,
     melvm::{self, Address, Covenant},
-    HexBytes,
+    HexBytes, PoolKey,
 };
 use arbitrary::Arbitrary;
 use derive_more::{Display, From, Into};
@@ -302,6 +302,47 @@ pub enum Denom {
 
     NewCoin,
     Custom(TxHash),
+}
+
+impl Display for Denom {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s: String = match self {
+            Denom::Mel => "MEL".into(),
+            Denom::Sym => "SYM".into(),
+            Denom::NomDosc => "N-DOSC".into(),
+            Denom::NewCoin => "(NEWCOIN)".into(),
+            Denom::Custom(hash) => format!("CUSTOM-{}", hash.0),
+        };
+        s.fmt(f)
+    }
+}
+
+#[derive(Error, Debug, Clone)]
+pub enum ParseDenomError {
+    #[error("Invalid denom name")]
+    Invalid,
+    #[error("hex error ({0})")]
+    HexError(#[from] hex::FromHexError),
+}
+
+impl FromStr for Denom {
+    type Err = ParseDenomError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "MEL" => Ok(Denom::Mel),
+            "SYM" => Ok(Denom::Sym),
+            "N-DOSC" => Ok(Denom::NomDosc),
+            "(NEWCOIN)" => Ok(Denom::NewCoin),
+            other => {
+                let splitted = other.split('-').collect::<Vec<_>>();
+                if splitted.len() != 2 || splitted[0] != "CUSTOM" {
+                    return Err(ParseDenomError::Invalid);
+                }
+                let hv: HashVal = splitted[1].parse()?;
+                Ok(Denom::Custom(TxHash(hv)))
+            }
+        }
+    }
 }
 
 impl Denom {

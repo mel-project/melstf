@@ -1,12 +1,33 @@
+use std::{fmt::Display, str::FromStr};
+
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::Denom;
+use crate::{Denom, ParseDenomError};
 
 /// A key identifying a pool.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct PoolKey {
     pub left: Denom,
     pub right: Denom,
+}
+
+impl Display for PoolKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        format!("{}/{}", self.left, self.right).fmt(f)
+    }
+}
+
+impl FromStr for PoolKey {
+    type Err = ParseDenomError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let splitted = s.split('/').collect::<Vec<_>>();
+        if splitted.len() != 2 {
+            return Err(ParseDenomError::Invalid);
+        }
+        let left: Denom = splitted[0].parse()?;
+        let right: Denom = splitted[1].parse()?;
+        Ok(PoolKey { left, right })
+    }
 }
 
 impl PoolKey {
