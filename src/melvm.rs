@@ -184,6 +184,7 @@ impl Covenant {
             Some(u16::from_be_bytes(z))
         };
         match bcode.pop()? {
+            0x09 => output.push(OpCode::Noop),
             // arithmetic
             0x10 => output.push(OpCode::Add),
             0x11 => output.push(OpCode::Sub),
@@ -277,6 +278,7 @@ impl Covenant {
 
     fn assemble_one(op: &OpCode, output: &mut Vec<u8>) -> Option<()> {
         match op {
+            OpCode::Noop => output.push(0x09),
             // arithmetic
             OpCode::Add => output.push(0x10),
             OpCode::Sub => output.push(0x11),
@@ -519,6 +521,7 @@ impl Executor {
     pub fn do_op(&mut self, op: &OpCode) -> Option<ProgramCounter> {
         log::trace!("do_op {:?}", op);
         match op {
+            OpCode::Noop => {},
             // arithmetic
             OpCode::Add => self.do_binop(|x, y| {
                 Some(Value::Int(x.into_int()?.overflowing_add(y.into_int()?).0))
@@ -815,6 +818,7 @@ impl Executor {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum OpCode {
+    Noop,
     // arithmetic
     Add,
     Sub,
@@ -900,6 +904,7 @@ fn opcodes_car_weight(opcodes: &[OpCode]) -> (u128, &[OpCode]) {
     }
     let (first, rest) = opcodes.split_first().unwrap();
     match first {
+        OpCode::Noop => (1, rest),
         // handle loops specially
         OpCode::Loop(iters, body_len) => {
             let mut sum = 0u128;
