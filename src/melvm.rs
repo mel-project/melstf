@@ -485,7 +485,7 @@ impl Executor {
             // If done with body of loop
             if self.pc > state.end {
                 // But not finished with all iterations, and did not jump outside the loop
-                if state.iterations_left > 0  && self.pc.saturating_sub(state.end) == 1 {
+                if state.iterations_left > 0 && self.pc.saturating_sub(state.end) == 1 {
                     log::trace!("{} iterations left", state.iterations_left);
                     // loop again
                     state.iterations_left -= 1;
@@ -521,7 +521,7 @@ impl Executor {
     pub fn do_op(&mut self, op: &OpCode) -> Option<ProgramCounter> {
         log::trace!("do_op {:?}", op);
         match op {
-            OpCode::Noop => {},
+            OpCode::Noop => {}
             // arithmetic
             OpCode::Add => self.do_binop(|x, y| {
                 Some(Value::Int(x.into_int()?.overflowing_add(y.into_int()?).0))
@@ -565,7 +565,7 @@ impl Executor {
             OpCode::Gt => self.do_binop(|x, y| {
                 let x = x.into_int()?;
                 let y = y.into_int()?;
-                if !x > y {
+                if x > y {
                     Some(Value::Int(1u32.into()))
                 } else {
                     Some(Value::Int(0u32.into()))
@@ -754,7 +754,7 @@ impl Executor {
                         // final op is inclusive
                         end: self.pc + *op_count as usize,
                         // dec happens after an iteration so -1 for first loop
-                        iterations_left: *iterations-1,
+                        iterations_left: *iterations - 1,
                     });
                 } else {
                     return None;
