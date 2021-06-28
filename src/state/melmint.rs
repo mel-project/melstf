@@ -118,14 +118,14 @@ fn process_swaps(mut state: State) -> State {
         .filter_map(|tx| {
             (!tx.outputs.is_empty()).then(|| ())?; // ensure not empty
             state.coins.get(&tx.output_coinid(0)).0?; // ensure that first output is unspent
-            let pool_key = PoolKey::from_bytes(&tx.data)?; // ensure that data contains a pool key
-            state.pools.get(&pool_key).0?; // ensure that pool key points to a valid pool
+            let pool_key = dbg!(PoolKey::from_bytes(&tx.data))?; // ensure that data contains a pool key
+            dbg!(state.pools.get(&pool_key).0)?; // ensure that pool key points to a valid pool
             (tx.outputs[0].denom == pool_key.left || tx.outputs[0].denom == pool_key.right)
                 .then(|| ())?; // ensure that the first output is either left or right
             Some(tx)
         })
         .collect::<Vec<_>>();
-    log::trace!("{} swap requests", swap_reqs.len());
+    eprintln!("{} swap requests", swap_reqs.len());
     // find the pools mentioned
     let mut pools = swap_reqs
         .iter()

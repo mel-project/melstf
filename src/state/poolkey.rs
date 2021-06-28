@@ -89,7 +89,7 @@ impl PoolKey {
             if vec[..32] != [0u8; 32] {
                 return None;
             }
-            let lr: (Denom, Denom) = stdcode::deserialize(&vec).ok()?;
+            let lr: (Denom, Denom) = stdcode::deserialize(&vec[32..]).ok()?;
             Some(Self {
                 left: lr.0,
                 right: lr.1,
