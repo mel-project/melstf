@@ -255,7 +255,6 @@ impl<'a> StateHandle<'a> {
         // get difficulty and proof
         let (difficulty, proof_bytes): (u32, Vec<u8>) =
             stdcode::deserialize(&tx.data).map_err(|_| StateError::MalformedTx)?;
-        dbg!(proof_bytes.len());
         let proof = melpow::Proof::from_bytes(&proof_bytes)
             .ok_or(StateError::MalformedTx)
             .unwrap();
@@ -292,7 +291,7 @@ impl<'a> StateHandle<'a> {
             .get(&Denom::NomDosc)
             .cloned()
             .unwrap_or_default();
-        if dbg!(total_dosc_output) > dbg!(reward_nom) {
+        if total_dosc_output > reward_nom {
             return Err(StateError::InvalidMelPoW);
         }
         Ok(())
