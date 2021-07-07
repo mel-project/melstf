@@ -22,11 +22,13 @@ impl FromStr for PoolKey {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let splitted = s.split('/').collect::<Vec<_>>();
         if splitted.len() != 2 {
-            return Err(ParseDenomError::Invalid);
+            Err(ParseDenomError::Invalid)
+        } else {
+            let left: Denom = splitted[0].parse()?;
+            let right: Denom = splitted[1].parse()?;
+
+            Ok(PoolKey { left, right })
         }
-        let left: Denom = splitted[0].parse()?;
-        let right: Denom = splitted[1].parse()?;
-        Ok(PoolKey { left, right })
     }
 }
 
@@ -87,13 +89,14 @@ impl PoolKey {
         if vec.len() > 32 {
             // first 32 bytes must all be zero
             if vec[..32] != [0u8; 32] {
-                return None;
+                None
+            } else {
+                let lr: (Denom, Denom) = stdcode::deserialize(&vec[32..]).ok()?;
+                Some(Self {
+                    left: lr.0,
+                    right: lr.1,
+                })
             }
-            let lr: (Denom, Denom) = stdcode::deserialize(&vec[32..]).ok()?;
-            Some(Self {
-                left: lr.0,
-                right: lr.1,
-            })
         } else {
             Some(
                 Self {
