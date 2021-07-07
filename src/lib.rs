@@ -10,22 +10,28 @@
 //! - `StakeDoc`, which every `State` includes, encapsulates the Symphonia epoch-based stake information.
 //! - `SmtMapping` represents a type-safe SMT-backed mapping that is extensively used within the crate.
 mod constants;
+pub mod melpow;
 pub mod melvm;
+mod smtmapping;
 mod stake;
 mod state;
-pub use state::melmint::*;
 mod transaction;
+
 pub use constants::*;
-mod smtmapping;
-use arbitrary::Arbitrary;
-use serde::{Deserialize, Serialize};
 pub use smtmapping::*;
-pub use state::melswap::PoolState;
 pub use state::*;
-use std::ops::{Deref, DerefMut};
+pub use state::melmint::*;
+pub use state::melswap::PoolState;
 pub use transaction::*;
 
-pub mod melpow;
+use std::ops::{Deref, DerefMut};
+
+use arbitrary::Arbitrary;
+use serde::{Deserialize, Serialize};
+
+
+
+
 
 #[cfg(test)]
 #[macro_use]
