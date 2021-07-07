@@ -101,10 +101,12 @@ impl Covenant {
 
     /// Checks with respect to a manually instantiated initial heap.
     pub fn check_raw(&self, args: &[Value]) -> bool {
-        let mut hm = HashMap::new();
-        for (i, v) in args.iter().enumerate() {
-            hm.insert(i as u16, v.clone());
-        }
+        let mut hm: HashMap<u16, Value> = HashMap::new();
+
+        args.iter().enumerate().for_each(|(index, value)| {
+            hm.insert(index as u16, value.clone());
+        });
+
         if let Ok(ops) = self.to_ops() {
             Executor::new(ops, hm).run_to_end()
         } else {
