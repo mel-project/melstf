@@ -112,7 +112,7 @@ fn create_builtins(mut state: State) -> State {
 /// Process swaps.
 fn process_swaps(mut state: State) -> State {
     // find the swap requests
-    let swap_reqs = state
+    let swap_reqs: Vec<Transaction> = state
         .transactions
         .val_iter()
         .filter_map(|tx| {
@@ -124,13 +124,14 @@ fn process_swaps(mut state: State) -> State {
                 .then(|| ())?; // ensure that the first output is either left or right
             Some(tx)
         })
-        .collect::<Vec<_>>();
+        .collect::<Vec<Transaction>>();
     log::trace!("{} swap requests", swap_reqs.len());
     // find the pools mentioned
     let mut pools = swap_reqs
         .iter()
         .map(|tx| PoolKey::from_bytes(&tx.data).expect("swap_reqs contains invalid poolkey"))
         .collect::<Vec<PoolKey>>();
+
     pools.sort_unstable();
     pools.dedup();
     // for each pool
@@ -237,11 +238,11 @@ fn process_deposits(mut state: State) -> State {
             .cloned()
             .collect();
         // sum up total lefts and rights
-        let total_lefts = relevant_txx
+        let total_lefts: u128 = relevant_txx
             .iter()
             .map(|tx| tx.outputs[0].value)
             .fold(0u128, |a, b| a.saturating_add(b));
-        let total_rights = relevant_txx
+        let total_rights: u128 = relevant_txx
             .iter()
             .map(|tx| tx.outputs[1].value)
             .fold(0u128, |a, b| a.saturating_add(b));
@@ -283,7 +284,7 @@ fn process_deposits(mut state: State) -> State {
 /// Process deposits.
 fn process_withdrawals(mut state: State) -> State {
     // find the withdrawal requests
-    let withdraw_reqs = state
+    let withdraw_reqs: Vec<Transaction> = state
         .transactions
         .val_iter()
         .filter_map(|tx| {
@@ -295,7 +296,7 @@ fn process_withdrawals(mut state: State) -> State {
             state.pools.get(&pool_key).0?;
             (tx.outputs[0].denom == pool_key.liq_token_denom()).then(|| tx)
         })
-        .collect::<Vec<_>>();
+        .collect::<Vec<Transaction>>();
     // find the pools mentioned
     let pools = withdraw_reqs
         .iter()
