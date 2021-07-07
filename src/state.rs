@@ -206,9 +206,11 @@ impl State {
             pools: SmtMapping::new(empty_tree.clone()),
             stakes: {
                 let mut stakes = SmtMapping::new(empty_tree);
-                for (k, v) in cfg.stakes.iter() {
-                    stakes.insert(*k, *v);
-                }
+
+                cfg.stakes.iter().for_each(|(key, value)| {
+                    stakes.insert(*key, *value);
+                });
+
                 stakes
             },
         };
@@ -299,6 +301,7 @@ impl State {
             denom: Denom::Mel,
             additional_data: vec![],
         };
+
         empty.coins.insert(
             txn::CoinID {
                 txhash: TxHash(Default::default()),
@@ -309,9 +312,10 @@ impl State {
                 height: 0,
             },
         );
-        for (i, stakeholder) in start_stakeholders.iter().enumerate() {
+
+        start_stakeholders.iter().enumerate().for_each(|(index, stakeholder)| {
             empty.stakes.insert(
-                tmelcrypt::hash_single(&(i as u128).to_be_bytes()).into(),
+                tmelcrypt::hash_single(&(index as u128).to_be_bytes()).into(),
                 StakeDoc {
                     pubkey: *stakeholder,
                     e_start: 0,
@@ -319,7 +323,8 @@ impl State {
                     syms_staked: 100,
                 },
             );
-        }
+        });
+
         empty
     }
     /// Applies a single transaction.
@@ -479,17 +484,18 @@ impl SealedState {
 
     /// Returns the final state represented as a "block" (header + transactions).
     pub fn to_block(&self) -> Block {
-        let mut txx = im::HashSet::new();
-        for tx in self.0.transactions.val_iter() {
-            txx.insert(tx);
-        }
-        // self check since im sometimes is buggy
-        for tx in self.0.transactions.val_iter() {
-            assert!(txx.contains(&tx));
-        }
+        let mut transactions = im::HashSet::new();
+
+        self.0.transactions.val_iter().for_each(|transaction| {
+            transactions.insert(transaction.clone());
+
+            // self check since im sometimes is buggy
+            assert!(transactions.contains(&transaction));
+        });
+
         Block {
             header: self.header(),
-            transactions: txx,
+            transactions: transactions,
             proposer_action: self.1,
         }
     }
@@ -520,12 +526,15 @@ impl SealedState {
                 block.header,
                 transactions.len()
             );
-            for tx in block.transactions.iter() {
-                log::warn!("{:?}", tx);
-            }
-            return Err(StateError::WrongHeader);
+
+            block.transactions.iter().for_each(|transaction| {
+                log::warn!("{:?}", transaction);
+            });
+
+            Err(StateError::WrongHeader)
+        } else {
+            Ok(basis)
         }
-        Ok(basis)
     }
 
     /// Confirms a state with a given consensus proof. If called with a second argument, this function is supposed to be called to *verify* the consensus proof.
