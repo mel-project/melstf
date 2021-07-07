@@ -139,10 +139,13 @@ impl Transaction {
     /// total_outputs returns a HashMap mapping each type of coin to its total value. Fees will be included in COINTYPE_TMEL.
     pub fn total_outputs(&self) -> HashMap<Denom, u128> {
         let mut toret = HashMap::new();
-        for output in self.outputs.iter() {
+
+        self.outputs.iter().for_each(|output| {
             let old = *toret.get(&output.denom).unwrap_or(&0);
+
             toret.insert(output.denom, old + output.value);
-        }
+        });
+
         let old = *toret.get(&Denom::Mel).unwrap_or(&0);
         toret.insert(Denom::Mel, old + self.fee);
         toret
@@ -150,11 +153,9 @@ impl Transaction {
 
     /// scripts_as_map returns a HashMap mapping the hash of each script in the transaction to the script itself.
     pub fn script_as_map(&self) -> HashMap<Address, Covenant> {
-        let mut toret = HashMap::new();
-        for s in self.scripts.iter() {
-            toret.insert(s.hash(), s.clone());
-        }
-        toret
+        self.scripts.iter().map(|script| {
+            (script.hash(), script.clone())
+        }).collect::<HashMap<Address, Covenant>>()
     }
 
     /// Returns the minimum fee of the transaction at a given fee multiplier, with a given "ballast".
