@@ -58,11 +58,11 @@ fn do_math_int(op: &OpCode, args: &[u128]) -> Option<Value> {
     do_math(op, &i_args[..])
 }
 
-fn test_math_int(op: &OpCode, args: &[u128]) -> Result<bool, TestError> {
+fn test_math_int(op: &OpCode, args: &[u128]) -> bool {
     let val = do_math_int(op, &args[..2]);
     match val {
-      Some(p) => Ok(p == args[2].into()),
-      None => Err(TestError::new(&*format!("Opcode {:?} with args {:?} crashed melvm!!", op, args))),
+      Some(p) => p == args[2].into(),
+      None => false,
     } 
 }
 
@@ -73,40 +73,32 @@ fn test_noop() {
 }
 
 #[test]
-fn test_add() -> Result<(), TestError>{
-    assert!(test_math_int(&OpCode::Add, &[1, 2, 3])?);
-    assert!(!test_math_int(&OpCode::Add, &[1, 2, 4])?);
-    Ok(())
+fn test_add(){
+    assert!(test_math_int(&OpCode::Add, &[1, 2, 3]));
+    assert!(!test_math_int(&OpCode::Add, &[1, 2, 4]));
 }
 #[test]
-fn test_sub() -> Result<(), TestError>{
-    assert!(test_math_int(&OpCode::Sub, &[1, 1, 0])?);
-    assert!(test_math_int(&OpCode::Sub, &[1, 2, 1])?);
-    assert!(!test_math_int(&OpCode::Sub, &[1, 2, 4])?);
+fn test_sub(){
+    assert!(test_math_int(&OpCode::Sub, &[1, 1, 0]));
+    assert!(test_math_int(&OpCode::Sub, &[1, 2, 1]));
+    assert!(!test_math_int(&OpCode::Sub, &[1, 2, 4]));
 
-    let res = do_math_int(&OpCode::Sub, &[1, 0]);
-
-    match res {
-      Some(p) => {
-        assert!(p == Value::Int(U256::MAX));
-        Ok(())
-      },
-      None => Err(TestError::new("Subtracting doesn't overflow properly!!")),
-    }
+    let res = do_math_int(&OpCode::Sub, &[1, 0])
+    .expect("Subtracting doesn't overflow properly!!");
+    assert!(res == Value::Int(U256::MAX));
 }
 
 #[test]
-fn test_mul()-> Result<(), TestError> {
-    assert!(test_math_int(&OpCode::Mul, &[1, 1, 1])?);
-    assert!(test_math_int(&OpCode::Mul, &[4, 2, 8])?);
-    assert!(!test_math_int(&OpCode::Mul, &[1, 2, 4])?);
-    Ok(())
+fn test_mul() {
+    assert!(test_math_int(&OpCode::Mul, &[1, 1, 1]));
+    assert!(test_math_int(&OpCode::Mul, &[4, 2, 8]));
+    assert!(!test_math_int(&OpCode::Mul, &[1, 2, 4]));
 }   
 
 #[test]
-fn test_div()-> Result<(), TestError> {
-    assert!(test_math_int(&OpCode::Div, &[2, 2, 1])?);
-    assert!(test_math_int(&OpCode::Div, &[2, 4, 2])?);
+fn test_div() {
+    assert!(test_math_int(&OpCode::Div, &[2, 2, 1]));
+    assert!(test_math_int(&OpCode::Div, &[2, 4, 2]));
 
     // division by 0 should fail; if Some was returned something is wrong!
     assert!({
@@ -115,14 +107,13 @@ fn test_div()-> Result<(), TestError> {
         }
         else{true}
     });
-    Ok(())
 }
 
 #[test]
-fn test_rem()-> Result<(), TestError> {
-    assert!(test_math_int(&OpCode::Rem, &[1, 1, 0])?);
-    assert!(test_math_int(&OpCode::Rem, &[2, 4, 0])?);
-    assert!(!test_math_int(&OpCode::Rem, &[2, 1, 2])?);
+fn test_rem() {
+    assert!(test_math_int(&OpCode::Rem, &[1, 1, 0]));
+    assert!(test_math_int(&OpCode::Rem, &[2, 4, 0]));
+    assert!(!test_math_int(&OpCode::Rem, &[2, 1, 2]));
 
     assert!({
         if let Some(_) = do_math_int(&OpCode::Rem, &[0, 0]){
@@ -130,5 +121,4 @@ fn test_rem()-> Result<(), TestError> {
         }
         else{true}
     });
-    Ok(())
 }  
