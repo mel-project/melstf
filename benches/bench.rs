@@ -61,13 +61,6 @@ fn zerofee_state() -> State {
 
 static TEST_INPUT: Lazy<Vec<Transaction>> = Lazy::new(|| generate_txx(1000));
 
-fn sequential_apply() {
-    let mut init = zerofee_state();
-    for tx in TEST_INPUT.iter() {
-        init.apply_tx(tx).unwrap()
-    }
-}
-
 fn parallel_apply() {
     let mut init = zerofee_state();
     init.apply_tx_batch(&TEST_INPUT).unwrap();

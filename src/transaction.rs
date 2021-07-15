@@ -1,7 +1,7 @@
 use crate::{
     constants::*,
     melvm::{self, Address, Covenant},
-    HexBytes, PoolKey,
+    HexBytes,
 };
 use arbitrary::Arbitrary;
 use derive_more::{Display, From, Into};
