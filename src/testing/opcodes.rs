@@ -37,7 +37,7 @@ pub fn exec_from_args(args: &[Value]) -> Executor {
     Executor::new(hm)
 }
 
-fn do_math_ops(ops: &[&OpCode; 3]) -> Option<Value> {
+fn run_ops(ops: &[OpCode]) -> Option<Value> {
     let mut ex = exec_from_args(&[]);
     println!("Trying {:?}", ops);
 
@@ -49,19 +49,21 @@ fn do_math_ops(ops: &[&OpCode; 3]) -> Option<Value> {
     ex.stack.pop()
 }
 
-fn do_math(op: &OpCode, args: &[U256]) -> Option<Value> {
-    do_math_ops(&[&OpCode::PushI(args[0]), &OpCode::PushI(args[1]), op])
+fn do_op_with_args(op: OpCode, args: &[U256]) -> Option<Value> {
+    let mut i_args: Vec<OpCode> = args.into_iter().map(|x| OpCode::PushI(x.clone())).collect();
+    i_args.push(op);
+    run_ops(&i_args)
 }
 
-fn do_math_int(op: &OpCode, args: &[u128]) -> Option<Value> {
+fn do_op_with_args_int(op: OpCode, args: &[u128]) -> Option<Value> {
     let i_args: Vec<U256> = args.into_iter().map(|x| U256::from(x.clone())).collect();
-    do_math(op, &i_args[..])
+    do_op_with_args(op, &i_args[..])
 }
 
-fn test_math_int(op: &OpCode, args: &[u128]) -> bool {
-    let val = do_math_int(op, &args[..2]);
+fn test_ops_int(op: OpCode, args: &[u128]) -> bool {
+    let val = do_op_with_args_int(op, &args[..args.len()-1]);
     match val {
-      Some(p) => p == args[2].into(),
+      Some(p) => p == args[args.len()-1].into(),
       None => false,
     } 
 }
@@ -74,35 +76,35 @@ fn test_noop() {
 
 #[test]
 fn test_add(){
-    assert!(test_math_int(&OpCode::Add, &[1, 2, 3]));
-    assert!(!test_math_int(&OpCode::Add, &[1, 2, 4]));
+    assert!(test_ops_int(OpCode::Add, &[1, 2, 3]));
+    assert!(!test_ops_int(OpCode::Add, &[1, 2, 4]));
 }
 #[test]
 fn test_sub(){
-    assert!(test_math_int(&OpCode::Sub, &[1, 1, 0]));
-    assert!(test_math_int(&OpCode::Sub, &[1, 2, 1]));
-    assert!(!test_math_int(&OpCode::Sub, &[1, 2, 4]));
+    assert!(test_ops_int(OpCode::Sub, &[1, 1, 0]));
+    assert!(test_ops_int(OpCode::Sub, &[1, 2, 1]));
+    assert!(!test_ops_int(OpCode::Sub, &[1, 2, 4]));
 
-    let res = do_math_int(&OpCode::Sub, &[1, 0])
+    let res = do_op_with_args_int(OpCode::Sub, &[1, 0])
     .expect("Subtracting doesn't overflow properly!!");
     assert!(res == Value::Int(U256::MAX));
 }
 
 #[test]
 fn test_mul() {
-    assert!(test_math_int(&OpCode::Mul, &[1, 1, 1]));
-    assert!(test_math_int(&OpCode::Mul, &[4, 2, 8]));
-    assert!(!test_math_int(&OpCode::Mul, &[1, 2, 4]));
+    assert!(test_ops_int(OpCode::Mul, &[1, 1, 1]));
+    assert!(test_ops_int(OpCode::Mul, &[4, 2, 8]));
+    assert!(!test_ops_int(OpCode::Mul, &[1, 2, 4]));
 }   
 
 #[test]
 fn test_div() {
-    assert!(test_math_int(&OpCode::Div, &[2, 2, 1]));
-    assert!(test_math_int(&OpCode::Div, &[2, 4, 2]));
+    assert!(test_ops_int(OpCode::Div, &[2, 2, 1]));
+    assert!(test_ops_int(OpCode::Div, &[2, 4, 2]));
 
     // division by 0 should fail; if Some was returned something is wrong!
     assert!({
-        if let Some(_) = do_math_int(&OpCode::Div, &[0, 0]){
+        if let Some(_) = do_op_with_args_int(OpCode::Div, &[0, 0]){
             false
         }
         else{true}
@@ -111,14 +113,81 @@ fn test_div() {
 
 #[test]
 fn test_rem() {
-    assert!(test_math_int(&OpCode::Rem, &[1, 1, 0]));
-    assert!(test_math_int(&OpCode::Rem, &[2, 4, 0]));
-    assert!(!test_math_int(&OpCode::Rem, &[2, 1, 2]));
+    assert!(test_ops_int(OpCode::Rem, &[1, 1, 0]));
+    assert!(test_ops_int(OpCode::Rem, &[2, 4, 0]));
+    assert!(!test_ops_int(OpCode::Rem, &[2, 1, 2]));
 
     assert!({
-        if let Some(_) = do_math_int(&OpCode::Rem, &[0, 0]){
+        if let Some(_) = do_op_with_args_int(OpCode::Rem, &[0, 0]){
             false
         }
         else{true}
     });
 }  
+
+// Logic tests
+
+#[test]
+fn test_and(){
+    assert!(test_ops_int(OpCode::And, &[1018,5, 0]));
+    assert!(!test_ops_int(OpCode::And, &[2,2,2 & 1]));
+}
+
+#[test]
+fn test_or(){
+    assert!(test_ops_int(OpCode::Or, &[1,2, 3 | 0]));
+    assert!(test_ops_int(OpCode::Or, &[2234,23642,2234 | 23642]));
+    assert!(test_ops_int(OpCode::Or, &[1018,5, 1023]));
+}
+
+#[test]
+fn test_xor(){
+    assert!(test_ops_int(OpCode::Xor, &[2,2, 0]));
+    assert!(!test_ops_int(OpCode::Xor, &[2,2, 1]));
+}
+
+#[test]
+fn test_eql(){
+    assert!(test_ops_int(OpCode::Eql, &[2,2,1]));
+    assert!(!test_ops_int(OpCode::Eql, &[2,2,0]));
+}
+
+#[test]
+fn test_not(){
+
+    {
+        let res = do_op_with_args_int(OpCode::Not, &[0])
+        .expect("Can't caclulate the bitwise inverse of 0!");
+        assert!(res == Value::Int(U256::MAX));
+    }
+    assert!(!test_ops_int(OpCode::Not, &[1,0]));
+}
+
+// comparators
+
+
+#[test]
+fn test_lt(){
+    // & args[1] < args[0]
+    assert!(test_ops_int(OpCode::Lt, &[1,0,1]));
+    assert!(test_ops_int(OpCode::Lt, &[0,1,0]));
+    assert!(!test_ops_int(OpCode::Lt, &[1,125,1]));
+    assert!(!test_ops_int(OpCode::Lt, &[654654,2121,0]));
+}
+#[test]
+fn test_gt(){
+    assert!(test_ops_int(OpCode::Gt, &[1,0,0]));
+    assert!(test_ops_int(OpCode::Gt, &[0,1,1]));
+    assert!(!test_ops_int(OpCode::Gt, &[1,125,0]));
+    assert!(!test_ops_int(OpCode::Gt, &[654654,2121,1]));
+}
+
+// bitshifts
+
+fn test_shr(){
+
+}
+
+fn test_shl(){
+
+}
