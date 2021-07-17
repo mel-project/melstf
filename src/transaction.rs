@@ -432,7 +432,7 @@ pub(crate) mod tests {
         };
 
         // Ensure transaction is not well formed
-        assert_eq!(invalid_tx.is_well_formed(), false);
+        assert!(!invalid_tx.is_well_formed());
     }
 
     #[rstest(
@@ -449,7 +449,7 @@ pub(crate) mod tests {
         };
 
         // Ensure transaction is not well formed
-        assert_eq!(invalid_tx.is_well_formed(), false);
+        assert!(invalid_tx.is_well_formed());
     }
 
     #[rstest(
@@ -470,7 +470,7 @@ pub(crate) mod tests {
         };
 
         // Ensure transaction is not well formed
-        assert_eq!(invalid_tx.is_well_formed(), false);
+        assert!(!invalid_tx.is_well_formed());
 
         // TODO: add case for input_count exceeding limit
     }

@@ -11,9 +11,9 @@ use tmelcrypt::HashVal;
 
 use self::{
     consts::{
-        ADDR_LAST_HEADER, ADDR_PARENT_ADDITIONAL_DATA, ADDR_PARENT_DENOM, ADDR_PARENT_HEIGHT,
-        ADDR_PARENT_INDEX, ADDR_PARENT_TXHASH, ADDR_PARENT_VALUE, ADDR_SELF_HASH,
-        ADDR_SPENDER_INDEX, ADDR_SPENDER_TX, ADDR_SPENDER_TXHASH,
+        HADDR_LAST_HEADER, HADDR_PARENT_ADDITIONAL_DATA, HADDR_PARENT_DENOM, HADDR_PARENT_HEIGHT,
+        HADDR_PARENT_INDEX, HADDR_PARENT_TXHASH, HADDR_PARENT_VALUE, HADDR_SELF_HASH,
+        HADDR_SPENDER_INDEX, HADDR_SPENDER_TX, HADDR_SPENDER_TXHASH,
     },
     opcode::{opcodes_weight, DecodeError, EncodeError, OpCode},
 };
@@ -122,7 +122,7 @@ impl Covenant {
         Covenant::from_ops(&[
             OpCode::PushI(0u32.into()),
             OpCode::PushI(6u32.into()),
-            OpCode::LoadImm(ADDR_SPENDER_TX),
+            OpCode::LoadImm(HADDR_SPENDER_TX),
             OpCode::VRef,
             OpCode::VRef,
             OpCode::PushB(pk.0.to_vec()),
@@ -135,9 +135,9 @@ impl Covenant {
     /// Returns a new ed25519 signature checking covenant, which checks the *nth* signature when spent as the nth input.
     pub fn std_ed25519_pk_new(pk: tmelcrypt::Ed25519PK) -> Self {
         Covenant::from_ops(&[
-            OpCode::LoadImm(ADDR_SPENDER_INDEX),
+            OpCode::LoadImm(HADDR_SPENDER_INDEX),
             OpCode::PushI(6u32.into()),
-            OpCode::LoadImm(ADDR_SPENDER_TX),
+            OpCode::LoadImm(HADDR_SPENDER_TX),
             OpCode::VRef,
             OpCode::VRef,
             OpCode::PushB(pk.0.to_vec()),
@@ -210,14 +210,14 @@ impl Executor {
 
     pub fn new_from_env(instrs: Vec<OpCode>, tx: Transaction, env: Option<CovenantEnv>) -> Self {
         let mut hm = HashMap::new();
-        hm.insert(ADDR_SPENDER_TXHASH, Value::from_bytes(&tx.hash_nosigs().0));
+        hm.insert(HADDR_SPENDER_TXHASH, Value::from_bytes(&tx.hash_nosigs().0));
         let tx_val = Value::from(tx);
-        hm.insert(ADDR_SPENDER_TX, tx_val);
+        hm.insert(HADDR_SPENDER_TX, tx_val);
         if let Some(env) = env {
             let CoinID { txhash, index } = &env.parent_coinid;
 
-            hm.insert(ADDR_PARENT_TXHASH, txhash.0.into());
-            hm.insert(ADDR_PARENT_INDEX, Value::Int(U256::from(*index)));
+            hm.insert(HADDR_PARENT_TXHASH, txhash.0.into());
+            hm.insert(HADDR_PARENT_INDEX, Value::Int(U256::from(*index)));
 
             let CoinDataHeight {
                 coin_data:
@@ -230,13 +230,13 @@ impl Executor {
                 height,
             } = &env.parent_cdh;
 
-            hm.insert(ADDR_SELF_HASH, covhash.0.into());
-            hm.insert(ADDR_PARENT_VALUE, (*value).into());
-            hm.insert(ADDR_PARENT_DENOM, (*denom).into());
-            hm.insert(ADDR_PARENT_ADDITIONAL_DATA, additional_data.clone().into());
-            hm.insert(ADDR_PARENT_HEIGHT, (*height).into());
-            hm.insert(ADDR_LAST_HEADER, Value::from(*env.last_header));
-            hm.insert(ADDR_SPENDER_INDEX, Value::from(env.spender_index as u64));
+            hm.insert(HADDR_SELF_HASH, covhash.0.into());
+            hm.insert(HADDR_PARENT_VALUE, (*value).into());
+            hm.insert(HADDR_PARENT_DENOM, (*denom).into());
+            hm.insert(HADDR_PARENT_ADDITIONAL_DATA, additional_data.clone().into());
+            hm.insert(HADDR_PARENT_HEIGHT, (*height).into());
+            hm.insert(HADDR_LAST_HEADER, Value::from(*env.last_header));
+            hm.insert(HADDR_SPENDER_INDEX, Value::from(env.spender_index as u64));
         }
 
         Executor::new(instrs, hm)
@@ -478,7 +478,7 @@ impl Executor {
                 })?,
                 OpCode::BRef => self.do_binop(|vec, idx| {
                     let idx = idx.into_u16()? as usize;
-                    Some(Value::Int(vec.into_bytes()?.get(idx)?.clone().into()))
+                    Some(Value::Int(vec.into_bytes()?.get(idx).copied()?.into()))
                 })?,
                 OpCode::BSet => self.do_triop(|vec, idx, value| {
                     let idx = idx.into_u16()? as usize;
@@ -592,9 +592,9 @@ pub enum Value {
 }
 
 impl Value {
-    fn into_bool(&self) -> bool {
+    fn into_bool(self) -> bool {
         match self {
-            Value::Int(v) => v != &U256::from(0u32),
+            Value::Int(v) => v != U256::from(0u32),
             _ => true,
         }
     }
