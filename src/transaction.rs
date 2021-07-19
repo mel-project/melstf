@@ -449,7 +449,7 @@ pub(crate) mod tests {
         };
 
         // Ensure transaction is not well formed
-        assert!(invalid_tx.is_well_formed());
+        assert!(!invalid_tx.is_well_formed());
     }
 
     #[rstest(

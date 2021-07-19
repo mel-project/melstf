@@ -33,7 +33,7 @@ impl StakeMapping {
                 }
             }
         }
-        target_votes / total_votes
+        dbg!(dbg!(target_votes) / dbg!(total_votes))
     }
 
     /// Filter out all the elements that no longer matter.
@@ -70,6 +70,7 @@ mod tests {
         // Create emtpy state
         let db = novasmt::Forest::new(novasmt::InMemoryBackend::default());
         let mut state = GenesisConfig::std_testnet().realize(&db);
+        state.stakes.clear();
 
         // Insert a mel coin into state so we can transact
         let start_micromels = 10000;
