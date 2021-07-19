@@ -259,6 +259,7 @@ impl OpCode {
             OPCODE_BPUSH => Ok(OpCode::BPush),
             OPCODE_BCONS => Ok(OpCode::BCons),
             // control flow
+            OPCODE_TYPEQ => Ok(OpCode::TypeQ),
             OPCODE_JMP => Ok(OpCode::Jmp(u16arg(input)?)),
             OPCODE_BEZ => Ok(OpCode::Bez(u16arg(input)?)),
             OPCODE_BNZ => Ok(OpCode::Bnz(u16arg(input)?)),

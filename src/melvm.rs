@@ -301,7 +301,11 @@ impl Executor {
     pub fn step(&mut self) -> Option<()> {
         let mut inner = || {
             let op = self.instrs.get(self.pc)?.clone();
-            log::trace!("do_op {:?}", op);
+            // eprintln!("OPS: {:?}", self.instrs);
+            // eprintln!("PC:  {}", self.pc);
+            // eprintln!("OP:  {:?}", op);
+            // eprintln!("STK: {:?}", self.stack);
+            // eprintln!();
             self.pc += 1;
             match op {
                 OpCode::Noop => {}
@@ -521,28 +525,28 @@ impl Executor {
                 OpCode::Bez(jgap) => {
                     let top = self.stack.pop()?;
                     if top == Value::Int(0u32.into()) {
-                        self.pc += 1 + jgap as usize;
+                        self.pc += jgap as usize;
                         return Some(());
                     }
                 }
                 OpCode::Bnz(jgap) => {
                     let top = self.stack.pop()?;
                     if top != Value::Int(0u32.into()) {
-                        self.pc += 1 + jgap as usize;
+                        self.pc += jgap as usize;
                         return Some(());
                     }
                 }
                 OpCode::Jmp(jgap) => {
-                    self.pc += 1 + jgap as usize;
+                    self.pc += jgap as usize;
                     return Some(());
                 }
                 OpCode::Loop(iterations, op_count) => {
                     if iterations > 0 && op_count > 0 {
                         self.loop_state.push(LoopState {
                             // start after loop instruction
-                            begin: self.pc + 1,
+                            begin: self.pc,
                             // final op is inclusive
-                            end: self.pc + op_count as usize,
+                            end: self.pc + op_count as usize - 1,
                             // dec happens after an iteration so -1 for first loop
                             iterations_left: iterations - 1,
                         });
