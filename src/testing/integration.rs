@@ -1,9 +1,8 @@
 // use rand::prelude::SliceRandom;
 
 // use crate::testing::factory::*;
-use crate::testing::utils::random_valid_txx;
-use crate::Denom;
-use crate::{melvm, CoinData, CoinID, SmtMapping, State, MICRO_CONVERTER};
+
+use crate::SmtMapping;
 
 // // Add fuzz params ranges for rstest (range of num swaps, diff liquidity, etc...)
 // #[rstest]
@@ -148,51 +147,51 @@ use crate::{melvm, CoinData, CoinID, SmtMapping, State, MICRO_CONVERTER};
 //     // // swap for another O states which chekcing liq constant and price are correct
 // }
 
-#[test]
-fn state_simple_order_independence() {
-    let db = novasmt::Forest::new(novasmt::InMemoryBackend::default());
-    let (pk, sk) = tmelcrypt::ed25519_keygen();
-    let scr = melvm::Covenant::std_ed25519_pk_legacy(pk);
-    let mut genesis = State::test_genesis(db, MICRO_CONVERTER * 1000, scr.hash(), &[]);
-    genesis.fee_multiplier = 0;
-    let first_block = genesis.seal(None);
-    let mut trng = rand::thread_rng();
-    let txx = random_valid_txx(
-        &mut trng,
-        CoinID {
-            txhash: tmelcrypt::HashVal([0; 32]).into(),
-            index: 0,
-        },
-        CoinData {
-            covhash: scr.hash(),
-            value: MICRO_CONVERTER * 1000,
-            denom: Denom::Mel,
-            additional_data: vec![],
-        },
-        sk,
-        &scr,
-        1577000,
-    );
-    println!("transactions generated");
-    let _seq_copy = {
-        let mut state = first_block.next_state();
-        for tx in txx.iter() {
-            state.apply_tx(tx).expect("failed application");
-        }
-        dbg!(state.seal(None).header()).hash()
-    };
-    // let copies: Vec<tmelcrypt::HashVal> = (0..8)
-    //     .map(|_i| {
-    //         let mut state = first_block.next_state();
-    //         txx.shuffle(&mut trng);
-    //         state.apply_tx_batch(&txx).expect("failed application");
-    //         state.seal(None).header().hash()
-    //     })
-    //     .collect();
-    // for c in copies {
-    //     assert_eq!(c, seq_copy);
-    // }
-}
+// #[test]
+// fn state_simple_order_independence() {
+//     let db = novasmt::Forest::new(novasmt::InMemoryBackend::default());
+//     let (pk, sk) = tmelcrypt::ed25519_keygen();
+//     let scr = melvm::Covenant::std_ed25519_pk_legacy(pk);
+//     let mut genesis = State::test_genesis(db, MICRO_CONVERTER * 1000, scr.hash(), &[]);
+//     genesis.fee_multiplier = 0;
+//     let first_block = genesis.seal(None);
+//     let mut trng = rand::thread_rng();
+//     let txx = random_valid_txx(
+//         &mut trng,
+//         CoinID {
+//             txhash: tmelcrypt::HashVal([0; 32]).into(),
+//             index: 0,
+//         },
+//         CoinData {
+//             covhash: scr.hash(),
+//             value: MICRO_CONVERTER * 1000,
+//             denom: Denom::Mel,
+//             additional_data: vec![],
+//         },
+//         sk,
+//         &scr,
+//         1577000,
+//     );
+//     println!("transactions generated");
+//     let _seq_copy = {
+//         let mut state = first_block.next_state();
+//         for tx in txx.iter() {
+//             state.apply_tx(tx).expect("failed application");
+//         }
+//         dbg!(state.seal(None).header()).hash()
+//     };
+//     // let copies: Vec<tmelcrypt::HashVal> = (0..8)
+//     //     .map(|_i| {
+//     //         let mut state = first_block.next_state();
+//     //         txx.shuffle(&mut trng);
+//     //         state.apply_tx_batch(&txx).expect("failed application");
+//     //         state.seal(None).header().hash()
+//     //     })
+//     //     .collect();
+//     // for c in copies {
+//     //     assert_eq!(c, seq_copy);
+//     // }
+// }
 
 // TODO: Create an integration/smp_mapping.rs integration test and move this there.
 #[test]

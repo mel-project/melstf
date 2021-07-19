@@ -1,9 +1,5 @@
 pub use crate::stake::*;
-use crate::{
-    constants::*,
-    melvm::{Address, Covenant},
-    preseal_melmint, CoinDataHeight, Denom, TxHash,
-};
+use crate::{constants::*, melvm::Address, preseal_melmint, CoinDataHeight, Denom, TxHash};
 use crate::{smtmapping::*, CoinData};
 use crate::{transaction as txn, CoinID};
 use applytx::StateHandle;
@@ -26,11 +22,6 @@ pub(crate) mod melmint;
 pub(crate) mod melswap;
 mod poolkey;
 pub use poolkey::PoolKey;
-
-// TODO: Move these structs into state package
-// ie: split this into modules such as
-// error.rs header.rs seal.rs propser.rs block.rs state.rs and lib
-// and put them into the state folder or rename state folder to blk folder
 
 #[derive(Error, Debug)]
 /// A error that happens while applying a transaction to a state
@@ -57,89 +48,6 @@ pub enum StateError {
     CoinLocked,
     #[error("duplicate transaction")]
     DuplicateTx,
-}
-
-/// Configuration of a genesis state. Serializable via serde.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct GenesisConfig {
-    /// What kind of network?
-    pub network: NetID,
-    /// Initial supply of free money. This will be put at the zero-zero coin ID.
-    pub init_coindata: CoinData,
-    /// Mapping of initial stakeholders.
-    pub stakes: BTreeMap<TxHash, StakeDoc>,
-    /// Initial fee pool, in micromels. Half-life is approximately 15 days.
-    pub init_fee_pool: u128,
-}
-
-impl GenesisConfig {
-    /// The "standard" mainnet genesis.
-    pub fn std_mainnet() -> Self {
-        Self {
-            network: NetID::Mainnet,
-            init_coindata: CoinData {
-                covhash: Covenant::std_ed25519_pk_legacy(Ed25519PK(
-                    hex::decode("7323dcb65513b84470a76339cdf0062d47d82e205e834f2d7159684a0cb3b5ba")
-                        .unwrap()
-                        .try_into()
-                        .unwrap(),
-                ))
-                .hash(),
-                value: 1000000 * MICRO_CONVERTER, // 1 million SYM
-                denom: Denom::Sym,
-                additional_data: vec![],
-            },
-            stakes: ["7323dcb65513b84470a76339cdf0062d47d82e205e834f2d7159684a0cb3b5ba"]
-                .iter()
-                .map(|v| Ed25519PK(hex::decode(v).unwrap().try_into().unwrap()))
-                .map(|pubkey| {
-                    (
-                        tmelcrypt::hash_single(&pubkey.0).into(), // A nonexistent hash
-                        StakeDoc {
-                            pubkey,
-                            e_start: 0,
-                            e_post_end: 3, // for the first two epochs (140 days)
-                            syms_staked: 1,
-                        },
-                    )
-                })
-                .collect(),
-            init_fee_pool: 6553600 * MICRO_CONVERTER, // 100 mel/day subsidy, decreasing rapidly
-        }
-    }
-    /// The "standard" testnet genesis.
-    pub fn std_testnet() -> Self {
-        Self {
-            network: NetID::Testnet,
-            init_coindata: CoinData {
-                covhash: Covenant::always_true().hash(),
-                value: 1 << 32,
-                denom: Denom::Mel,
-                additional_data: vec![],
-            },
-            stakes: [
-                "fae1ff56a62639c7959bf200465f4e06291e4e4dbd751cf4d2c13a8a6bea537c",
-                "2ae54755b2e98a3059c68334af97b38603032be53bb2a1a3a183ae0f9d3bdaaf",
-                "3aa3b5e2d64916a055da79635a4406999b66dfbe25afb10fa306aa01e42308a6",
-                "85e374cc3e4dbf47b9a9697126e2e2ae90011b78a54b84adeb2ffe516b79769a",
-            ]
-            .iter()
-            .map(|v| Ed25519PK(hex::decode(v).unwrap().try_into().unwrap()))
-            .map(|pubkey| {
-                (
-                    tmelcrypt::hash_single(&pubkey.0).into(),
-                    StakeDoc {
-                        pubkey,
-                        e_start: 0,
-                        e_post_end: 1 << 32,
-                        syms_staked: 1,
-                    },
-                )
-            })
-            .collect(),
-            init_fee_pool: 1 << 64,
-        }
-    }
 }
 
 /// Identifies a network.
@@ -189,40 +97,6 @@ fn read_bts(r: &mut impl Read, n: usize) -> Option<Vec<u8>> {
 }
 
 impl State {
-    /// Creates a new State from a config
-    pub fn genesis(db: &novasmt::Forest, cfg: GenesisConfig) -> Self {
-        let empty_tree = db.open_tree(HashVal::default().0).unwrap();
-        let mut new_state = Self {
-            network: cfg.network,
-            height: 0,
-            history: SmtMapping::new(empty_tree.clone()),
-            coins: SmtMapping::new(empty_tree.clone()),
-            transactions: SmtMapping::new(empty_tree.clone()),
-            fee_pool: cfg.init_fee_pool,
-            fee_multiplier: MICRO_CONVERTER,
-            tips: 0,
-
-            dosc_speed: MICRO_CONVERTER,
-            pools: SmtMapping::new(empty_tree.clone()),
-            stakes: {
-                let mut stakes = SmtMapping::new(empty_tree);
-                for (k, v) in cfg.stakes.iter() {
-                    stakes.insert(*k, *v);
-                }
-                stakes
-            },
-        };
-        // init micromels etc
-        new_state.coins.insert(
-            CoinID::zero_zero(),
-            CoinDataHeight {
-                height: 0,
-                coin_data: cfg.init_coindata,
-            },
-        );
-        new_state
-    }
-
     /// Generates an encoding of the state that, in conjunction with a SMT database, can recover the entire state.
     pub fn partial_encoding(&self) -> Vec<u8> {
         let mut out = Vec::new();
@@ -283,45 +157,6 @@ impl State {
         }
     }
 
-    /// Generates a test genesis state, with a given starting coin.
-    pub fn test_genesis(
-        db: novasmt::Forest,
-        start_micro_mels: u128,
-        start_cov_hash: Address,
-        start_stakeholders: &[tmelcrypt::Ed25519PK],
-    ) -> Self {
-        assert!(start_micro_mels <= MAX_COINVAL);
-        let mut empty = Self::new_empty_testnet(db);
-        // insert coin out of nowhere
-        let init_coin = txn::CoinData {
-            covhash: start_cov_hash,
-            value: start_micro_mels,
-            denom: Denom::Mel,
-            additional_data: vec![],
-        };
-        empty.coins.insert(
-            txn::CoinID {
-                txhash: TxHash(Default::default()),
-                index: 0,
-            },
-            txn::CoinDataHeight {
-                coin_data: init_coin,
-                height: 0,
-            },
-        );
-        for (i, stakeholder) in start_stakeholders.iter().enumerate() {
-            empty.stakes.insert(
-                tmelcrypt::hash_single(&(i as u128).to_be_bytes()).into(),
-                StakeDoc {
-                    pubkey: *stakeholder,
-                    e_start: 0,
-                    e_post_end: 1000000000,
-                    syms_staked: 100,
-                },
-            );
-        }
-        empty
-    }
     /// Applies a single transaction.
     pub fn apply_tx(&mut self, tx: &txn::Transaction) -> Result<(), StateError> {
         self.apply_tx_batch(std::slice::from_ref(tx))
@@ -396,25 +231,6 @@ impl State {
         }
         // create the finalized state
         SealedState(self, action)
-    }
-
-    // ----------- helpers start here ------------
-
-    pub(crate) fn new_empty_testnet(db: novasmt::Forest) -> Self {
-        let empty_tree = db.open_tree(Default::default()).unwrap();
-        State {
-            network: NetID::Testnet,
-            height: 0,
-            history: SmtMapping::new(empty_tree.clone()),
-            coins: SmtMapping::new(empty_tree.clone()),
-            transactions: SmtMapping::new(empty_tree.clone()),
-            fee_pool: 1000000,
-            fee_multiplier: 1000,
-            dosc_speed: 1,
-            tips: 0,
-            pools: SmtMapping::new(empty_tree.clone()),
-            stakes: SmtMapping::new(empty_tree),
-        }
     }
 }
 

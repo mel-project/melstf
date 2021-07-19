@@ -59,7 +59,7 @@ impl StakeMapping {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{melvm, CoinData, CoinDataHeight, CoinID};
+    use crate::{melvm, CoinData, CoinDataHeight, CoinID, GenesisConfig};
     use crate::{Denom, State};
     use rstest::rstest;
     use std::collections::HashMap;
@@ -69,7 +69,7 @@ mod tests {
     fn create_state(stakers: &HashMap<Ed25519SK, u128>, epoch_start: u64) -> State {
         // Create emtpy state
         let db = novasmt::Forest::new(novasmt::InMemoryBackend::default());
-        let mut state = State::new_empty_testnet(db);
+        let mut state = GenesisConfig::std_testnet().realize(&db);
 
         // Insert a mel coin into state so we can transact
         let start_micromels = 10000;

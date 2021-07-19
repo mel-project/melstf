@@ -51,10 +51,7 @@ fn zerofee_state() -> State {
         stakes: Default::default(),
         init_fee_pool: 0,
     };
-    let mut state = State::genesis(
-        &novasmt::Forest::new(novasmt::InMemoryBackend::default()),
-        cfg,
-    );
+    let mut state = cfg.realize(&novasmt::Forest::new(novasmt::InMemoryBackend::default()));
     state.fee_multiplier = 0;
     state
 }

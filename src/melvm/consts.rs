@@ -1,25 +1,25 @@
 /// Heap address where the transaction trying to spend the coin encumbered by this covenant (spender) is put
-pub const ADDR_SPENDER_TX: u16 = 0;
+pub const HADDR_SPENDER_TX: u16 = 0;
 /// Heap address where the spender's hash is put.
-pub const ADDR_SPENDER_TXHASH: u16 = 1;
+pub const HADDR_SPENDER_TXHASH: u16 = 1;
 /// Heap address where the *parent* (the transaction that created the coin now getting spent)'s hash is put
-pub const ADDR_PARENT_TXHASH: u16 = 2;
+pub const HADDR_PARENT_TXHASH: u16 = 2;
 /// Heap address where the index, at the parent, of the coin being spent is put. For example, if we are spending the third output of some transaction, `Heap[ADDR_PARENT_INDEX] = 2`.
-pub const ADDR_PARENT_INDEX: u16 = 3;
+pub const HADDR_PARENT_INDEX: u16 = 3;
 /// Heap address where the hash of the running covenant is put.
-pub const ADDR_SELF_HASH: u16 = 4;
+pub const HADDR_SELF_HASH: u16 = 4;
 /// Heap address where the face value of the coin being spent is put.
-pub const ADDR_PARENT_VALUE: u16 = 5;
+pub const HADDR_PARENT_VALUE: u16 = 5;
 /// Heap address where the denomination of the coin being spent is put.
-pub const ADDR_PARENT_DENOM: u16 = 6;
+pub const HADDR_PARENT_DENOM: u16 = 6;
 /// Heap address where the additional data of the coin being spent is put.
-pub const ADDR_PARENT_ADDITIONAL_DATA: u16 = 7;
+pub const HADDR_PARENT_ADDITIONAL_DATA: u16 = 7;
 /// Heap address where the height of the parent is put.
-pub const ADDR_PARENT_HEIGHT: u16 = 8;
+pub const HADDR_PARENT_HEIGHT: u16 = 8;
 /// Heap address where the "spender index" is put. For example, if this coin is spent as the first input of the spender, then `Heap[ADDR_SPENDER_INDEX] = 0`.
-pub const ADDR_SPENDER_INDEX: u16 = 9;
+pub const HADDR_SPENDER_INDEX: u16 = 9;
 /// Heap address where the header of the last block is put. If the covenant is being evaluated for a transaction in block N, this is the header of block N-1.
-pub const ADDR_LAST_HEADER: u16 = 10;
+pub const HADDR_LAST_HEADER: u16 = 10;
 
 pub(crate) const OPCODE_NOOP: u8 = 0x09;
 
@@ -73,7 +73,7 @@ pub(crate) const OPCODE_LOOP: u8 = 0xb0;
 
 pub(crate) const OPCODE_BTOI: u8 = 0xc0;
 pub(crate) const OPCODE_ITOB: u8 = 0xc1;
-pub(crate) const OPCODE_TYPEQ: u8 = 0xc1;
+pub(crate) const OPCODE_TYPEQ: u8 = 0xc2;
 
 pub(crate) const OPCODE_PUSHB: u8 = 0xf0;
 pub(crate) const OPCODE_PUSHI: u8 = 0xf1;

@@ -4,13 +4,16 @@ use rstest::*;
 
 use tmelcrypt::{Ed25519PK, Ed25519SK};
 
-use crate::testing::factory::{CoinDataFactory, CoinDataHeightFactory, TransactionFactory};
 use crate::testing::utils::*;
 use crate::{
     melvm, CoinData, CoinDataHeight, CoinID, StakeDoc, State, Transaction, MAX_COINVAL,
     MICRO_CONVERTER,
 };
 use crate::{melvm::Covenant, Denom};
+use crate::{
+    testing::factory::{CoinDataFactory, CoinDataHeightFactory, TransactionFactory},
+    GenesisConfig,
+};
 
 const GENESIS_MEL_SUPPLY: u128 = 21_000_000;
 const GENESIS_NUM_STAKERS: u64 = 10;
@@ -86,7 +89,7 @@ pub fn genesis_state(
     genesis_stakeholders: HashMap<(Ed25519PK, Ed25519SK), u128>,
 ) -> State {
     // Init empty state with db reference
-    let mut state = State::new_empty_testnet((*DB).clone());
+    let mut state = GenesisConfig::std_testnet().realize(&DB);
 
     // insert initial mel coin supply
     state
