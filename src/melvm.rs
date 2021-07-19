@@ -18,7 +18,7 @@ use self::{
     opcode::{opcodes_weight, DecodeError, EncodeError, OpCode},
 };
 mod consts;
-mod opcode;
+pub mod opcode;
 
 #[derive(Clone, Eq, PartialEq, Debug, Arbitrary, Serialize, Deserialize, Hash)]
 /// A MelVM covenant. Essentially, given a transaction that attempts to spend it, it either allows the transaction through or doesn't.
@@ -261,6 +261,9 @@ impl Executor {
         let x = stack.pop()?;
         stack.push(op(x)?);
         Some(())
+    }
+    pub fn pc(&self) -> ProgramCounter {
+        self.pc
     }
     /// Update program pointer state (for loops etc)
     fn update_pc_state(&mut self) {
