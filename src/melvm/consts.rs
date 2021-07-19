@@ -73,7 +73,7 @@ pub(crate) const OPCODE_LOOP: u8 = 0xb0;
 
 pub(crate) const OPCODE_BTOI: u8 = 0xc0;
 pub(crate) const OPCODE_ITOB: u8 = 0xc1;
-pub(crate) const OPCODE_TYPEQ: u8 = 0xc1;
+pub(crate) const OPCODE_TYPEQ: u8 = 0xc2;
 
 pub(crate) const OPCODE_PUSHB: u8 = 0xf0;
 pub(crate) const OPCODE_PUSHI: u8 = 0xf1;
