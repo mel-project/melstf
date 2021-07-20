@@ -49,25 +49,17 @@ fn test_ops_int(op: OpCode, args: &[u128]) -> bool {
     } 
 }
 
-// macro_rules! bangify{
-//     ($function_name: ident, $bang: ty $input: expr) => {
-//         #[test]
-//         fn $function_name() {
-//             $(assert!($bang$input);)*
-//         }
-//     };
-// }
 
 macro_rules! write_tests {
-    ($function_name: ident, $opcode: path, $($input: expr),*) => {
+    ($function_name: ident, $opcode: path, $($input: expr => $comparator: literal),*) => {
         #[test]
         fn $function_name() {
-            $(assert!(test_ops_int($opcode, $input));)*
+            $(assert!(test_ops_int($opcode, $input) == $comparator);)*
         }
     };
 }
 
-write_tests!(test_add, OpCode::Add, &[1,2,3], &[3,2,4]);
+write_tests!(test_add, OpCode::Add, &[1,2,3] => true, &[3,2,4] => false);
 // bangify!(bang_test, ! false);
 #[test]
 fn test_noop() {
