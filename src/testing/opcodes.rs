@@ -1,48 +1,29 @@
 use crate::melvm::Covenant;
-use crate::melvm::OpCode;
 use crate::melvm::{Executor, Value};
+use crate::melvm::opcode::OpCode;
 use ethnum::U256;
 use std::collections::HashMap;
 use std::fmt;
 use std::error::Error;
 
-#[derive(Debug)]
-struct TestError {
-    details: String
-}
 
-impl TestError {
-    fn new(msg: &str) -> TestError {
-        TestError{details: msg.to_string()}
-    }
-}
 
-impl fmt::Display for TestError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f,"{}", self.details)
-    }
-}
-
-impl Error for TestError {
-    fn description(&self) -> &str {
-        &self.details
-    }
-}
-
-pub fn exec_from_args(args: &[Value]) -> Executor {
+pub fn exec_from_args(ops: &[OpCode], args: &[Value]) -> Executor {
     let mut hm = HashMap::new();
     for (i, v) in args.iter().enumerate() {
         hm.insert(i as u16, v.clone());
     }
-    Executor::new(hm)
+    Executor::new(ops.into(),hm)
+    
 }
 
 fn run_ops(ops: &[OpCode]) -> Option<Value> {
-    let mut ex = exec_from_args(&[]);
+    let mut ex = exec_from_args(ops, &[]);
     println!("Trying {:?}", ops);
-
-    for op in ops.iter() {
-        ex.do_op(&op);
+    while ex.pc() < ops.len() {
+        if ex.step().is_none() {
+            return None;
+        }
     }
 
     println!("result: {:?}\n---", ex.stack);
@@ -185,7 +166,9 @@ fn test_gt(){
 // bitshifts
 
 fn test_shr(){
-
+    {
+        let x: U256 = 10u128.into();
+    }
 }
 
 fn test_shl(){
