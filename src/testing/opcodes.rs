@@ -48,21 +48,14 @@ fn test_ops_int(op: OpCode, args: &[u128]) -> bool {
 }
 
 macro_rules! write_tests {
-    ($function_name: ident, $opcode: path, $($statements: tt $(=> $comparator: expr)?),*) => {
+    ($function_name: ident, $opcode: path, $($statements: tt $(=> $truthy: expr)?),*) => {
         #[test]
         fn $function_name() {
-            
-            $(assert!(write_tests!(@gen $opcode, $statements) $(== $comparator)?);)*
+            $(assert!(write_tests!(@gen $opcode, $statements) $(== $truthy)?);)*
         }
     };
     (@gen $opcode: path, [$i1: literal, $i2: literal => $i3: literal]) => {
-        {
-            let val = do_op_with_args($opcode, &[U256::from($i1 as u128),U256::from($i2 as u128)]);
-            match val{
-                Some(p) => p == Value::from($i3 as u128),
-                None => false,
-            }
-        }
+        write_tests!(@gen $opcode, [$i1, $i2 => Value::from($i3 as u128)])
     };
     (@gen $opcode: path, [$i1: literal, $i2: literal => $i3: expr]) => {
         {
@@ -72,23 +65,31 @@ macro_rules! write_tests {
                 None => false,
             }
         }
+    };
+    (@gen $opcode: path, [$i1: literal, $i2: literal]) => {
+        {
+            let val = do_op_with_args($opcode, &[U256::from($i1 as u128),U256::from($i2 as u128)]);
+            match val{
+                Some(_) => true,
+                None => false,
+            }
+        }
     }
 
 }
 
 
-// macro_rules! test_thing {
-//     ($i: expr) => {
+// macro_rules! a_thing {
+//     ($($i: tt),*) => {
 //         #[test]
-//         fn test() {
-//             println!("{:?}", $i);
-//             panic!("")
+//         fn a() {
+//             $(assert!(!$i);)*
 //         }
         
 //     }
 // }   
 
-// test_thing!(Value::Int(U256::MAX));
+// a_thing!(!false,!true);
 
 #[test]
 fn test_noop() {
@@ -105,6 +106,7 @@ write_tests!(test_sub, OpCode::Sub,
     [1,2 => 1],
     [1,0 => Value::Int(U256::MAX)]
 );
+
 write_tests!(test_mul, OpCode::Mul,
     [1, 2 => 4] => false,
     [4, 2 => 8],
@@ -117,25 +119,12 @@ write_tests!(test_div, OpCode::Div,
     [0,0] => false
 );
 
-write_tests!(test_rem12, OpCode::Rem, 
+write_tests!(test_rem, OpCode::Rem, 
     [1,1 => 0],
     [2,4 => 0],
-    [2,1 => 2]
+    [2,1 => 2] => false,
+    [0,0] => false
 );
-
-#[test]
-fn test_rem() {
-    assert!(test_ops_int(OpCode::Rem, &[1, 1, 0]));
-    assert!(test_ops_int(OpCode::Rem, &[2, 4, 0]));
-    assert!(!test_ops_int(OpCode::Rem, &[2, 1, 2]));
-
-    assert!({
-        if let Some(_) = do_op_with_args_int(OpCode::Rem, &[0, 0]){
-            false
-        }
-        else{true}
-    });
-}  
 
 // Logic tests
 
