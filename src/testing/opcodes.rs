@@ -49,40 +49,56 @@ fn test_ops_int(op: OpCode, args: &[u128]) -> bool {
     } 
 }
 
-
 macro_rules! write_tests {
     
-    ($function_name: ident, $opcode: path, $($input: expr $(=> $comparator: literal)?),*) => {
+    ($function_name: ident, $opcode: path, $([$i1: literal, $i2: literal, $i3: expr] $(=> $comparator: expr)?),*) => {
         #[test]
         fn $function_name() {
-            $(assert!(test_ops_int($opcode, $input) $(== $comparator)?);)*
+            
+            $(assert!({
+                let val = do_op_with_args($opcode, &[U256::from($i1 as u128),U256::from($i2 as u128)]);
+                match val{
+                    Some(p) => p == Value::from($i3 as u128),
+                    None => false,
+                }
+            } $(== $comparator)?);)*
         }
     };
+    ($function_name: ident, $opcode: path, $($statements: tt $(=> $comparator: expr)?),*) => {
+        #[test]
+        fn $function_name() {
+            
+            $(assert!({
+                let val = do_op_with_args($opcode, &[U256::from($i1 as u128),U256::from($i2 as u128)]);
+                match val{
+                    Some(p) => p == $i3,
+                    None => false,
+                }
+            } $(== $comparator)?);)*
+        }
+    };
+    
 }
 
-write_tests!(test_add, OpCode::Add, &[1,2,3], &[3,2,4] => false);
-// bangify!(bang_test, ! false);
+
 #[test]
 fn test_noop() {
     let cov = Covenant::from_ops(&[OpCode::Noop]).expect("Noop did something!!");
     assert_eq!(cov.check_raw(&[]), false)
 }
 
-#[test]
-// fn test_add(){
-//     assert!(test_ops_int(OpCode::Add, &[1, 2, 3]));
-//     assert!(!test_ops_int(OpCode::Add, &[1, 2, 4]));
-// }
-#[test]
-fn test_sub(){
-    assert!(test_ops_int(OpCode::Sub, &[1, 1, 0]));
-    assert!(test_ops_int(OpCode::Sub, &[1, 2, 1]));
-    assert!(!test_ops_int(OpCode::Sub, &[1, 2, 4]));
+write_tests!(test_add, OpCode::Add, 
+    [1,2,3] => true,
+    [3,2,2] => false
+);
 
-    let res = do_op_with_args_int(OpCode::Sub, &[1, 0])
-    .expect("Subtracting doesn't overflow properly!!");
-    assert!(res == Value::Int(U256::MAX));
-}
+write_tests!(test_sub, OpCode::Sub,
+    [1,1,0],
+    [1,2,1],
+    [1,2,4] => false,
+    [1,0 => Value::Int(U256::MAX)]
+);
+
 
 #[test]
 fn test_mul() {
