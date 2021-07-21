@@ -51,20 +51,51 @@ macro_rules! write_tests {
     ($function_name: ident, $opcode: path, $($statements: tt $(=> $truthy: expr)?),*) => {
         #[test]
         fn $function_name() {
-            $(assert!(write_tests!(@gen $opcode, $statements) $(== $truthy)?);)*
+            $({
+                println!("{:?}", stringify!($statements $(=> $truthy)?));
+                assert!(write_tests!(@enter $opcode, $statements) $(== $truthy)?);
+            };)*
         }
     };
+    (@enter $opcode: path, [$($statement: literal),* $(=> $match: tt)?]) => {
+        {
+            let val = do_op_with_args($opcode, &[$(U256::from($statement as u128)),*]);
+            write_tests!(@mat val $($match)?)
+        }
+    };
+
+    (@mat $val: ident) => {
+        match $val{
+            Some(_) => true,
+            None => false,
+        }
+    };
+
+    (@mat $val: ident ($left: ident => $right: expr)) => {
+        match $val{
+            Some($left) => $right,
+            None => false,
+        }
+    };
+
+    (@mat $val: ident $right: literal) => {
+        match $val{
+            Some(p) => p == ($right as u128).into(),
+            None => false,
+        }
+    };
+    (@mat $val: ident $right: tt) => {
+        match $val{
+            Some(p) => p == $right,
+            None => false,
+        }
+    };
+
     (@gen $opcode: path, [$i1: literal, $i2: literal => $i3: literal]) => {
         write_tests!(@gen $opcode, [$i1, $i2 => Value::from($i3 as u128)])
     };
     (@gen $opcode: path, [$i1: literal, $i2: literal => $i3: expr]) => {
-        {
-            let val = do_op_with_args($opcode, &[U256::from($i1 as u128),U256::from($i2 as u128)]);
-            match val{
-                Some(p) => p == $i3,
-                None => false,
-            }
-        }
+        write_tests!(@enter [$i1, $i2 => (p => p == $i3)]; )
     };
     (@gen $opcode: path, [$i1: literal, $i2: literal]) => {
         {
@@ -104,7 +135,7 @@ write_tests!(test_add, OpCode::Add,
 
 write_tests!(test_sub, OpCode::Sub,
     [1,2 => 1],
-    [1,0 => Value::Int(U256::MAX)]
+    [1,0 => (Value::Int(U256::MAX))]
 );
 
 write_tests!(test_mul, OpCode::Mul,
@@ -119,12 +150,12 @@ write_tests!(test_div, OpCode::Div,
     [0,0] => false
 );
 
-write_tests!(test_rem, OpCode::Rem, 
-    [1,1 => 0],
-    [2,4 => 0],
-    [2,1 => 2] => false,
-    [0,0] => false
-);
+// write_tests!(test_rem, OpCode::Rem, 
+//     [1,1 => 0],
+//     [2,4 => 0],
+//     [2,1 => 2] => false,
+//     [0,0] => false
+// );
 
 // Logic tests
 
