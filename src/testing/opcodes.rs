@@ -68,16 +68,28 @@ macro_rules! write_tests {
         #[test]
         fn $function_name() {
             
-            $(assert!({
-                let val = do_op_with_args($opcode, &[U256::from($i1 as u128),U256::from($i2 as u128)]);
-                match val{
-                    Some(p) => p == $i3,
-                    None => false,
-                }
-            } $(== $comparator)?);)*
+            $(assert!(write_tests!($statements) $(== $comparator)?);)*
         }
     };
-    
+    (@gen [$i1: literal, $i2: literal, $i3: expr]) => {
+        {
+            let val = do_op_with_args($opcode, &[U256::from($i1 as u128),U256::from($i2 as u128)]);
+            match val{
+                Some(p) => p == Value::from($i3 as u128),
+                None => false,
+            }
+        }
+    };
+    (@gen [$i1: literal, $i2: literal => $i3: expr]) => {
+        {
+            let val = do_op_with_args($opcode, &[U256::from($i1 as u128),U256::from($i2 as u128)]);
+            match val{
+                Some(p) => p == $i3,
+                None => false,
+            }
+        }
+    }
+
 }
 
 
@@ -95,8 +107,7 @@ write_tests!(test_add, OpCode::Add,
 write_tests!(test_sub, OpCode::Sub,
     [1,1,0],
     [1,2,1],
-    [1,2,4] => false,
-    [1,0 => Value::Int(U256::MAX)]
+    [1,2,4] => false
 );
 
 
