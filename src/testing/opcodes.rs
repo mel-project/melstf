@@ -51,19 +51,18 @@ macro_rules! write_tests {
     ($function_name: ident, $opcode: path, $($statements: tt $(=> $truthy: expr)?),*) => {
         #[test]
         fn $function_name() {
-            $({
-                println!("{:?}", stringify!($statements $(=> $truthy)?));
-                assert!(write_tests!(@enter $opcode, $statements) $(== $truthy)?);
-            };)*
+            $(assert!(write_tests!(@enter $opcode, $statements) $(== $truthy)?);)*
         }
     };
-    (@enter $opcode: path, [$($statement: literal),* $(=> $match: tt)?]) => {
+    (@enter $opcode: path, [$($values: literal),* $(=> $match: tt)?]) => {
         {
-            let val = do_op_with_args($opcode, &[$(U256::from($statement as u128)),*]);
+            let val = do_op_with_args($opcode, &[$(U256::from($values as u128)),*]);
             write_tests!(@mat val $($match)?)
         }
     };
 
+    // basic case: [1,2,3,...]
+    // push list onto stack, call opcode, return true if Some
     (@mat $val: ident) => {
         match $val{
             Some(_) => true,
@@ -71,6 +70,9 @@ macro_rules! write_tests {
         }
     };
 
+    //general case: [1,2,3,... => (p => func(p))]
+    //push values before `=>` onto stack
+    //call opcode and return Some(p) => func(p) or None => false
     (@mat $val: ident ($left: ident => $right: expr)) => {
         match $val{
             Some($left) => $right,
@@ -78,34 +80,17 @@ macro_rules! write_tests {
         }
     };
 
+    //specific case 1: [1,2,... => 1]
+    // cast literal following `=>`
     (@mat $val: ident $right: literal) => {
-        match $val{
-            Some(p) => p == ($right as u128).into(),
-            None => false,
-        }
+        write_tests!(@mat $val (p => p == ($right as u128).into()))
     };
-    (@mat $val: ident $right: tt) => {
-        match $val{
-            Some(p) => p == $right,
-            None => false,
-        }
+    //specific case 2: [1,2,... => (expr)]
+    //directly compare expression `expr` to `p` in Some(p) => p == tt
+    //be sure to wrap your expression in (), {}, or [], to catch all possible expressions
+    (@mat $val: ident $right: expr) => {
+        write_tests!(@mat $val (p => p == $right))
     };
-
-    (@gen $opcode: path, [$i1: literal, $i2: literal => $i3: literal]) => {
-        write_tests!(@gen $opcode, [$i1, $i2 => Value::from($i3 as u128)])
-    };
-    (@gen $opcode: path, [$i1: literal, $i2: literal => $i3: expr]) => {
-        write_tests!(@enter [$i1, $i2 => (p => p == $i3)]; )
-    };
-    (@gen $opcode: path, [$i1: literal, $i2: literal]) => {
-        {
-            let val = do_op_with_args($opcode, &[U256::from($i1 as u128),U256::from($i2 as u128)]);
-            match val{
-                Some(_) => true,
-                None => false,
-            }
-        }
-    }
 
 }
 
