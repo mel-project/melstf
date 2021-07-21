@@ -48,7 +48,7 @@ fn test_ops_int(op: OpCode, args: &[u128]) -> bool {
 }
 
 macro_rules! write_tests {
-    ($function_name: ident, $opcode: path, $($statements: tt $(=> $truthy: expr)?),*) => {
+    ($function_name: ident, $opcode: path, $($statements: tt $(=> $truthy: expr)?);*;) => {
         #[test]
         fn $function_name() {
             $(assert!(write_tests!(@enter $opcode, $statements) $(== $truthy)?);)*
@@ -114,41 +114,40 @@ fn test_noop() {
 }
 
 write_tests!(test_add, OpCode::Add, 
-    [1,2 => 3] => true,
-    [3,2 => 2] => false
+    [1,2 => 3] => true;
+    [3,2 => 2] => false;
 );
 
 write_tests!(test_sub, OpCode::Sub,
-    [1,2 => 1],
-    [1,0 => (Value::Int(U256::MAX))]
+    [1,2 => 1];
+    [1,0 => (Value::Int(U256::MAX))];
 );
 
 write_tests!(test_mul, OpCode::Mul,
-    [1, 2 => 4] => false,
-    [4, 2 => 8],
-    [1, 1 => 1]
+    [1, 2 => 4] => false;
+    [4, 2 => 8];
+    [1, 1 => 1];
 );
 write_tests!(test_div, OpCode::Div,
-    [2,2 => 1],
-    [2,4 => 2] => true,
-    [2,4 => 3] => false,
-    [0,0] => false
+    [2,2 => 1];
+    [2,4 => 2] => true;
+    [2,4 => 3] => false;
+    [0,0] => false;
 );
 
-// write_tests!(test_rem, OpCode::Rem, 
-//     [1,1 => 0],
-//     [2,4 => 0],
-//     [2,1 => 2] => false,
-//     [0,0] => false
-// );
+write_tests!(test_rem, OpCode::Rem, 
+    [1,1 => 0];
+    [2,4 => 0];
+    [2,1 => 2] => false;
+    [0,0] => false;
+);
 
 // Logic tests
 
-#[test]
-fn test_and(){
-    assert!(test_ops_int(OpCode::And, &[1018,5, 0]));
-    assert!(!test_ops_int(OpCode::And, &[2,2,2 & 1]));
-}
+write_tests!(test_and, OpCode::And,
+    [1018,5 => 0];
+    [2,2 => 2];
+);
 
 #[test]
 fn test_or(){
