@@ -3,8 +3,6 @@ use crate::melvm::{Executor, Value};
 use crate::melvm::opcode::OpCode;
 use ethnum::U256;
 use std::collections::HashMap;
-use std::fmt;
-use std::error::Error;
 
 
 
@@ -50,28 +48,14 @@ fn test_ops_int(op: OpCode, args: &[u128]) -> bool {
 }
 
 macro_rules! write_tests {
-    
-    ($function_name: ident, $opcode: path, $([$i1: literal, $i2: literal, $i3: expr] $(=> $comparator: expr)?),*) => {
-        #[test]
-        fn $function_name() {
-            
-            $(assert!({
-                let val = do_op_with_args($opcode, &[U256::from($i1 as u128),U256::from($i2 as u128)]);
-                match val{
-                    Some(p) => p == Value::from($i3 as u128),
-                    None => false,
-                }
-            } $(== $comparator)?);)*
-        }
-    };
     ($function_name: ident, $opcode: path, $($statements: tt $(=> $comparator: expr)?),*) => {
         #[test]
         fn $function_name() {
             
-            $(assert!(write_tests!($statements) $(== $comparator)?);)*
+            $(assert!(write_tests!(@gen $opcode, $statements) $(== $comparator)?);)*
         }
     };
-    (@gen [$i1: literal, $i2: literal, $i3: expr]) => {
+    (@gen $opcode: path, [$i1: literal, $i2: literal, $i3: literal]) => {
         {
             let val = do_op_with_args($opcode, &[U256::from($i1 as u128),U256::from($i2 as u128)]);
             match val{
@@ -80,7 +64,7 @@ macro_rules! write_tests {
             }
         }
     };
-    (@gen [$i1: literal, $i2: literal => $i3: expr]) => {
+    (@gen $opcode: path, [$i1: literal, $i2: literal, $i3: expr]) => {
         {
             let val = do_op_with_args($opcode, &[U256::from($i1 as u128),U256::from($i2 as u128)]);
             match val{
@@ -92,6 +76,19 @@ macro_rules! write_tests {
 
 }
 
+
+// macro_rules! test_thing {
+//     ($i: expr) => {
+//         #[test]
+//         fn test() {
+//             println!("{:?}", $i);
+//             panic!("")
+//         }
+        
+//     }
+// }   
+
+// test_thing!(Value::Int(U256::MAX));
 
 #[test]
 fn test_noop() {
@@ -105,9 +102,7 @@ write_tests!(test_add, OpCode::Add,
 );
 
 write_tests!(test_sub, OpCode::Sub,
-    [1,1,0],
-    [1,2,1],
-    [1,2,4] => false
+    [1,0, Value::Int(U256::MAX)]
 );
 
 
