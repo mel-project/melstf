@@ -55,7 +55,7 @@ macro_rules! write_tests {
             $(assert!(write_tests!(@gen $opcode, $statements) $(== $comparator)?);)*
         }
     };
-    (@gen $opcode: path, [$i1: literal, $i2: literal, $i3: literal]) => {
+    (@gen $opcode: path, [$i1: literal, $i2: literal => $i3: literal]) => {
         {
             let val = do_op_with_args($opcode, &[U256::from($i1 as u128),U256::from($i2 as u128)]);
             match val{
@@ -64,7 +64,7 @@ macro_rules! write_tests {
             }
         }
     };
-    (@gen $opcode: path, [$i1: literal, $i2: literal, $i3: expr]) => {
+    (@gen $opcode: path, [$i1: literal, $i2: literal => $i3: expr]) => {
         {
             let val = do_op_with_args($opcode, &[U256::from($i1 as u128),U256::from($i2 as u128)]);
             match val{
@@ -97,35 +97,31 @@ fn test_noop() {
 }
 
 write_tests!(test_add, OpCode::Add, 
-    [1,2,3] => true,
-    [3,2,2] => false
+    [1,2 => 3] => true,
+    [3,2 => 2] => false
 );
 
 write_tests!(test_sub, OpCode::Sub,
-    [1,0, Value::Int(U256::MAX)]
+    [1,2 => 1],
+    [1,0 => Value::Int(U256::MAX)]
+);
+write_tests!(test_mul, OpCode::Mul,
+    [1, 2 => 4] => false,
+    [4, 2 => 8],
+    [1, 1 => 1]
+);
+write_tests!(test_div, OpCode::Div,
+    [2,2 => 1],
+    [2,4 => 2] => true,
+    [2,4 => 3] => false,
+    [0,0] => false
 );
 
-
-#[test]
-fn test_mul() {
-    assert!(test_ops_int(OpCode::Mul, &[1, 1, 1]));
-    assert!(test_ops_int(OpCode::Mul, &[4, 2, 8]));
-    assert!(!test_ops_int(OpCode::Mul, &[1, 2, 4]));
-}   
-
-#[test]
-fn test_div() {
-    assert!(test_ops_int(OpCode::Div, &[2, 2, 1]));
-    assert!(test_ops_int(OpCode::Div, &[2, 4, 2]));
-
-    // division by 0 should fail; if Some was returned something is wrong!
-    assert!({
-        if let Some(_) = do_op_with_args_int(OpCode::Div, &[0, 0]){
-            false
-        }
-        else{true}
-    });
-}
+write_tests!(test_rem12, OpCode::Rem, 
+    [1,1 => 0],
+    [2,4 => 0],
+    [2,1 => 2]
+);
 
 #[test]
 fn test_rem() {
