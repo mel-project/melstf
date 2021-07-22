@@ -48,30 +48,35 @@ fn test_ops_int(op: OpCode, args: &[u128]) -> bool {
 }
 
 macro_rules! write_tests {
-    ($function_name: ident, $opcode: path, $($statements: tt $(=> $truthy: expr)?);*;) => {
+    ($function_name: ident, $opcode: path, $($statements: tt);*;) => {
         #[test]
         fn $function_name() {
-            $(assert!(write_tests!(@enter $opcode, $statements) $(== $truthy)?);)*
+            $(write_tests!(@enter $opcode, $statements);)*
         }
     };
-    (@enter $opcode: path, [$($values: literal),* $(=> $match: tt)?]) => {
+    (@enter $opcode: path, [$($values: literal),* $(== $match: tt)?]) => {
         {
             let val = do_op_with_args($opcode, &[$(U256::from($values as u128)),*]);
-            write_tests!(@mat val $($match)?)
+            assert!(write_tests!(@mat val $($match)?));
         }
     };
-
-    // basic case: [1,2,3,...]
+    (@enter $opcode: path, [$($values: literal),* $(/= $match: tt)?]) => {
+        {
+            let val = do_op_with_args($opcode, &[$(U256::from($values as u128)),*]);
+            assert!(!write_tests!(@mat val $($match)?));
+        }
+    };
+    // basic case: [1,2,3,... == ()]
     // push list onto stack, call opcode, return true if Some
-    (@mat $val: ident) => {
+    (@mat $val: ident ()) => {
         match $val{
             Some(_) => true,
             None => false,
         }
     };
 
-    //general case: [1,2,3,... => (p => func(p))]
-    //push values before `=>` onto stack
+    //general case: [1,2,3,... == (p => func(p))]
+    //push values before `==` onto stack
     //call opcode and return Some(p) => func(p) or None => false
     (@mat $val: ident ($left: ident => $right: expr)) => {
         match $val{
@@ -80,13 +85,13 @@ macro_rules! write_tests {
         }
     };
 
-    //specific case 1: [1,2,... => 1]
-    // cast literal following `=>`
+    //specific case 1: [1,2,... == 1]
+    // cast literal following `==`
     (@mat $val: ident $right: literal) => {
         write_tests!(@mat $val (p => p == ($right as u128).into()))
     };
-    //specific case 2: [1,2,... => (expr)]
-    //directly compare expression `expr` to `p` in Some(p) => p == tt
+    //specific case 2: [1,2,... == (expr)]
+    //directly compare expression `expr` to `p` in Some(p) => p == expr
     //be sure to wrap your expression in (), {}, or [], to catch all possible expressions
     (@mat $val: ident $right: expr) => {
         write_tests!(@mat $val (p => p == $right))
@@ -114,59 +119,55 @@ fn test_noop() {
 }
 
 write_tests!(test_add, OpCode::Add, 
-    [1,2 => 3] => true;
-    [3,2 => 2] => false;
+    [1,2 == 3];
+    [3,2 /= 2];
 );
 
 write_tests!(test_sub, OpCode::Sub,
-    [1,2 => 1];
-    [1,0 => (Value::Int(U256::MAX))];
+    [1,2 == 1];
+    [1,0 == (Value::Int(U256::MAX))];
 );
 
 write_tests!(test_mul, OpCode::Mul,
-    [1, 2 => 4] => false;
-    [4, 2 => 8];
-    [1, 1 => 1];
+    [1, 2 /= 4];
+    [4, 2 == 8];
+    [1, 1 == 1];
 );
 write_tests!(test_div, OpCode::Div,
-    [2,2 => 1];
-    [2,4 => 2] => true;
-    [2,4 => 3] => false;
-    [0,0] => false;
+    [2,2 == 1];
+    [2,4 == 2];
+    [2,4 /= 3];
+    [0,0 /= ()];
 );
 
 write_tests!(test_rem, OpCode::Rem, 
-    [1,1 => 0];
-    [2,4 => 0];
-    [2,1 => 2] => false;
-    [0,0] => false;
+    [1,1 == 0];
+    [2,4 == 0];
+    [2,1 == 1];
+    [0,0 /= ()]; // this one
 );
 
 // Logic tests
 
 write_tests!(test_and, OpCode::And,
-    [1018,5 => 0];
-    [2,2 => 2];
+    [1018,5 == 0];
+    [2,2 == 2];
 );
 
-#[test]
-fn test_or(){
-    assert!(test_ops_int(OpCode::Or, &[1,2, 3 | 0]));
-    assert!(test_ops_int(OpCode::Or, &[2234,23642,2234 | 23642]));
-    assert!(test_ops_int(OpCode::Or, &[1018,5, 1023]));
-}
+write_tests!(test_or, OpCode::Or,
+    [1,2 == 3];
+    [1018,5 == 1023];
+);
 
-#[test]
-fn test_xor(){
-    assert!(test_ops_int(OpCode::Xor, &[2,2, 0]));
-    assert!(!test_ops_int(OpCode::Xor, &[2,2, 1]));
-}
+write_tests!(test_xor, OpCode::Xor, 
+    [2,2 == 0];
+    [2,2 /= 1];
+);
 
-#[test]
-fn test_eql(){
-    assert!(test_ops_int(OpCode::Eql, &[2,2,1]));
-    assert!(!test_ops_int(OpCode::Eql, &[2,2,0]));
-}
+write_tests!(test_eql, OpCode::Eql, 
+    [2,2 == 1];
+    [2,2 /= 0];
+);
 
 #[test]
 fn test_not(){
