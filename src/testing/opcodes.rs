@@ -28,14 +28,13 @@ fn run_ops(ex: &mut Executor, ops: &[OpCode]){
 
 
 macro_rules! write_tests {
-    ({[$($stack_item: tt),*][$($heap_item: tt),*]; $($opcodes: path);+; $($program:tt)?}) => {
+    ({[$($stack_item: tt),*][$($heap_item: tt),*]; $($opcodes: expr);+;}) => {
         {
             
             let heap: &[Value]  = &[$(write_tests!($heap_item)),*];
             let opcodes: &[OpCode] = &[$(write_tests!(@push $stack_item)),*,$($opcodes),*];
             let mut exec: Executor = exec_with_heap(&opcodes, &heap);
             run_ops(&mut exec, &opcodes);
-            $(write_tests!($program))?
             exec.stack.pop().unwrap()
         }
     };
@@ -53,17 +52,18 @@ macro_rules! write_tests {
 
 fn thingy() -> Value{
     write_tests!({
-        [1,2][{
-            [1,2][];
+        [1][{
+            [2,2][];
             OpCode::Add;
         }];
+        OpCode::LoadImm(0u16);
         OpCode::Add;
     })
 }
 
 #[test]
 fn test_add(){
-    assert!(thingy() == Value::Int(3u128.into()))
+    assert!(thingy() == Value::Int(5u128.into()))
 }
 
 
