@@ -35,7 +35,7 @@ macro_rules! melvm_exec {
             let opcodes: &[OpCode] = &[$(melvm_exec!(@push $stack_item)),*,$($opcodes),*];
             let mut exec: Executor = exec_with_heap(&opcodes, &heap);
             run_ops(&mut exec, &opcodes);
-            exec.stack.pop().unwrap()
+            exec.stack.pop()
         }
     };
     (@push $token: expr) => {
@@ -49,34 +49,91 @@ macro_rules! melvm_exec {
     };
 }
 
+macro_rules! write_tests {
+    ($function_name: ident, $opcode: path, $($statements: tt);*;) => {
+        #[test]
+        fn $function_name() {
+            $(write_tests!(@enter $opcode, $statements);)*
+        }
+    };
+    (@enter $opcode: path, [$($values: literal),* $(== $match: tt)?]) => {
+        {
+            let val = melvm_exec!({
+                [$($values),*][];
+                $opcode;
+            });
+            assert!(write_tests!(@mat val $($match)?));
+        }
+    };
+    (@enter $opcode: path, [$($values: literal),* $(/= $match: tt)?]) => {
+        {
+            let val = melvm_exec!({
+                [$($values),*][];
+                $opcode;
+            });
+            assert!(!write_tests!(@mat val $($match)?));
+        }
+    };
+    // basic case: [1,2,3,... == ()]
+    // push list onto stack, call opcode, return true if Some
+    (@mat $val: ident ()) => {
+        match $val{
+            Some(_) => true,
+            None => false,
+        }
+    };
 
-fn thingy() -> Value{
-    melvm_exec!({
-        [1][{
-            [2,2][];
-            OpCode::Add;
-        }];
-        OpCode::LoadImm(0u16);
-        OpCode::Add;
-    })
+    //general case: [1,2,3,... == (p => func(p))]
+    //push values before `==` onto stack
+    //call opcode and return Some(p) => func(p) or None => false
+    (@mat $val: ident ($left: ident => $right: expr)) => {
+        match $val{
+            Some($left) => $right,
+            None => false,
+        }
+    };
+
+    //specific case 1: [1,2,... == 1]
+    // cast literal following `==`
+    (@mat $val: ident $right: literal) => {
+        write_tests!(@mat $val (p => p == ($right as u128).into()))
+    };
+    //specific case 2: [1,2,... == (expr)]
+    //directly compare expression `expr` to `p` in Some(p) => p == expr
+    //be sure to wrap your expression in (), {}, or [], to catch all possible expressions
+    (@mat $val: ident $right: expr) => {
+        write_tests!(@mat $val (p => p == $right))
+    };
+
 }
 
-#[test]
-fn test_add(){
-    assert!(thingy() == Value::Int(5u128.into()))
-}
+// fn thingy() -> Value{
+//     melvm_exec!({
+//         [1][{
+//             [2,2][];
+//             OpCode::Add;
+//         }];
+//         OpCode::LoadImm(0u16);
+//         OpCode::Add;
+//     })
+// }
+
+// #[test]
+// fn test_add(){
+//     assert!(thingy() == Value::Int(5u128.into()))
+// }
 
 
 
-// write_tests!(test_add, OpCode::Add, 
-//     [1,2 == 3];
-//     [3,2 /= 2];
-// );
+write_tests!(test_add, OpCode::Add, 
+    [1,2 == 3];
+    [3,2 /= 2];
+);
 
-// write_tests!(test_sub, OpCode::Sub,
-//     [1,2 == 1];
-//     [1,0 == (Value::Int(U256::MAX))];
-// );
+write_tests!(test_sub, OpCode::Sub,
+    [1,2 == 1];
+    [1,0 == (Value::Int(U256::MAX))];
+);
 
 // write_tests!(test_mul, OpCode::Mul,
 //     [1, 2 /= 4];
