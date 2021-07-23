@@ -34,18 +34,6 @@ fn do_op_with_args(op: OpCode, args: &[U256]) -> Option<Value> {
     run_ops(&i_args)
 }
 
-fn do_op_with_args_int(op: OpCode, args: &[u128]) -> Option<Value> {
-    let i_args: Vec<U256> = args.into_iter().map(|x| U256::from(x.clone())).collect();
-    do_op_with_args(op, &i_args[..])
-}
-
-fn test_ops_int(op: OpCode, args: &[u128]) -> bool {
-    let val = do_op_with_args_int(op, &args[..args.len()-1]);
-    match val {
-      Some(p) => p == args[args.len()-1].into(),
-      None => false,
-    } 
-}
 
 macro_rules! write_tests {
     ($function_name: ident, $opcode: path, $($statements: tt);*;) => {
@@ -99,18 +87,6 @@ macro_rules! write_tests {
 
 }
 
-
-// macro_rules! a_thing {
-//     ($($i: tt),*) => {
-//         #[test]
-//         fn a() {
-//             $(assert!(!$i);)*
-//         }
-        
-//     }
-// }   
-
-// a_thing!(!false,!true);
 
 #[test]
 fn test_noop() {
@@ -169,44 +145,45 @@ write_tests!(test_eql, OpCode::Eql,
     [2,2 /= 0];
 );
 
-#[test]
-fn test_not(){
-
-    {
-        let res = do_op_with_args_int(OpCode::Not, &[0])
-        .expect("Can't caclulate the bitwise inverse of 0!");
-        assert!(res == Value::Int(U256::MAX));
-    }
-    assert!(!test_ops_int(OpCode::Not, &[1,0]));
-}
+write_tests!(test_not, OpCode::Not,
+    [0 == (Value::Int(U256::MAX))];
+    [1 == (Value::Int(U256::MAX - 1))];
+);
 
 // comparators
 
+write_tests!(test_lt, OpCode::Lt, 
+    [1,0 ==1];
+    [0,1 == 0];
+    [1,125 /= 1];
+    [654654,2121 /= 0];
+);
 
-#[test]
-fn test_lt(){
-    // & args[1] < args[0]
-    assert!(test_ops_int(OpCode::Lt, &[1,0,1]));
-    assert!(test_ops_int(OpCode::Lt, &[0,1,0]));
-    assert!(!test_ops_int(OpCode::Lt, &[1,125,1]));
-    assert!(!test_ops_int(OpCode::Lt, &[654654,2121,0]));
-}
-#[test]
-fn test_gt(){
-    assert!(test_ops_int(OpCode::Gt, &[1,0,0]));
-    assert!(test_ops_int(OpCode::Gt, &[0,1,1]));
-    assert!(!test_ops_int(OpCode::Gt, &[1,125,0]));
-    assert!(!test_ops_int(OpCode::Gt, &[654654,2121,1]));
-}
+write_tests!(test_gt,OpCode::Gt,
+    [1,0 == 0];
+    [0,1 == 1];
+    [1,125 /= 0];
+    [654654,2121 /= 1];
+);
 
 // bitshifts
 
-fn test_shr(){
-    {
-        let x: U256 = 10u128.into();
-    }
-}
+// doesn't wrap right overflows to the left
+write_tests!(test_shr, OpCode::Shr,
+    [2,4 == 1];
+    [7,1 == 0];
+);
 
-fn test_shl(){
+write_tests!(test_shl, OpCode::Shl,
+    [2,4 == 16];
+    [7,4 == 512];
+    [257,1 == 2];
+);
 
-}
+// cryptography
+
+// storage access
+
+write_tests!(test_store, OpCode::Store,
+    [2 == 2];
+);
