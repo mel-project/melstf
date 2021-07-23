@@ -27,12 +27,12 @@ fn run_ops(ex: &mut Executor, ops: &[OpCode]){
 
 
 
-macro_rules! write_tests {
+macro_rules! melvm_exec {
     ({[$($stack_item: tt),*][$($heap_item: tt),*]; $($opcodes: expr);+;}) => {
         {
             
-            let heap: &[Value]  = &[$(write_tests!($heap_item)),*];
-            let opcodes: &[OpCode] = &[$(write_tests!(@push $stack_item)),*,$($opcodes),*];
+            let heap: &[Value]  = &[$(melvm_exec!($heap_item)),*];
+            let opcodes: &[OpCode] = &[$(melvm_exec!(@push $stack_item)),*,$($opcodes),*];
             let mut exec: Executor = exec_with_heap(&opcodes, &heap);
             run_ops(&mut exec, &opcodes);
             exec.stack.pop().unwrap()
@@ -42,7 +42,7 @@ macro_rules! write_tests {
         OpCode::PushI(U256::from($token as u128))
     };
     // ($program: block, $pc: tt) => {
-    //     write_tests!($pc)
+    //     melvm_exec!($pc)
     // };
     ($item: literal) => {
         Value::Int(U256::from($item as u128))
@@ -51,7 +51,7 @@ macro_rules! write_tests {
 
 
 fn thingy() -> Value{
-    write_tests!({
+    melvm_exec!({
         [1][{
             [2,2][];
             OpCode::Add;
