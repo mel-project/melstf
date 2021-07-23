@@ -135,81 +135,81 @@ write_tests!(test_sub, OpCode::Sub,
     [1,0 == (Value::Int(U256::MAX))];
 );
 
-// write_tests!(test_mul, OpCode::Mul,
-//     [1, 2 /= 4];
-//     [4, 2 == 8];
-//     [1, 1 == 1];
-// );
-// write_tests!(test_div, OpCode::Div,
-//     [2,2 == 1];
-//     [2,4 == 2];
-//     [2,4 /= 3];
-//     [0,0 /= ()];
-// );
+write_tests!(test_mul, OpCode::Mul,
+    [1, 2 /= 4];
+    [4, 2 == 8];
+    [1, 1 == 1];
+);
+write_tests!(test_div, OpCode::Div,
+    [2,2 == 1];
+    [2,4 == 2];
+    [2,4 /= 3];
+    [0,0 /= ()];
+);
 
-// write_tests!(test_rem, OpCode::Rem, 
-//     [1,1 == 0];
-//     [2,4 == 0];
-//     [2,1 == 1];
-//     [0,0 /= ()]; // this one
-// );
+write_tests!(test_rem, OpCode::Rem, 
+    [1,1 == 0];
+    [2,4 == 0];
+    [2,1 == 1];
+    [0,0 /= ()]; // this one
+);
 
 // // Logic tests
 
-// write_tests!(test_and, OpCode::And,
-//     [1018,5 == 0];
-//     [2,2 == 2];
-// );
+write_tests!(test_and, OpCode::And,
+    [1018,5 == 0];
+    [2,2 == 2];
+);
 
-// write_tests!(test_or, OpCode::Or,
-//     [1,2 == 3];
-//     [1018,5 == 1023];
-// );
+write_tests!(test_or, OpCode::Or,
+    [1,2 == 3];
+    [1018,5 == 1023];
+);
 
-// write_tests!(test_xor, OpCode::Xor, 
-//     [2,2 == 0];
-//     [2,2 /= 1];
-// );
+write_tests!(test_xor, OpCode::Xor, 
+    [2,2 == 0];
+    [2,2 /= 1];
+);
 
-// write_tests!(test_eql, OpCode::Eql, 
-//     [2,2 == 1];
-//     [2,2 /= 0];
-// );
+write_tests!(test_eql, OpCode::Eql, 
+    [2,2 == 1];
+    [2,2 /= 0];
+);
 
-// write_tests!(test_not, OpCode::Not,
-//     [0 == (Value::Int(U256::MAX))];
-//     [1 == (Value::Int(U256::MAX - 1))];
-// );
+write_tests!(test_not, OpCode::Not,
+    [0 == (Value::Int(U256::MAX))];
+    [1 == (Value::Int(U256::MAX - 1))];
+);
 
-// // comparators
+// comparators
 
-// write_tests!(test_lt, OpCode::Lt, 
-//     [1,0 ==1];
-//     [0,1 == 0];
-//     [1,125 /= 1];
-//     [654654,2121 /= 0];
-// );
+write_tests!(test_lt, OpCode::Lt, 
+    [1,0 ==1];
+    [0,1 == 0];
+    [1,125 /= 1];
+    [654654,2121 /= 0];
+);
 
-// write_tests!(test_gt,OpCode::Gt,
-//     [1,0 == 0];
-//     [0,1 == 1];
-//     [1,125 /= 0];
-//     [654654,2121 /= 1];
-// );
+write_tests!(test_gt,OpCode::Gt,
+    [1,0 == 0];
+    [0,1 == 1];
+    [1,125 /= 0];
+    [654654,2121 /= 1];
+);
 
-// // bitshifts
+// bitshifts
 
-// // doesn't wrap right overflows to the left
-// write_tests!(test_shr, OpCode::Shr,
-//     [2,4 == 1];
-//     [7,1 == 0];
-// );
+// doesn't wrap right overflows to the left
+write_tests!(test_shr, OpCode::Shr,
+    [2,4 == 1];
+    [7,1 == 0];
+);
 
-// write_tests!(test_shl, OpCode::Shl,
-//     [2,4 == 16];
-//     [7,4 == 512];
-//     [257,1 == 2];
-// );
+write_tests!(test_shl, OpCode::Shl,
+    [2,4 == 16];
+    [7,4 == 512];
+    [257,1 == 2];
+);
 
 // // cryptography
 
