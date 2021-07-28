@@ -3,6 +3,7 @@ use crate::melvm::{Executor, Value};
 use crate::melvm::opcode::OpCode;
 use ethnum::U256;
 use std::collections::HashMap;
+use im;
 
 
 
@@ -25,22 +26,34 @@ fn run_ops(ex: &mut Executor, ops: &[OpCode]){
     println!("result: {:?}\n---", ex.stack);
 }
 
-
+fn pop_assert_none(ex: &mut Executor){
+    match ex.stack.pop(){
+        Some(_) => assert!(false),
+        None => assert!(true)
+    }
+}
 
 macro_rules! melvm_exec {
     ({[$($stack_item: tt),*][$($heap_item: tt),*]; $($opcodes: expr);+;}) => {
         {
             
             let heap: &[Value]  = &[$(melvm_exec!($heap_item)),*];
-            let opcodes: &[OpCode] = &[$(melvm_exec!(@push $stack_item)),*,$($opcodes),*];
+            let opcodes: &[OpCode] = &[$($opcodes),*];
             let mut exec: Executor = exec_with_heap(&opcodes, &heap);
+            $(melvm_exec!(@push exec, $stack_item);)*
             run_ops(&mut exec, &opcodes);
-            exec.stack.pop()
+            exec
+
         }
     };
-    (@push $token: expr) => {
-        OpCode::PushI(U256::from($token as u128))
+    (@push $exec: ident, [$($token: expr),*]) => {
+         $exec.stack.push(Value::Vector(im::vector![$(melvm_exec!($token)),*]))
+    }; 
+    
+    (@push $exec: ident, $token: literal) => {
+        $exec.stack.push(Value::Int(U256::from($token as u128)))
     };
+    
     // ($program: block, $pc: tt) => {
     //     melvm_exec!($pc)
     // };
@@ -48,6 +61,7 @@ macro_rules! melvm_exec {
         Value::Int(U256::from($item as u128))
     };
 }
+
 
 macro_rules! write_tests {
     ($function_name: ident, $opcode: path, $($statements: tt);*;) => {
@@ -61,7 +75,7 @@ macro_rules! write_tests {
             let val = melvm_exec!({
                 [$($values),*][];
                 $opcode;
-            });
+            }).stack.pop();
             assert!(write_tests!(@mat val $($match)?));
         }
     };
@@ -70,7 +84,7 @@ macro_rules! write_tests {
             let val = melvm_exec!({
                 [$($values),*][];
                 $opcode;
-            });
+            }).stack.pop();
             assert!(!write_tests!(@mat val $($match)?));
         }
     };
@@ -213,11 +227,78 @@ write_tests!(test_shl, OpCode::Shl,
 
 // // cryptography
 
-// // storage access
+// storage access
 
-// write_tests!(test_store, OpCode::Store,
-//     [2 == 2];
-// );
+#[test]
+fn test_store_load(){
+    let mut exec =  melvm_exec!({
+        [0][1];
+        OpCode::Load;
+    });
+    pop_assert(&mut exec, Value::Int(1u128.into()));
+    let mut exec = melvm_exec!({
+        [0,1,0][];
+        OpCode::Store;
+        OpCode::Load;
+    });
+    pop_assert(&mut exec, Value::Int(1u128.into()));
+}
+
+fn test_store() {
+}
+#[test]
+fn test_store_load_imm(){
+    // heap address 1,3,  onto the stack
+    let mut exec = melvm_exec!({
+        [100][99,3];
+        OpCode::LoadImm(1);
+    });
+    // pop a value from the Executor stack 
+    // assert_eq to second param
+    pop_assert(&mut exec, Value::Int(3u128.into()));
+
+    // store 100 to 0th hash address
+    // this overwrites 0
+    let mut exec = melvm_exec!({
+       [100][99,3];
+       OpCode::StoreImm(0);
+    });
+    pop_assert_none(&mut exec);
+
+    //values aren't deleted from heap when loaded
+    //the final stack is: [100, 3, 3,3,3] and the heap is [3,3]
+    let mut exec = melvm_exec!({
+       [100][99,3];
+       OpCode::LoadImm(1);
+       OpCode::StoreImm(0); // overwrite 99 
+       OpCode::LoadImm(0);
+       OpCode::LoadImm(0);
+       OpCode::LoadImm(0);
+       OpCode::LoadImm(1);
+    });
+    pop_assert(&mut exec, Value::Int(3u128.into()));
+}
+
+// vector ops
+#[test]
+fn test_vref() {
+    let mut exec = melvm_exec!({
+        [0, [1,2,3]][];
+        OpCode::VRef;
+    });
+    assert_eq!(exec, Value::Int(1u128.into()));
+}
+
+#[test]
+fn test_vref_failure(){
+    let mut exec = melvm_exec!({
+        [1, [1,2,3]][];
+        OpCode::VRef;
+    });
+    pop_assert(&mut exec, Value::Int(3u128.into()));
+}
+
+
 
 
 
