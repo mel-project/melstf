@@ -195,7 +195,7 @@ impl OpCode {
                 }
                 output.write_all(&[OPCODE_PUSHB]).unwrap();
                 output.write_all(&[bts.len() as u8]).unwrap();
-                output.write_all(&bts).unwrap();
+                output.write_all(bts).unwrap();
             }
             OpCode::PushI(i) => {
                 output.write_all(&[OPCODE_PUSHI]).unwrap();

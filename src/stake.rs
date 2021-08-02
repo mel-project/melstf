@@ -33,7 +33,7 @@ impl StakeMapping {
                 }
             }
         }
-        dbg!(dbg!(target_votes) / dbg!(total_votes))
+        target_votes / total_votes
     }
 
     /// Filter out all the elements that no longer matter.

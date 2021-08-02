@@ -34,6 +34,7 @@ impl Proof {
         });
         Proof(proof_map.into_iter().collect())
     }
+
     /// Verifies a MelPoW proof.
     #[must_use]
     pub fn verify(&self, puzzle: &[u8], difficulty: usize) -> bool {
@@ -57,7 +58,7 @@ impl Proof {
                         match self.0.get(&parent) {
                             None => return false,
                             Some(parlab) => {
-                                hasher.add(&parlab);
+                                hasher.add(parlab);
                             }
                         }
                     }
@@ -90,7 +91,7 @@ impl Proof {
         for (k, v) in self.0.iter() {
             assert_eq!(v.len(), 32);
             output.extend_from_slice(&k.to_bytes());
-            output.extend_from_slice(&v);
+            output.extend_from_slice(v);
         }
         output
     }

@@ -173,7 +173,7 @@ impl State {
 
     pub fn apply_tx_batch(&mut self, txx: &[txn::Transaction]) -> Result<(), StateError> {
         let old_hash = self.coins.root_hash();
-        StateHandle::new(self).apply_tx_batch(&txx)?.commit();
+        StateHandle::new(self).apply_tx_batch(txx)?.commit();
         log::debug!(
             "applied a batch of {} txx to {:?} => {:?}",
             txx.len(),
@@ -263,7 +263,7 @@ impl SealedState {
 
     /// Decodes from the partial encoding.
     pub fn from_partial_encoding_infallible(bts: &[u8], db: &novasmt::Forest) -> Self {
-        let tmp: (Vec<u8>, Option<ProposerAction>) = stdcode::deserialize(&bts).unwrap();
+        let tmp: (Vec<u8>, Option<ProposerAction>) = stdcode::deserialize(bts).unwrap();
         SealedState(State::from_partial_encoding_infallible(&tmp.0, db), tmp.1)
     }
 
