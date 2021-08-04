@@ -105,6 +105,79 @@ impl Transaction {
         }
     }
 
+    /// Creates a new transaction with the given kind, no inputs, no outputs, no nothing.
+    pub fn new(kind: TxKind) -> Self {
+        Self {
+            kind,
+            inputs: vec![],
+            outputs: vec![],
+            fee: 0,
+            scripts: vec![],
+            data: vec![],
+            sigs: vec![],
+        }
+    }
+
+    /// Replaces the kind of the transaction
+    pub fn with_kind(mut self, kind: TxKind) -> Self {
+        self.kind = kind;
+        self
+    }
+
+    /// Replaces the inputs of the transaction
+    pub fn with_inputs(mut self, inputs: Vec<CoinID>) -> Self {
+        self.inputs = inputs;
+        self
+    }
+
+    /// Add an input
+    pub fn add_input(mut self, input: CoinID) -> Self {
+        self.inputs.push(input);
+        self
+    }
+
+    /// Replaces the outputs of the transaction
+    pub fn with_outputs(mut self, outputs: Vec<CoinData>) -> Self {
+        self.outputs = outputs;
+        self
+    }
+
+    /// Add an output
+    pub fn add_output(mut self, output: CoinData) -> Self {
+        self.outputs.push(output);
+        self
+    }
+
+    /// Replaces the fee of the transaction
+    pub fn with_fee(mut self, fee: u128) -> Self {
+        self.fee = fee;
+        self
+    }
+
+    /// Replaces the scripts of the transaction
+    pub fn with_scripts(mut self, scripts: Vec<Covenant>) -> Self {
+        self.scripts = scripts;
+        self
+    }
+
+    /// Add a script to the transaction
+    pub fn add_script(mut self, script: Covenant) -> Self {
+        self.scripts.push(script);
+        self
+    }
+
+    /// Replaces the scripts of the transaction
+    pub fn with_data(mut self, data: Vec<u8>) -> Self {
+        self.data = data;
+        self
+    }
+
+    /// Replaces the scripts of the transaction
+    pub fn with_sigs(mut self, sigs: Vec<Vec<u8>>) -> Self {
+        self.sigs = sigs.into_iter().map(HexBytes).collect();
+        self
+    }
+
     /// Checks whether or not the transaction is well formed, respecting coin size bounds and such. **Does not** fully validate the transaction.
     pub fn is_well_formed(&self) -> bool {
         // check bounds
@@ -222,6 +295,13 @@ impl Transaction {
 pub struct CoinID {
     pub txhash: TxHash,
     pub index: u8,
+}
+
+impl CoinID {
+    /// Creates a new CoinID
+    pub fn new(txhash: TxHash, index: u8) -> Self {
+        CoinID { txhash, index }
+    }
 }
 
 #[derive(Error, Debug, Clone)]
