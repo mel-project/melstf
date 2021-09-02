@@ -139,7 +139,8 @@ impl<'a> StateHandle<'a> {
             .unwrap_or_else(|| self.state.clone().seal(None).header());
         // iterate through the inputs
         for (spend_idx, coin_id) in tx.inputs.iter().enumerate() {
-            if self.get_stake(coin_id.txhash).is_some() {
+            if self.get_stake(coin_id.txhash).is_some() && coin_id.index == 0 {
+                // only the first output is locked
                 return Err(StateError::CoinLocked);
             }
             let coin_data = self.get_coin(*coin_id);
