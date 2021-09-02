@@ -13,7 +13,7 @@ const PROOF_CERTAINTY: usize = 200;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// A MelPoW proof with an opaque representation that is guaranteed to be stable. It can be cloned relatively cheaply because it's internally reference counted.
-pub struct Proof(im::HashMap<node::Node, SVec<u8>>);
+pub struct Proof(imbl::HashMap<node::Node, SVec<u8>>);
 
 impl Proof {
     /// Generates a MelPoW proof with respect to the given starting puzzle and a difficulty.
@@ -102,7 +102,7 @@ impl Proof {
         if bts.len() % unit_size != 0 {
             return None;
         }
-        let mut omap = im::HashMap::new();
+        let mut omap = imbl::HashMap::new();
         while !bts.is_empty() {
             let nd = node::Node::from_bytes(&bts[0..8])?;
             let lab = SVec::from_slice(&bts[8..32 + 8]);

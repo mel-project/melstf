@@ -129,7 +129,7 @@ impl<'a> StateHandle<'a> {
     fn apply_tx_inputs(&self, tx: &Transaction) -> Result<(), StateError> {
         let scripts = tx.script_as_map();
         // build a map of input coins
-        let mut in_coins: im::HashMap<Denom, u128> = im::HashMap::new();
+        let mut in_coins: imbl::HashMap<Denom, u128> = imbl::HashMap::new();
         // get last header
         let last_header = self
             .state
