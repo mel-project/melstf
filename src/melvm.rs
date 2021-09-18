@@ -571,6 +571,7 @@ impl Executor {
                     self.stack.push(bts);
                 }
                 OpCode::PushI(num) => self.stack.push(Value::Int(num)),
+                OpCode::PushIC(num) => self.stack.push(Value::Int(num)),
                 OpCode::TypeQ => self.do_monop(|x| match x {
                     Value::Int(_) => Some(Value::Int(0u32.into())),
                     Value::Bytes(_) => Some(Value::Int(1u32.into())),

@@ -77,5 +77,6 @@ pub(crate) const OPCODE_TYPEQ: u8 = 0xc2;
 
 pub(crate) const OPCODE_PUSHB: u8 = 0xf0;
 pub(crate) const OPCODE_PUSHI: u8 = 0xf1;
+pub(crate) const OPCODE_PUSHIC: u8 = 0xf2;
 
 pub(crate) const OPCODE_DUP: u8 = 0xff;

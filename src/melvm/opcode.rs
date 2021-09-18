@@ -1,14 +1,14 @@
-use std::io::Write;
+use std::{convert::TryInto, io::Write};
 
 use super::consts::{
     OPCODE_ADD, OPCODE_AND, OPCODE_BAPPEND, OPCODE_BCONS, OPCODE_BEMPTY, OPCODE_BEZ,
     OPCODE_BLENGTH, OPCODE_BNZ, OPCODE_BPUSH, OPCODE_BREF, OPCODE_BSET, OPCODE_BSLICE, OPCODE_BTOI,
     OPCODE_DIV, OPCODE_DUP, OPCODE_EQL, OPCODE_GT, OPCODE_HASH, OPCODE_ITOB, OPCODE_JMP,
     OPCODE_LOAD, OPCODE_LOADIMM, OPCODE_LOOP, OPCODE_LT, OPCODE_MUL, OPCODE_NOOP, OPCODE_NOT,
-    OPCODE_OR, OPCODE_PUSHB, OPCODE_PUSHI, OPCODE_REM, OPCODE_SHL, OPCODE_SHR, OPCODE_SIGEOK,
-    OPCODE_STORE, OPCODE_STOREIMM, OPCODE_SUB, OPCODE_TYPEQ, OPCODE_VAPPEND, OPCODE_VCONS,
-    OPCODE_VEMPTY, OPCODE_VLENGTH, OPCODE_VPUSH, OPCODE_VREF, OPCODE_VSET, OPCODE_VSLICE,
-    OPCODE_XOR,
+    OPCODE_OR, OPCODE_PUSHB, OPCODE_PUSHI, OPCODE_PUSHIC, OPCODE_REM, OPCODE_SHL, OPCODE_SHR,
+    OPCODE_SIGEOK, OPCODE_STORE, OPCODE_STOREIMM, OPCODE_SUB, OPCODE_TYPEQ, OPCODE_VAPPEND,
+    OPCODE_VCONS, OPCODE_VEMPTY, OPCODE_VLENGTH, OPCODE_VPUSH, OPCODE_VREF, OPCODE_VSET,
+    OPCODE_VSLICE, OPCODE_XOR,
 };
 use ethnum::U256;
 use thiserror::Error;
@@ -78,6 +78,7 @@ pub enum OpCode {
     // literals
     PushB(Vec<u8>),
     PushI(U256),
+    PushIC(U256),
 
     // duplication
     Dup,
@@ -97,6 +98,8 @@ pub enum DecodeError {
     IoError(#[from] std::io::Error),
     #[error("Invalid opcode {0}")]
     InvalidOpcode(u8),
+    #[error("Malformed varint")]
+    InvalidVarint,
 }
 
 fn read_byte<T: std::io::Read>(input: &mut T) -> std::io::Result<u8> {
@@ -201,6 +204,15 @@ impl OpCode {
                 output.write_all(&[OPCODE_PUSHI]).unwrap();
                 output.write_all(&i.to_be_bytes()).unwrap();
             }
+            OpCode::PushIC(i) => {
+                output.write_all(&[OPCODE_PUSHIC]).unwrap();
+                let bytes_repr = i.to_be_bytes();
+                let leading_zeros = i.leading_zeros() / 8;
+                output.write_all(&[32 - (leading_zeros as u8)]).unwrap();
+                output
+                    .write_all(&bytes_repr[leading_zeros as usize..])
+                    .unwrap();
+            }
             OpCode::Dup => output.write_all(&[OPCODE_DUP]).unwrap(),
         };
         Ok(output)
@@ -281,6 +293,23 @@ impl OpCode {
                 let mut buf = [0; 32];
                 input.read_exact(&mut buf)?;
                 Ok(OpCode::PushI(U256::from_be_bytes(buf)))
+            }
+            OPCODE_PUSHIC => {
+                let nonzero_len = read_byte(input)?;
+                let mut blit = vec![0u8; nonzero_len as usize];
+                input.read_exact(&mut blit)?;
+                if blit.len() > 32 {
+                    return Err(DecodeError::InvalidVarint);
+                }
+                blit.reverse();
+                let blit_len = blit.len();
+                blit.resize(32, 0);
+                // TODO TODO TODO ensure canonicalness
+                let integ = U256::from_le_bytes(blit.as_slice().try_into().unwrap());
+                if 32 - (integ.leading_zeros() / 8) != blit_len as u32 {
+                    return Err(DecodeError::InvalidVarint);
+                }
+                Ok(OpCode::PushIC(integ))
             }
             b => Err(DecodeError::InvalidOpcode(b)),
         }
@@ -369,6 +398,7 @@ fn opcodes_car_weight(opcodes: &[OpCode]) -> (u128, &[OpCode]) {
 
         OpCode::PushB(_) => (1, rest),
         OpCode::PushI(_) => (1, rest),
+        OpCode::PushIC(_) => (1, rest),
 
         OpCode::Dup => (4, rest),
     }
