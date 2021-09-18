@@ -129,7 +129,7 @@ impl<'a> StateHandle<'a> {
     fn apply_tx_inputs(&self, tx: &Transaction) -> Result<(), StateError> {
         let scripts = tx.script_as_map();
         // build a map of input coins
-        let mut in_coins: im::HashMap<Denom, u128> = im::HashMap::new();
+        let mut in_coins: imbl::HashMap<Denom, u128> = imbl::HashMap::new();
         // get last header
         let last_header = self
             .state
@@ -139,7 +139,8 @@ impl<'a> StateHandle<'a> {
             .unwrap_or_else(|| self.state.clone().seal(None).header());
         // iterate through the inputs
         for (spend_idx, coin_id) in tx.inputs.iter().enumerate() {
-            if self.get_stake(coin_id.txhash).is_some() {
+            if self.get_stake(coin_id.txhash).is_some() && coin_id.index == 0 {
+                // only the first output is locked
                 return Err(StateError::CoinLocked);
             }
             let coin_data = self.get_coin(*coin_id);

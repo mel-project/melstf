@@ -295,11 +295,11 @@ impl SealedState {
 
     /// Returns the final state represented as a "block" (header + transactions).
     pub fn to_block(&self) -> Block {
-        let mut txx = im::HashSet::new();
+        let mut txx = imbl::HashSet::new();
         for tx in self.0.transactions.val_iter() {
             txx.insert(tx);
         }
-        // self check since im sometimes is buggy
+        // self check since imbl sometimes is buggy
         for tx in self.0.transactions.val_iter() {
             assert!(txx.contains(&tx));
         }
@@ -428,7 +428,7 @@ impl Header {
 /// A (serialized) block.
 pub struct Block {
     pub header: Header,
-    pub transactions: im::HashSet<Transaction>,
+    pub transactions: imbl::HashSet<Transaction>,
     pub proposer_action: Option<ProposerAction>,
 }
 

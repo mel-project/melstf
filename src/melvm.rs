@@ -447,7 +447,7 @@ impl Executor {
                     match vec {
                         Value::Vector(mut vec) => {
                             if j >= vec.len() || j <= i {
-                                Some(Value::Vector(im::Vector::new()))
+                                Some(Value::Vector(imbl::Vector::new()))
                             } else {
                                 Some(Value::Vector(vec.slice(i..j)))
                             }
@@ -459,7 +459,7 @@ impl Executor {
                     Value::Vector(vec) => Some(Value::Int(U256::from(vec.len() as u64))),
                     _ => None,
                 })?,
-                OpCode::VEmpty => self.stack.push(Value::Vector(im::Vector::new())),
+                OpCode::VEmpty => self.stack.push(Value::Vector(imbl::Vector::new())),
                 OpCode::VPush => self.do_binop(|vec, item| {
                     let mut vec = vec.into_vector()?;
                     vec.push_back(item);
@@ -471,7 +471,7 @@ impl Executor {
                     Some(Value::Vector(vec))
                 })?,
                 // bit stuff
-                OpCode::BEmpty => self.stack.push(Value::Bytes(im::Vector::new())),
+                OpCode::BEmpty => self.stack.push(Value::Bytes(imbl::Vector::new())),
                 OpCode::BPush => self.do_binop(|vec, val| {
                     let mut vec = vec.into_bytes()?;
                     let val = val.into_int()?;
@@ -509,7 +509,7 @@ impl Executor {
                     match vec {
                         Value::Bytes(mut vec) => {
                             if j >= vec.len() || j <= i {
-                                Some(Value::Bytes(im::Vector::new()))
+                                Some(Value::Bytes(imbl::Vector::new()))
                             } else {
                                 Some(Value::Bytes(vec.slice(i..j)))
                             }
@@ -595,8 +595,8 @@ impl Executor {
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
 pub enum Value {
     Int(U256),
-    Bytes(im::Vector<u8>),
-    Vector(im::Vector<Value>),
+    Bytes(imbl::Vector<u8>),
+    Vector(imbl::Vector<Value>),
 }
 
 impl Value {
@@ -626,7 +626,7 @@ impl Value {
         Some(*num.low() as u8)
     }
     pub fn from_bytes(bts: &[u8]) -> Self {
-        let mut new = im::Vector::new();
+        let mut new = imbl::Vector::new();
         for b in bts {
             new.push_back(*b);
         }
@@ -640,14 +640,14 @@ impl Value {
         }
     }
 
-    fn into_bytes(self) -> Option<im::Vector<u8>> {
+    fn into_bytes(self) -> Option<imbl::Vector<u8>> {
         match self {
             Value::Bytes(bts) => Some(bts),
             _ => None,
         }
     }
 
-    fn into_vector(self) -> Option<im::Vector<Value>> {
+    fn into_vector(self) -> Option<imbl::Vector<Value>> {
         match self {
             Value::Vector(vec) => Some(vec),
             _ => None,
@@ -669,7 +669,7 @@ impl From<u64> for Value {
 
 impl From<CoinData> for Value {
     fn from(cd: CoinData) -> Self {
-        Value::Vector(im::vector![
+        Value::Vector(imbl::vector![
             cd.covhash.0.into(),
             cd.value.into(),
             cd.denom.into(),
@@ -680,7 +680,7 @@ impl From<CoinData> for Value {
 
 impl From<Header> for Value {
     fn from(cd: Header) -> Self {
-        Value::Vector(im::vector![
+        Value::Vector(imbl::vector![
             (cd.network as u64).into(),
             cd.previous.into(),
             cd.height.into(),
@@ -698,13 +698,13 @@ impl From<Header> for Value {
 
 impl From<CoinDataHeight> for Value {
     fn from(cd: CoinDataHeight) -> Self {
-        Value::Vector(im::vector![cd.coin_data.into(), cd.height.into()])
+        Value::Vector(imbl::vector![cd.coin_data.into(), cd.height.into()])
     }
 }
 
 impl From<CoinID> for Value {
     fn from(c: CoinID) -> Self {
-        Value::Vector(im::vector![
+        Value::Vector(imbl::vector![
             c.txhash.0.into(),
             Value::Int(U256::from(c.index))
         ])
@@ -719,31 +719,31 @@ impl From<Covenant> for Value {
 
 impl From<[u8; 32]> for Value {
     fn from(v: [u8; 32]) -> Self {
-        Value::Bytes(v.iter().cloned().collect::<im::Vector<u8>>())
+        Value::Bytes(v.iter().cloned().collect::<imbl::Vector<u8>>())
     }
 }
 
 impl From<HashVal> for Value {
     fn from(v: HashVal) -> Self {
-        Value::Bytes(v.iter().cloned().collect::<im::Vector<u8>>())
+        Value::Bytes(v.iter().cloned().collect::<imbl::Vector<u8>>())
     }
 }
 
 impl From<Denom> for Value {
     fn from(v: Denom) -> Self {
-        Value::Bytes(v.to_bytes().into_iter().collect::<im::Vector<u8>>())
+        Value::Bytes(v.to_bytes().into_iter().collect::<imbl::Vector<u8>>())
     }
 }
 
 impl From<Vec<u8>> for Value {
     fn from(v: Vec<u8>) -> Self {
-        Value::Bytes(v.into_iter().collect::<im::Vector<u8>>())
+        Value::Bytes(v.into_iter().collect::<imbl::Vector<u8>>())
     }
 }
 
 impl From<HexBytes> for Value {
     fn from(v: HexBytes) -> Self {
-        Value::Bytes(v.0.into_iter().collect::<im::Vector<u8>>())
+        Value::Bytes(v.0.into_iter().collect::<imbl::Vector<u8>>())
     }
 }
 
@@ -752,14 +752,14 @@ impl<T: Into<Value>> From<Vec<T>> for Value {
         Value::Vector(
             v.into_iter()
                 .map(|x| x.into())
-                .collect::<im::Vector<Value>>(),
+                .collect::<imbl::Vector<Value>>(),
         )
     }
 }
 
 impl From<Transaction> for Value {
     fn from(tx: Transaction) -> Self {
-        Value::Vector(im::vector![
+        Value::Vector(imbl::vector![
             Value::Int(U256::from(tx.kind as u8)),
             tx.inputs.into(),
             tx.outputs.into(),
