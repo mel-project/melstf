@@ -93,7 +93,8 @@ pub struct Transaction {
 }
 
 impl Transaction {
-    pub(crate) fn empty_test() -> Self {
+    /// An empty transaction with kind Normal, no inputs, no fees, etc.
+    pub fn empty_test() -> Self {
         Transaction {
             kind: TxKind::Normal,
             inputs: Vec::new(),
