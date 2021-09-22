@@ -67,6 +67,13 @@ pub enum StateError {
 #[repr(u8)]
 pub enum NetID {
     Testnet = 0x01,
+    Custom02 = 0x02,
+    Custom03 = 0x03,
+    Custom04 = 0x04,
+    Custom05 = 0x05,
+    Custom06 = 0x06,
+    Custom07 = 0x07,
+    Custom08 = 0x08,
     Mainnet = 0xff,
 }
 
