@@ -8,8 +8,8 @@ use tmelcrypt::HashVal;
 use crate::{
     melpow,
     melvm::{Address, CovenantEnv},
-    CoinData, CoinDataHeight, CoinID, Denom, NetID, StakeDoc, State, StateError, Transaction,
-    TxHash, TxKind, STAKE_EPOCH,
+    CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc, State, StateError,
+    Transaction, TxHash, TxKind, STAKE_EPOCH,
 };
 
 use super::melmint;
@@ -21,8 +21,8 @@ pub(crate) struct StateHandle<'a> {
     coin_cache: DashMap<CoinID, Option<CoinDataHeight>>,
     transactions_cache: DashMap<TxHash, Transaction>,
 
-    fee_pool_cache: u128,
-    tips_cache: u128,
+    fee_pool_cache: CoinValue,
+    tips_cache: CoinValue,
 
     dosc_speed_cache: Mutex<u128>,
 
@@ -70,7 +70,7 @@ impl<'a> StateHandle<'a> {
                         CoinDataHeight {
                             coin_data: CoinData {
                                 denom: Denom::Mel,
-                                value: 0,
+                                value: 0.into(),
                                 additional_data: vec![],
                                 covhash: HashVal::default().into(),
                             },
@@ -129,7 +129,7 @@ impl<'a> StateHandle<'a> {
     fn apply_tx_inputs(&self, tx: &Transaction) -> Result<(), StateError> {
         let scripts = tx.script_as_map();
         // build a map of input coins
-        let mut in_coins: imbl::HashMap<Denom, u128> = imbl::HashMap::new();
+        let mut in_coins: imbl::HashMap<Denom, CoinValue> = imbl::HashMap::new();
         // get last header
         let last_header = self
             .state
@@ -170,7 +170,10 @@ impl<'a> StateHandle<'a> {
                     self.del_coin(*coin_id);
                     in_coins.insert(
                         coin_data.coin_data.denom,
-                        in_coins.get(&coin_data.coin_data.denom).unwrap_or(&0)
+                        in_coins
+                            .get(&coin_data.coin_data.denom)
+                            .cloned()
+                            .unwrap_or_else(|| 0u128.into())
                             + coin_data.coin_data.value,
                     );
                 }
@@ -184,7 +187,10 @@ impl<'a> StateHandle<'a> {
                 if tx.kind == TxKind::DoscMint && *currency == Denom::NomDosc {
                     continue;
                 }
-                let in_value = *in_coins.get(currency).unwrap_or(&u128::MAX);
+                let in_value = in_coins
+                    .get(currency)
+                    .copied()
+                    .unwrap_or_else(|| u128::MAX.into());
                 if *currency != Denom::NewCoin && *value != in_value {
                     log::warn!(
                         "unbalanced: {} {:?} in, {} {:?} out",
@@ -207,8 +213,8 @@ impl<'a> StateHandle<'a> {
             return Err(StateError::InsufficientFees(min_fee));
         }
         let tips = tx.fee - min_fee;
-        self.tips_cache = self.tips_cache.saturating_add(tips);
-        self.fee_pool_cache = self.fee_pool_cache.saturating_add(min_fee);
+        self.tips_cache.0 = self.tips_cache.0.saturating_add(tips.0);
+        self.fee_pool_cache.0 = self.fee_pool_cache.0.saturating_add(min_fee.0);
         Ok(())
     }
 
@@ -285,7 +291,7 @@ impl<'a> StateHandle<'a> {
             let mut dosc_speed = self.dosc_speed_cache.lock();
             *dosc_speed = dosc_speed.max(my_speed);
         }
-        let reward_nom = melmint::dosc_inflate_r2n(self.state.height, reward_real);
+        let reward_nom = CoinValue(melmint::dosc_inflate_r2n(self.state.height, reward_real));
         // ensure that the total output of DOSCs is correct
         let total_dosc_output = tx
             .total_outputs()

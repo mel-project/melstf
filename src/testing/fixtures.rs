@@ -62,7 +62,7 @@ pub fn genesis_mel_coin_data(genesis_covenant: Covenant) -> CoinData {
     let coin_data_factory = CoinDataFactory::new();
     coin_data_factory.build(|coin_data| {
         coin_data.covhash = genesis_covenant.hash();
-        coin_data.value = genesis_micro_mel_supply;
+        coin_data.value = genesis_micro_mel_supply.into();
     })
 }
 
@@ -104,7 +104,7 @@ pub fn genesis_state(
                 pubkey: keypair.0,
                 e_start: GENESIS_EPOCH_START,
                 e_post_end: GENESIS_EPOCH_POST_END,
-                syms_staked,
+                syms_staked: syms_staked.into(),
             },
         );
     }
@@ -127,12 +127,12 @@ pub fn tx_send_mel_from_seed_coin(
     let dest_pk = keypair.0;
     let coin_data_factory = CoinDataFactory::new();
     let coin_data_receiver = coin_data_factory.build(|coin_data| {
-        coin_data.value = mel_value_to_receiver;
+        coin_data.value = mel_value_to_receiver.into();
         coin_data.covhash = melvm::Covenant::std_ed25519_pk_legacy(dest_pk).hash();
     });
 
     // Generate change transaction back to sender
-    let change = genesis_mel_coin_data.value - mel_value_to_receiver - fee;
+    let change = genesis_mel_coin_data.value - mel_value_to_receiver.into() - fee;
     let sender_pk = genesis_covenant_keypair.0;
     let coin_data_change = coin_data_factory.build(|coin_data| {
         coin_data.value = change;
@@ -170,12 +170,12 @@ pub fn valid_txx(keypair: (Ed25519PK, Ed25519SK)) -> Vec<Transaction> {
         },
         CoinData {
             covhash: scr.hash(),
-            value: MICRO_CONVERTER * 1000,
+            value: (MICRO_CONVERTER * 1000).into(),
             denom: Denom::Mel,
             additional_data: vec![],
         },
         sk,
         &scr,
-        1577000,
+        1577000.into(),
     )
 }

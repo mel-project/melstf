@@ -1,6 +1,6 @@
 pub use crate::stake::*;
 use crate::{constants::*, melvm::Address, preseal_melmint, CoinDataHeight, Denom, TxHash};
-use crate::{smtmapping::*, CoinData};
+use crate::{smtmapping::*, CoinData, CoinValue};
 use crate::{transaction as txn, CoinID};
 use applytx::StateHandle;
 use defmac::defmac;
@@ -33,7 +33,7 @@ pub enum StateError {
     #[error("unbalanced inputs and outputs")]
     UnbalancedInOut,
     #[error("insufficient fees (requires {0})")]
-    InsufficientFees(u128),
+    InsufficientFees(CoinValue),
     #[error("referenced non-existent script {:?}", .0)]
     NonexistentScript(Address),
     #[error("does not satisfy script {:?}", .0)]
@@ -87,9 +87,9 @@ pub struct State {
     pub coins: SmtMapping<CoinID, CoinDataHeight>,
     pub transactions: SmtMapping<TxHash, Transaction>,
 
-    pub fee_pool: u128,
+    pub fee_pool: CoinValue,
     pub fee_multiplier: u128,
-    pub tips: u128,
+    pub tips: CoinValue,
 
     pub dosc_speed: u128,
     pub pools: PoolMapping,
@@ -113,9 +113,9 @@ impl State {
         out.extend_from_slice(&self.coins.root_hash());
         out.extend_from_slice(&self.transactions.root_hash());
 
-        out.extend_from_slice(&self.fee_pool.to_be_bytes());
+        out.extend_from_slice(&self.fee_pool.0.to_be_bytes());
         out.extend_from_slice(&self.fee_multiplier.to_be_bytes());
-        out.extend_from_slice(&self.tips.to_be_bytes());
+        out.extend_from_slice(&self.tips.0.to_be_bytes());
 
         out.extend_from_slice(&self.dosc_speed.to_be_bytes());
         out.extend_from_slice(&self.pools.root_hash());
@@ -153,9 +153,9 @@ impl State {
             coins,
             transactions,
 
-            fee_pool,
+            fee_pool: fee_pool.into(),
             fee_multiplier,
-            tips,
+            tips: tips.into(),
 
             dosc_speed: dosc_multiplier,
             pools,
@@ -219,10 +219,10 @@ impl State {
             }
 
             // then it's time to collect the fees dude! we synthesize a coin with 1/65536 of the fee pool and all the tips.
-            let base_fees = self.fee_pool >> 16;
+            let base_fees = CoinValue(self.fee_pool.0 >> 16);
             self.fee_pool -= base_fees;
             let tips = self.tips;
-            self.tips = 0;
+            self.tips = 0.into();
             let pseudocoin_id = CoinID::proposer_reward(self.height);
             let pseudocoin_data = CoinDataHeight {
                 coin_data: CoinData {
@@ -406,7 +406,7 @@ pub struct Header {
     pub history_hash: HashVal,
     pub coins_hash: HashVal,
     pub transactions_hash: HashVal,
-    pub fee_pool: u128,
+    pub fee_pool: CoinValue,
     pub fee_multiplier: u128,
     pub dosc_speed: u128,
     pub pools_hash: HashVal,

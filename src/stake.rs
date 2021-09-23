@@ -1,6 +1,6 @@
 #![allow(clippy::float_cmp)]
 
-use crate::{SmtMapping, TxHash};
+use crate::{CoinValue, SmtMapping, TxHash};
 use serde::{Deserialize, Serialize};
 use tmelcrypt::Ed25519PK;
 
@@ -14,7 +14,7 @@ pub struct StakeDoc {
     /// Ending epoch. This is the epoch *after* the last epoch in which the syms are effective.
     pub e_post_end: u64,
     /// Number of syms staked.
-    pub syms_staked: u128,
+    pub syms_staked: CoinValue,
 }
 
 /// A stake mapping
@@ -27,9 +27,9 @@ impl StakeMapping {
         let mut target_votes = 0.0;
         for sdoc in self.val_iter() {
             if epoch >= sdoc.e_start && epoch < sdoc.e_post_end {
-                total_votes += sdoc.syms_staked as f64;
+                total_votes += sdoc.syms_staked.0 as f64;
                 if sdoc.pubkey == pubkey {
-                    target_votes += sdoc.syms_staked as f64;
+                    target_votes += sdoc.syms_staked.0 as f64;
                 }
             }
         }
@@ -59,21 +59,21 @@ impl StakeMapping {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{melvm, CoinData, CoinDataHeight, CoinID, GenesisConfig};
+    use crate::{melvm, CoinData, CoinDataHeight, CoinID, CoinValue, GenesisConfig};
     use crate::{Denom, State};
     use rstest::rstest;
     use std::collections::HashMap;
     use tmelcrypt::Ed25519SK;
 
     /// Create a state using a mapping from sk to syms staked for an epoch
-    fn create_state(stakers: &HashMap<Ed25519SK, u128>, epoch_start: u64) -> State {
+    fn create_state(stakers: &HashMap<Ed25519SK, CoinValue>, epoch_start: u64) -> State {
         // Create emtpy state
         let db = novasmt::Forest::new(novasmt::InMemoryBackend::default());
         let mut state = GenesisConfig::std_testnet().realize(&db);
         state.stakes.clear();
 
         // Insert a mel coin into state so we can transact
-        let start_micromels = 10000;
+        let start_micromels = CoinValue(10000);
         let start_conshash = melvm::Covenant::always_true().hash();
         state.coins.insert(
             CoinID {
@@ -114,7 +114,7 @@ mod tests {
         // let staked_syms =vec![100 as u64; 3];
         let stakers = staked_syms
             .into_iter()
-            .map(|e| (tmelcrypt::ed25519_keygen().1, e))
+            .map(|e| (tmelcrypt::ed25519_keygen().1, CoinValue(e)))
             .collect();
         let genesis = create_state(&stakers, 0);
 
@@ -134,14 +134,14 @@ mod tests {
         let total_staked_syms: u128 = staked_syms.iter().sum();
         let stakers = staked_syms
             .into_iter()
-            .map(|e| (tmelcrypt::ed25519_keygen().1, e))
+            .map(|e| (tmelcrypt::ed25519_keygen().1, CoinValue(e)))
             .collect();
         let state = create_state(&stakers, 0);
 
         // Check the vote power of each staker in epoch 0 has expected value
         for (sk, vote) in stakers.iter() {
             let vote_power = state.stakes.vote_power(0, sk.to_public());
-            let expected_vote_power = (*vote as f64) / (total_staked_syms as f64);
+            let expected_vote_power = (vote.0 as f64) / (total_staked_syms as f64);
             assert_eq!(expected_vote_power - vote_power, 0.0);
         }
     }
@@ -154,7 +154,7 @@ mod tests {
         let staked_syms = vec![100u128; 3];
         let stakers = staked_syms
             .into_iter()
-            .map(|e| (tmelcrypt::ed25519_keygen().1, e))
+            .map(|e| (tmelcrypt::ed25519_keygen().1, CoinValue(e)))
             .collect();
         let state = create_state(&stakers, epoch_start);
 
@@ -181,7 +181,7 @@ mod tests {
         // Add in a single staker to get a state at epoch 0
         let (pk, sk) = tmelcrypt::ed25519_keygen();
         let mut stakers = HashMap::new();
-        stakers.insert(sk, staked_sym);
+        stakers.insert(sk, CoinValue(staked_sym));
         let state = create_state(&stakers, 0);
 
         // Ensure staker has 1.0 voting power as expected
@@ -209,7 +209,7 @@ mod tests {
         // Generate state for stakers
         let stakers = staked_syms
             .into_iter()
-            .map(|e| (tmelcrypt::ed25519_keygen().1, e))
+            .map(|e| (tmelcrypt::ed25519_keygen().1, CoinValue(e)))
             .collect();
         let state = create_state(&stakers, 0);
 
@@ -227,7 +227,7 @@ mod tests {
         // Generate state for stakers
         let stakers = staked_syms
             .into_iter()
-            .map(|e| (tmelcrypt::ed25519_keygen().1, e))
+            .map(|e| (tmelcrypt::ed25519_keygen().1, CoinValue(e)))
             .collect();
         let mut state = create_state(&stakers, 0);
 
@@ -246,7 +246,7 @@ mod tests {
         // Generate state for stakers
         let stakers = staked_syms
             .into_iter()
-            .map(|e| (tmelcrypt::ed25519_keygen().1, e))
+            .map(|e| (tmelcrypt::ed25519_keygen().1, CoinValue(e)))
             .collect();
         let mut state = create_state(&stakers, 0);
 

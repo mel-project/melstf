@@ -3,7 +3,8 @@
 // build the structure manually or use a custom function with sub-factories where appropriate.
 
 use crate::{
-    melvm, CoinData, CoinDataHeight, CoinID, Denom, ProposerAction, StakeDoc, Transaction, TxKind,
+    melvm, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, ProposerAction, StakeDoc,
+    Transaction, TxKind,
 };
 
 beaver::define! {
@@ -16,7 +17,7 @@ beaver::define! {
 beaver::define! {
     pub CoinDataFactory (CoinData) {
         covhash -> |_| tmelcrypt::HashVal::random().into(),
-        value -> |n| n as u128,
+        value -> |n| CoinValue(n as u128),
         denom -> |_| Denom::Mel,
         additional_data -> |_| vec![],
     }
@@ -34,7 +35,7 @@ beaver::define! {
         kind -> |_| TxKind::Normal,
         inputs -> |n| CoinIDFactory::build_list(3, n),
         outputs -> |n| CoinDataFactory::build_list(3, n),
-        fee -> |n| n as u128,
+        fee -> |n| CoinValue(n as u128),
         scripts -> |_| vec![melvm::Covenant::always_true()],
         data -> |_| vec![],
         sigs -> |_| vec![],
@@ -46,7 +47,7 @@ beaver::define! {
         pubkey -> |_| tmelcrypt::ed25519_keygen().0,
         e_start -> |n| n as u64,
         e_post_end -> |n| n as u64,
-        syms_staked -> |n| n as u128,
+        syms_staked -> |n| CoinValue(n as u128),
     }
 }
 

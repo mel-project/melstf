@@ -1,7 +1,7 @@
 use crate::{
     constants::*,
     melvm::{self, Address, Covenant},
-    HexBytes,
+    CoinValue, HexBytes,
 };
 use arbitrary::Arbitrary;
 use derive_more::{Display, From, Into};
@@ -85,7 +85,7 @@ pub struct Transaction {
     pub kind: TxKind,
     pub inputs: Vec<CoinID>,
     pub outputs: Vec<CoinData>,
-    pub fee: u128,
+    pub fee: CoinValue,
     pub scripts: Vec<melvm::Covenant>,
     #[serde(with = "stdcode::hex")]
     pub data: Vec<u8>,
@@ -99,7 +99,7 @@ impl Transaction {
             kind: TxKind::Normal,
             inputs: Vec::new(),
             outputs: Vec::new(),
-            fee: 0,
+            fee: 0.into(),
             scripts: Vec::new(),
             data: Vec::new(),
             sigs: Vec::new(),
@@ -112,7 +112,7 @@ impl Transaction {
             kind,
             inputs: vec![],
             outputs: vec![],
-            fee: 0,
+            fee: 0.into(),
             scripts: vec![],
             data: vec![],
             sigs: vec![],
@@ -150,7 +150,7 @@ impl Transaction {
     }
 
     /// Replaces the fee of the transaction
-    pub fn with_fee(mut self, fee: u128) -> Self {
+    pub fn with_fee(mut self, fee: CoinValue) -> Self {
         self.fee = fee;
         self
     }
@@ -183,11 +183,11 @@ impl Transaction {
     pub fn is_well_formed(&self) -> bool {
         // check bounds
         for out in self.outputs.iter() {
-            if out.value > MAX_COINVAL {
+            if out.value.0 > MAX_COINVAL {
                 return false;
             }
         }
-        if self.fee > MAX_COINVAL {
+        if self.fee.0 > MAX_COINVAL {
             return false;
         }
         if self.outputs.len() > 255 || self.inputs.len() > 255 {
@@ -210,14 +210,14 @@ impl Transaction {
         self
     }
 
-    /// total_outputs returns a HashMap mapping each type of coin to its total value. Fees will be included in COINTYPE_TMEL.
-    pub fn total_outputs(&self) -> HashMap<Denom, u128> {
-        let mut toret = HashMap::new();
+    /// total_outputs returns a HashMap mapping each type of coin to its total value. Fees will be included in the Mel cointype.
+    pub fn total_outputs(&self) -> HashMap<Denom, CoinValue> {
+        let mut toret: HashMap<Denom, CoinValue> = HashMap::new();
         for output in self.outputs.iter() {
-            let old = *toret.get(&output.denom).unwrap_or(&0);
+            let old = toret.get(&output.denom).copied().unwrap_or_default();
             toret.insert(output.denom, old + output.value);
         }
-        let old = *toret.get(&Denom::Mel).unwrap_or(&0);
+        let old = toret.get(&Denom::Mel).copied().unwrap_or_default();
         toret.insert(Denom::Mel, old + self.fee);
         toret
     }
@@ -232,8 +232,8 @@ impl Transaction {
     }
 
     /// Returns the minimum fee of the transaction at a given fee multiplier, with a given "ballast".
-    pub fn base_fee(&self, fee_multiplier: u128, ballast: u128) -> u128 {
-        (self.weight().saturating_add(ballast)).saturating_mul(fee_multiplier) >> 16
+    pub fn base_fee(&self, fee_multiplier: u128, ballast: u128) -> CoinValue {
+        ((self.weight().saturating_add(ballast)).saturating_mul(fee_multiplier) >> 16).into()
     }
 
     /// Returns the weight of the transaction.
@@ -284,7 +284,7 @@ impl Transaction {
         let delta_fee = self.base_fee(fee_multiplier, ballast);
         self.fee += delta_fee;
         let deduct_from = self.outputs.get_mut(deduct_from_idx)?;
-        deduct_from.value = deduct_from.value.checked_sub(delta_fee)?;
+        deduct_from.value = deduct_from.value.0.checked_sub(delta_fee.0)?.into();
         Some(self)
     }
 }
@@ -362,7 +362,7 @@ impl CoinID {
 pub struct CoinData {
     #[serde(with = "stdcode::asstr")]
     pub covhash: Address,
-    pub value: u128,
+    pub value: CoinValue,
     // #[serde(with = "stdcode::hex")]
     pub denom: Denom,
     #[serde(with = "stdcode::hex")]
@@ -503,7 +503,7 @@ pub(crate) mod tests {
         // Create an invalid tx by setting an invalid output value
         let invalid_output_value = MAX_COINVAL + 1;
         let invalid_output = CoinData {
-            value: invalid_output_value,
+            value: invalid_output_value.into(),
             ..valid_output
         };
         let invalid_outputs = vec![invalid_output];
@@ -525,7 +525,7 @@ pub(crate) mod tests {
 
         // Create an invalid tx by setting an invalid fee value
         let invalid_tx = Transaction {
-            fee: MAX_COINVAL + offset,
+            fee: (MAX_COINVAL + offset).into(),
             ..valid_tx
         };
 
@@ -650,13 +650,13 @@ pub(crate) mod tests {
         valid_tx.outputs = vec![
             CoinData {
                 covhash: scr.hash(),
-                value: val1,
+                value: val1.into(),
                 denom: Denom::NewCoin,
                 additional_data: vec![],
             },
             CoinData {
                 covhash: scr.hash(),
-                value: val2,
+                value: val2.into(),
                 denom: Denom::NewCoin,
                 additional_data: vec![],
             },
@@ -664,7 +664,7 @@ pub(crate) mod tests {
 
         // Check total is valid
         let value_by_coin_type = valid_tx.total_outputs();
-        let total: u128 = value_by_coin_type.iter().map(|(_k, v)| *v).sum();
+        let total: u128 = value_by_coin_type.iter().map(|(_k, v)| v.0).sum();
 
         let fee = 1577000; // Temporary hack
         assert_eq!(total, val1 + val2 + fee);

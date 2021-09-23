@@ -2,7 +2,7 @@ use std::collections::BinaryHeap;
 
 use crate::{testing::factory::TransactionFactory, Denom};
 // use crate::testing::fixtures::SEND_MEL_AMOUNT;
-use crate::{melvm, CoinData, CoinID, Transaction, TxKind};
+use crate::{melvm, CoinData, CoinID, CoinValue, Transaction, TxKind};
 
 pub fn random_valid_txx(
     rng: &mut impl rand::Rng,
@@ -10,7 +10,7 @@ pub fn random_valid_txx(
     start_coindata: CoinData,
     signer: tmelcrypt::Ed25519SK,
     covenant: &melvm::Covenant,
-    fee: u128,
+    fee: CoinValue,
 ) -> Vec<Transaction> {
     random_valid_txx_count(rng, start_coin, start_coindata, signer, covenant, fee, 100)
 }
@@ -21,7 +21,7 @@ pub fn random_valid_txx_count(
     start_coindata: CoinData,
     signer: tmelcrypt::Ed25519SK,
     covenant: &melvm::Covenant,
-    fee: u128,
+    fee: CoinValue,
     tx_count: u32,
 ) -> Vec<Transaction> {
     let mut pqueue: BinaryHeap<(u64, CoinID, CoinData)> = BinaryHeap::new();
@@ -58,12 +58,12 @@ pub fn random_valid_txx_count(
     toret
 }
 
-pub fn fee_estimate() -> u128 {
+pub fn fee_estimate() -> CoinValue {
     // Assuming some fee for tx (use higher multiplier to ensure its enough)
     let fee_multiplier = 10000;
     let fee = TransactionFactory::new()
         .build(|_| {})
         .weight()
         .saturating_mul(fee_multiplier);
-    fee
+    fee.into()
 }

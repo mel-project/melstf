@@ -8,7 +8,7 @@ use themelio_stf::{
 fn generate_txx(n: usize) -> Vec<Transaction> {
     let fixed_output = CoinData {
         covhash: Covenant::always_true().hash(),
-        value: 100,
+        value: 100.into(),
         denom: Denom::Mel,
         additional_data: vec![],
     };
@@ -16,7 +16,7 @@ fn generate_txx(n: usize) -> Vec<Transaction> {
         kind: themelio_stf::TxKind::Faucet,
         inputs: vec![],
         outputs: vec![fixed_output.clone()],
-        fee: 0,
+        fee: 0.into(),
         data: vec![],
         scripts: vec![],
         sigs: vec![],
@@ -28,7 +28,7 @@ fn generate_txx(n: usize) -> Vec<Transaction> {
             kind: themelio_stf::TxKind::Normal,
             inputs: vec![prev],
             outputs: vec![fixed_output.clone()],
-            fee: 0,
+            fee: 0.into(),
             data: vec![],
             scripts: vec![Covenant::always_true()],
             sigs: vec![],
@@ -44,12 +44,12 @@ fn zerofee_state() -> State {
         network: themelio_stf::NetID::Testnet,
         init_coindata: CoinData {
             covhash: Address::coin_destroy(),
-            value: 0,
+            value: 0.into(),
             denom: Denom::Mel,
             additional_data: vec![],
         },
         stakes: Default::default(),
-        init_fee_pool: 0,
+        init_fee_pool: 0.into(),
     };
     let mut state = cfg.realize(&novasmt::Forest::new(novasmt::InMemoryBackend::default()));
     state.fee_multiplier = 0;

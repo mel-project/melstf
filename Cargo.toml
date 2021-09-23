@@ -38,6 +38,7 @@ tap= "1.0.1"
 rustc-hash = "1.1.0"
 # stacker="0.1"
 scopeguard= "1.1.0"
+ordered-float = "2.7.0"
 # futures-lite="1"
 
 [target.'cfg(fuzzing)'.dependencies] 

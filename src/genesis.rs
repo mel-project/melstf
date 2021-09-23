@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use tmelcrypt::{Ed25519PK, HashVal};
 
 use crate::{
-    melvm::Covenant, CoinData, CoinDataHeight, CoinID, Denom, NetID, SmtMapping, StakeDoc, State,
-    TxHash, MICRO_CONVERTER,
+    melvm::Covenant, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, SmtMapping,
+    StakeDoc, State, TxHash, MICRO_CONVERTER,
 };
 
 /// Configuration of a genesis state. Serializable via serde.
@@ -17,8 +17,8 @@ pub struct GenesisConfig {
     pub init_coindata: CoinData,
     /// Mapping of initial stakeholders.
     pub stakes: BTreeMap<TxHash, StakeDoc>,
-    /// Initial fee pool, in micromels. Half-life is approximately 15 days.
-    pub init_fee_pool: u128,
+    /// Initial fee pool. Half-life is approximately 15 days.
+    pub init_fee_pool: CoinValue,
 }
 
 impl GenesisConfig {
@@ -34,7 +34,7 @@ impl GenesisConfig {
                         .unwrap(),
                 ))
                 .hash(),
-                value: 1000000 * MICRO_CONVERTER, // 1 million SYM
+                value: (1000000 * MICRO_CONVERTER).into(), // 1 million SYM
                 denom: Denom::Sym,
                 additional_data: vec![],
             },
@@ -48,12 +48,12 @@ impl GenesisConfig {
                             pubkey,
                             e_start: 0,
                             e_post_end: 3, // for the first two epochs (140 days)
-                            syms_staked: 1,
+                            syms_staked: 1.into(),
                         },
                     )
                 })
                 .collect(),
-            init_fee_pool: 6553600 * MICRO_CONVERTER, // 100 mel/day subsidy, decreasing rapidly
+            init_fee_pool: CoinValue::from_millions(6553600u64), // subsidy, decreasing rapidly
         }
     }
 
@@ -63,7 +63,7 @@ impl GenesisConfig {
             network: NetID::Testnet,
             init_coindata: CoinData {
                 covhash: Covenant::always_true().hash(),
-                value: 1 << 32,
+                value: (1 << 32).into(),
                 denom: Denom::Mel,
                 additional_data: vec![],
             },
@@ -82,12 +82,12 @@ impl GenesisConfig {
                         pubkey,
                         e_start: 0,
                         e_post_end: 1 << 32,
-                        syms_staked: 1,
+                        syms_staked: 1.into(),
                     },
                 )
             })
             .collect(),
-            init_fee_pool: 1 << 64,
+            init_fee_pool: (1 << 64).into(),
         }
     }
 
@@ -102,7 +102,7 @@ impl GenesisConfig {
             transactions: SmtMapping::new(empty_tree.clone()),
             fee_pool: self.init_fee_pool,
             fee_multiplier: MICRO_CONVERTER,
-            tips: 0,
+            tips: 0.into(),
 
             dosc_speed: MICRO_CONVERTER,
             pools: SmtMapping::new(empty_tree.clone()),

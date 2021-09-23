@@ -4,7 +4,7 @@ use tap::Pipe;
 
 use super::melswap::PoolState;
 use crate::{
-    CoinData, CoinDataHeight, Denom, PoolKey, State, Transaction, TxKind, MAX_COINVAL,
+    CoinData, CoinDataHeight, CoinValue, Denom, PoolKey, State, Transaction, TxKind, MAX_COINVAL,
     MICRO_CONVERTER, TIP_902_HEIGHT,
 };
 
@@ -153,20 +153,20 @@ fn process_swaps(mut state: State) -> State {
                 if tx.outputs[0].denom == pool.left {
                     tx.outputs[0].value
                 } else {
-                    0
+                    CoinValue(0)
                 }
             })
-            .fold(0u128, |a, b| a.saturating_add(b));
+            .fold(0u128, |a, b| a.saturating_add(b.0));
         let total_rights = relevant_swaps
             .iter()
             .map(|tx| {
                 if tx.outputs[0].denom == pool.right {
                     tx.outputs[0].value
                 } else {
-                    0
+                    CoinValue(0)
                 }
             })
-            .fold(0u128, |a, b| a.saturating_add(b));
+            .fold(0u128, |a, b| a.saturating_add(b.0));
         // transmute coins
         let (left_withdrawn, right_withdrawn) = pool_state.swap_many(total_lefts, total_rights);
 
@@ -177,16 +177,18 @@ fn process_swaps(mut state: State) -> State {
                 swap.outputs[0].denom = pool.right;
                 swap.outputs[0].value = multiply_frac(
                     right_withdrawn,
-                    Ratio::new(swap.outputs[0].value, total_lefts),
+                    Ratio::new(swap.outputs[0].value.0, total_lefts),
                 )
-                .min(MAX_COINVAL);
+                .min(MAX_COINVAL)
+                .into();
             } else {
                 swap.outputs[0].denom = pool.left;
                 swap.outputs[0].value = multiply_frac(
                     left_withdrawn,
-                    Ratio::new(swap.outputs[0].value, total_rights),
+                    Ratio::new(swap.outputs[0].value.0, total_rights),
                 )
-                .min(MAX_COINVAL);
+                .min(MAX_COINVAL)
+                .into();
             }
             state.coins.insert(
                 correct_coinid,
@@ -239,11 +241,11 @@ fn process_deposits(mut state: State) -> State {
         // sum up total lefts and rights
         let total_lefts = relevant_txx
             .iter()
-            .map(|tx| tx.outputs[0].value)
+            .map(|tx| tx.outputs[0].value.0)
             .fold(0u128, |a, b| a.saturating_add(b));
         let total_rights = relevant_txx
             .iter()
-            .map(|tx| tx.outputs[1].value)
+            .map(|tx| tx.outputs[1].value.0)
             .fold(0u128, |a, b| a.saturating_add(b));
         let total_mtsqrt = total_lefts.sqrt().saturating_mul(total_rights.sqrt());
         // main logic here
@@ -262,11 +264,12 @@ fn process_deposits(mut state: State) -> State {
             let correct_coinid = deposit.output_coinid(0);
             let my_mtsqrt = deposit.outputs[0]
                 .value
+                .0
                 .sqrt()
-                .saturating_mul(deposit.outputs[1].value.sqrt());
+                .saturating_mul(deposit.outputs[1].value.0.sqrt());
             deposit.outputs[0].denom = pool.liq_token_denom();
             deposit.outputs[0].value =
-                multiply_frac(total_liqs, Ratio::new(my_mtsqrt, total_mtsqrt));
+                multiply_frac(total_liqs, Ratio::new(my_mtsqrt, total_mtsqrt)).into();
             state.coins.insert(
                 correct_coinid,
                 CoinDataHeight {
@@ -315,7 +318,7 @@ fn process_withdrawals(mut state: State) -> State {
         // sum up total liqs
         let total_liqs = relevant_txx
             .iter()
-            .map(|tx| tx.outputs[0].value)
+            .map(|tx| tx.outputs[0].value.0)
             .fold(0u128, |a, b| a.saturating_add(b));
         // get the state
         let mut pool_state = state.pools.get(&pool).0.unwrap();
@@ -326,12 +329,13 @@ fn process_withdrawals(mut state: State) -> State {
             let coinid_0 = deposit.output_coinid(0);
             let coinid_1 = deposit.output_coinid(1);
 
-            let my_liqs = deposit.outputs[0].value;
+            let my_liqs = deposit.outputs[0].value.0;
             deposit.outputs[0].denom = pool.left;
-            deposit.outputs[0].value = multiply_frac(total_left, Ratio::new(my_liqs, total_liqs));
+            deposit.outputs[0].value =
+                multiply_frac(total_left, Ratio::new(my_liqs, total_liqs)).into();
             let synth = CoinData {
                 denom: pool.right,
-                value: multiply_frac(total_write, Ratio::new(my_liqs, total_liqs)),
+                value: multiply_frac(total_write, Ratio::new(my_liqs, total_liqs)).into(),
                 covhash: deposit.outputs[0].covhash,
                 additional_data: deposit.outputs[0].additional_data.clone(),
             };
@@ -456,7 +460,7 @@ mod tests {
             CoinID::zero_zero(),
             CoinDataHeight {
                 coin_data: CoinData {
-                    value: (1 << 64) + 4000000,
+                    value: ((1 << 64) + 4000000).into(),
                     denom: Denom::Mel,
                     covhash: my_covhash,
                     additional_data: vec![],
@@ -474,18 +478,18 @@ mod tests {
             outputs: vec![
                 CoinData {
                     covhash: my_covhash,
-                    value: (1 << 64) + 2000000,
+                    value: ((1 << 64) + 2000000).into(),
                     denom: Denom::Mel,
                     additional_data: vec![],
                 },
                 CoinData {
                     covhash: my_covhash,
-                    value: 1 << 64,
+                    value: (1 << 64).into(),
                     denom: Denom::NewCoin,
                     additional_data: vec![],
                 },
             ],
-            fee: 2000000,
+            fee: 2000000.into(),
             scripts: vec![melvm::Covenant::std_ed25519_pk_legacy(my_pk)],
             data: vec![],
             sigs: vec![],
@@ -499,18 +503,18 @@ mod tests {
             outputs: vec![
                 CoinData {
                     covhash: my_covhash,
-                    value: (1 << 64),
+                    value: (1 << 64).into(),
                     denom: pool_key.left,
                     additional_data: vec![],
                 },
                 CoinData {
                     covhash: my_covhash,
-                    value: 1 << 64,
+                    value: (1 << 64).into(),
                     denom: pool_key.right,
                     additional_data: vec![],
                 },
             ],
-            fee: 2000000,
+            fee: 2000000.into(),
             scripts: vec![melvm::Covenant::std_ed25519_pk_legacy(my_pk)],
             data: pool_key.to_bytes(), // this is important, since it "points" to the pool
             sigs: vec![],

@@ -91,7 +91,7 @@ impl Covenant {
     }
 
     /// Execute a transaction in a [CovenantEnv] to completion and return whether the covenant succeeded.
-    pub(crate) fn check_opt_env(&self, tx: &Transaction, env: Option<CovenantEnv>) -> bool {
+    pub fn check_opt_env(&self, tx: &Transaction, env: Option<CovenantEnv>) -> bool {
         if let Ok(instrs) = self.to_ops() {
             Executor::new_from_env(instrs, tx.clone(), env).run_to_end()
         } else {
@@ -231,7 +231,7 @@ impl Executor {
             } = &env.parent_cdh;
 
             hm.insert(HADDR_SELF_HASH, covhash.0.into());
-            hm.insert(HADDR_PARENT_VALUE, (*value).into());
+            hm.insert(HADDR_PARENT_VALUE, (value.0).into());
             hm.insert(HADDR_PARENT_DENOM, (*denom).into());
             hm.insert(HADDR_PARENT_ADDITIONAL_DATA, additional_data.clone().into());
             hm.insert(HADDR_PARENT_HEIGHT, (*height).into());
@@ -671,7 +671,7 @@ impl From<CoinData> for Value {
     fn from(cd: CoinData) -> Self {
         Value::Vector(imbl::vector![
             cd.covhash.0.into(),
-            cd.value.into(),
+            cd.value.0.into(),
             cd.denom.into(),
             cd.additional_data.into()
         ])
@@ -687,7 +687,7 @@ impl From<Header> for Value {
             cd.history_hash.into(),
             cd.coins_hash.into(),
             cd.transactions_hash.into(),
-            cd.fee_pool.into(),
+            cd.fee_pool.0.into(),
             cd.fee_multiplier.into(),
             cd.dosc_speed.into(),
             cd.pools_hash.into(),
@@ -763,7 +763,7 @@ impl From<Transaction> for Value {
             Value::Int(U256::from(tx.kind as u8)),
             tx.inputs.into(),
             tx.outputs.into(),
-            tx.fee.into(),
+            tx.fee.0.into(),
             tx.scripts.into(),
             tx.data.into(),
             tx.sigs.into()
