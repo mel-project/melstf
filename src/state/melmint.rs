@@ -4,8 +4,8 @@ use tap::Pipe;
 
 use super::melswap::PoolState;
 use crate::{
-    CoinData, CoinDataHeight, CoinValue, Denom, PoolKey, State, Transaction, TxKind, MAX_COINVAL,
-    MICRO_CONVERTER, TIP_902_HEIGHT,
+    BlockHeight, CoinData, CoinDataHeight, CoinValue, Denom, PoolKey, State, Transaction, TxKind,
+    MAX_COINVAL, MICRO_CONVERTER, TIP_902_HEIGHT,
 };
 
 thread_local! {
@@ -13,7 +13,7 @@ thread_local! {
 }
 
 /// Internal DOSC inflator. Returns how many µNomDOSC is 1 DOSC.
-fn micronomdosc_per_dosc(height: u64) -> u128 {
+fn micronomdosc_per_dosc(height: BlockHeight) -> u128 {
     // fn inner(height: u64) -> u128 {
     //     if height == 0 {
     //         MICRO_CONVERTER
@@ -28,17 +28,17 @@ fn micronomdosc_per_dosc(height: u64) -> u128 {
         if dpt.is_empty() {
             dpt.push(MICRO_CONVERTER);
         }
-        while dpt.len() < (height + 1) as usize {
+        while dpt.len() < (height.0 + 1) as usize {
             let last = dpt.last().copied().unwrap();
             dpt.push((last + 1).max(last + last / 2_000_000));
         }
 
-        dpt[height as usize]
+        dpt[height.0 as usize]
     })
 }
 
 /// DOSC inflation ratio.
-pub fn dosc_inflator(height: u64) -> BigRational {
+pub fn dosc_inflator(height: BlockHeight) -> BigRational {
     BigRational::from((
         BigInt::from(micronomdosc_per_dosc(height)),
         BigInt::from(MICRO_CONVERTER),
@@ -46,7 +46,7 @@ pub fn dosc_inflator(height: u64) -> BigRational {
 }
 
 /// DOSC inflation calculator.
-pub fn dosc_inflate_r2n(height: u64, real: u128) -> u128 {
+pub fn dosc_inflate_r2n(height: BlockHeight, real: u128) -> u128 {
     let ratio = dosc_inflator(height);
     let result = ratio * BigRational::from(BigInt::from(real));
     result
@@ -175,20 +175,18 @@ fn process_swaps(mut state: State) -> State {
 
             if swap.outputs[0].denom == pool.left {
                 swap.outputs[0].denom = pool.right;
-                swap.outputs[0].value = multiply_frac(
+                swap.outputs[0].value = CoinValue(multiply_frac(
                     right_withdrawn,
                     Ratio::new(swap.outputs[0].value.0, total_lefts),
-                )
-                .min(MAX_COINVAL)
-                .into();
+                ))
+                .min(MAX_COINVAL);
             } else {
                 swap.outputs[0].denom = pool.left;
-                swap.outputs[0].value = multiply_frac(
+                swap.outputs[0].value = CoinValue(multiply_frac(
                     left_withdrawn,
                     Ratio::new(swap.outputs[0].value.0, total_rights),
-                )
-                .min(MAX_COINVAL)
-                .into();
+                ))
+                .min(MAX_COINVAL);
             }
             state.coins.insert(
                 correct_coinid,
@@ -465,7 +463,7 @@ mod tests {
                     covhash: my_covhash,
                     additional_data: vec![],
                 },
-                height: 100,
+                height: 100.into(),
             },
             Default::default(),
         );

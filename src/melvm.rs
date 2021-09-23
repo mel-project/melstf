@@ -234,7 +234,7 @@ impl Executor {
             hm.insert(HADDR_PARENT_VALUE, (value.0).into());
             hm.insert(HADDR_PARENT_DENOM, (*denom).into());
             hm.insert(HADDR_PARENT_ADDITIONAL_DATA, additional_data.clone().into());
-            hm.insert(HADDR_PARENT_HEIGHT, (*height).into());
+            hm.insert(HADDR_PARENT_HEIGHT, height.0.into());
             hm.insert(HADDR_LAST_HEADER, Value::from(*env.last_header));
             hm.insert(HADDR_SPENDER_INDEX, Value::from(env.spender_index as u64));
         }
@@ -683,7 +683,7 @@ impl From<Header> for Value {
         Value::Vector(imbl::vector![
             (cd.network as u64).into(),
             cd.previous.into(),
-            cd.height.into(),
+            cd.height.0.into(),
             cd.history_hash.into(),
             cd.coins_hash.into(),
             cd.transactions_hash.into(),
@@ -698,7 +698,7 @@ impl From<Header> for Value {
 
 impl From<CoinDataHeight> for Value {
     fn from(cd: CoinDataHeight) -> Self {
-        Value::Vector(imbl::vector![cd.coin_data.into(), cd.height.into()])
+        Value::Vector(imbl::vector![cd.coin_data.into(), cd.height.0.into()])
     }
 }
 

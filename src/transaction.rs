@@ -1,7 +1,7 @@
 use crate::{
     constants::*,
     melvm::{self, Address, Covenant},
-    CoinValue, HexBytes,
+    BlockHeight, CoinValue, HexBytes,
 };
 use arbitrary::Arbitrary;
 use derive_more::{Display, From, Into};
@@ -183,11 +183,11 @@ impl Transaction {
     pub fn is_well_formed(&self) -> bool {
         // check bounds
         for out in self.outputs.iter() {
-            if out.value.0 > MAX_COINVAL {
+            if out.value > MAX_COINVAL {
                 return false;
             }
         }
-        if self.fee.0 > MAX_COINVAL {
+        if self.fee > MAX_COINVAL {
             return false;
         }
         if self.outputs.len() > 255 || self.inputs.len() > 255 {
@@ -349,9 +349,9 @@ impl CoinID {
     }
 
     /// The pseudo-coin-ID for the proposer reward for the given height.
-    pub fn proposer_reward(height: u64) -> Self {
+    pub fn proposer_reward(height: BlockHeight) -> Self {
         CoinID {
-            txhash: tmelcrypt::hash_keyed(b"reward_coin_pseudoid", &height.to_be_bytes()).into(),
+            txhash: tmelcrypt::hash_keyed(b"reward_coin_pseudoid", &height.0.to_be_bytes()).into(),
             index: 0,
         }
     }
@@ -477,7 +477,7 @@ struct DenomInner(#[serde(with = "stdcode::hex")] Vec<u8>);
 /// A `CoinData` but coupled with a block height. This is what actually gets stored in the global state, allowing constraints and the validity-checking algorithm to easily access the age of a coin.
 pub struct CoinDataHeight {
     pub coin_data: CoinData,
-    pub height: u64,
+    pub height: BlockHeight,
 }
 
 #[cfg(test)]
@@ -501,9 +501,9 @@ pub(crate) mod tests {
         let valid_output = valid_outputs.get(0).unwrap().clone();
 
         // Create an invalid tx by setting an invalid output value
-        let invalid_output_value = MAX_COINVAL + 1;
+        let invalid_output_value = MAX_COINVAL + 1.into();
         let invalid_output = CoinData {
-            value: invalid_output_value.into(),
+            value: invalid_output_value,
             ..valid_output
         };
         let invalid_outputs = vec![invalid_output];
@@ -525,7 +525,7 @@ pub(crate) mod tests {
 
         // Create an invalid tx by setting an invalid fee value
         let invalid_tx = Transaction {
-            fee: (MAX_COINVAL + offset).into(),
+            fee: MAX_COINVAL + offset.into(),
             ..valid_tx
         };
 

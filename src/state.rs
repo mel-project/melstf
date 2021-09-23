@@ -1,6 +1,6 @@
 pub use crate::stake::*;
 use crate::{constants::*, melvm::Address, preseal_melmint, CoinDataHeight, Denom, TxHash};
-use crate::{smtmapping::*, CoinData, CoinValue};
+use crate::{smtmapping::*, BlockHeight, CoinData, CoinValue};
 use crate::{transaction as txn, CoinID};
 use applytx::StateHandle;
 use defmac::defmac;
@@ -82,8 +82,8 @@ pub enum NetID {
 pub struct State {
     pub network: NetID,
 
-    pub height: u64,
-    pub history: SmtMapping<u64, Header>,
+    pub height: BlockHeight,
+    pub history: SmtMapping<BlockHeight, Header>,
     pub coins: SmtMapping<CoinID, CoinDataHeight>,
     pub transactions: SmtMapping<TxHash, Transaction>,
 
@@ -108,7 +108,7 @@ impl State {
     pub fn partial_encoding(&self) -> Vec<u8> {
         let mut out = Vec::new();
         out.extend_from_slice(&[self.network.into()]);
-        out.extend_from_slice(&self.height.to_be_bytes());
+        out.extend_from_slice(&self.height.0.to_be_bytes());
         out.extend_from_slice(&self.history.root_hash());
         out.extend_from_slice(&self.coins.root_hash());
         out.extend_from_slice(&self.transactions.root_hash());
@@ -148,7 +148,7 @@ impl State {
         let stakes = readtree!();
         State {
             network,
-            height,
+            height: height.into(),
             history,
             coins,
             transactions,
@@ -280,8 +280,8 @@ impl SealedState {
         // panic!()
         Header {
             network: inner.network,
-            previous: (inner.height.checked_sub(1))
-                .map(|height| inner.history.get(&height).0.unwrap().hash())
+            previous: (inner.height.0.checked_sub(1))
+                .map(|height| inner.history.get(&BlockHeight(height)).0.unwrap().hash())
                 .unwrap_or_default(),
             height: inner.height,
             history_hash: inner.history.root_hash(),
@@ -321,8 +321,8 @@ impl SealedState {
         let mut new = self.inner_ref().clone();
         // fee variables
         new.history.insert(self.0.height, self.header());
-        new.height += 1;
-        new.stakes.remove_stale(new.height / STAKE_EPOCH);
+        new.height += BlockHeight(1);
+        new.stakes.remove_stale((new.height / STAKE_EPOCH).0);
         new.transactions.clear();
         new
     }
@@ -402,7 +402,7 @@ impl ConfirmedState {
 pub struct Header {
     pub network: NetID,
     pub previous: HashVal,
-    pub height: u64,
+    pub height: BlockHeight,
     pub history_hash: HashVal,
     pub coins_hash: HashVal,
     pub transactions_hash: HashVal,
@@ -423,7 +423,7 @@ impl Header {
         _cproof: &ConsensusProof,
         previous_state: Option<&State>,
     ) -> bool {
-        if previous_state.is_none() && self.height != 0 {
+        if previous_state.is_none() && self.height.0 != 0 {
             return false;
         }
         // TODO

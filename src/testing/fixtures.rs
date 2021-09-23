@@ -57,7 +57,7 @@ pub fn genesis_stakeholders() -> HashMap<(Ed25519PK, Ed25519SK), u128> {
 #[fixture]
 pub fn genesis_mel_coin_data(genesis_covenant: Covenant) -> CoinData {
     let genesis_micro_mel_supply = MICRO_CONVERTER * GENESIS_MEL_SUPPLY;
-    assert!(genesis_micro_mel_supply <= MAX_COINVAL);
+    assert!(genesis_micro_mel_supply <= MAX_COINVAL.0);
 
     let coin_data_factory = CoinDataFactory::new();
     coin_data_factory.build(|coin_data| {
@@ -77,7 +77,7 @@ pub fn genesis_mel_coin_data_height(genesis_mel_coin_data: CoinData) -> CoinData
 
     coin_data_height_factory.build(|coin_data_height| {
         coin_data_height.coin_data = genesis_mel_coin_data.clone();
-        coin_data_height.height = 0;
+        coin_data_height.height = 0.into();
     })
 }
 

@@ -26,7 +26,7 @@ beaver::define! {
 beaver::define! {
     pub CoinDataHeightFactory (CoinDataHeight) {
         coin_data -> |n| CoinDataFactory::build(n),
-        height -> |n| n as u64,
+        height -> |n| (n as u64).into(),
     }
 }
 

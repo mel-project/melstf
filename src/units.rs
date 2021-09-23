@@ -1,10 +1,10 @@
 use std::fmt::Display;
 
 use arbitrary::Arbitrary;
-use derive_more::{Add, AddAssign, Display, From, FromStr, Into, Sub, SubAssign};
+use derive_more::{Add, AddAssign, Display, Div, DivAssign, From, FromStr, Into, Sub, SubAssign};
 use serde::{Deserialize, Serialize};
 
-use crate::MICRO_CONVERTER;
+use crate::{MICRO_CONVERTER, STAKE_EPOCH};
 
 /// Newtype representing a monetary value in microunits. The Display and FromStr implementations divide by 1,000,000 automatically.
 #[derive(
@@ -26,6 +26,8 @@ use crate::MICRO_CONVERTER;
     AddAssign,
     Sub,
     SubAssign,
+    Div,
+    DivAssign,
 )]
 #[serde(transparent)]
 pub struct CoinValue(pub u128);
@@ -71,6 +73,15 @@ impl CoinValue {
     SubAssign,
     Display,
     FromStr,
+    Div,
+    DivAssign,
 )]
 #[serde(transparent)]
 pub struct BlockHeight(pub u64);
+
+impl BlockHeight {
+    /// Epoch of this height
+    pub fn epoch(&self) -> u64 {
+        self.0 / STAKE_EPOCH
+    }
+}

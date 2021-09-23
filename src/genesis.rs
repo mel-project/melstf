@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use tmelcrypt::{Ed25519PK, HashVal};
 
 use crate::{
-    melvm::Covenant, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, SmtMapping,
-    StakeDoc, State, TxHash, MICRO_CONVERTER,
+    melvm::Covenant, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID,
+    SmtMapping, StakeDoc, State, TxHash, MICRO_CONVERTER,
 };
 
 /// Configuration of a genesis state. Serializable via serde.
@@ -96,7 +96,7 @@ impl GenesisConfig {
         let empty_tree = db.open_tree(HashVal::default().0).unwrap();
         let mut new_state = State {
             network: self.network,
-            height: 0,
+            height: 0.into(),
             history: SmtMapping::new(empty_tree.clone()),
             coins: SmtMapping::new(empty_tree.clone()),
             transactions: SmtMapping::new(empty_tree.clone()),
@@ -118,7 +118,7 @@ impl GenesisConfig {
         new_state.coins.insert(
             CoinID::zero_zero(),
             CoinDataHeight {
-                height: 0,
+                height: BlockHeight(0),
                 coin_data: self.init_coindata,
             },
         );

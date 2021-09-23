@@ -87,7 +87,7 @@ mod tests {
                     denom: Denom::Mel,
                     additional_data: vec![],
                 },
-                height: 0,
+                height: 0.into(),
             },
         );
 

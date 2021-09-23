@@ -8,8 +8,8 @@ use tmelcrypt::HashVal;
 use crate::{
     melpow,
     melvm::{Address, CovenantEnv},
-    CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc, State, StateError,
-    Transaction, TxHash, TxKind, STAKE_EPOCH,
+    BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc, State,
+    StateError, Transaction, TxHash, TxKind, STAKE_EPOCH,
 };
 
 use super::melmint;
@@ -74,7 +74,7 @@ impl<'a> StateHandle<'a> {
                                 additional_data: vec![],
                                 covhash: HashVal::default().into(),
                             },
-                            height: 0,
+                            height: 0.into(),
                         },
                     );
                 }
@@ -134,7 +134,7 @@ impl<'a> StateHandle<'a> {
         let last_header = self
             .state
             .history
-            .get(&(self.state.height.saturating_sub(1)))
+            .get(&BlockHeight(self.state.height.0.saturating_sub(1)))
             .0
             .unwrap_or_else(|| self.state.clone().seal(None).header());
         // iterate through the inputs
@@ -250,7 +250,7 @@ impl<'a> StateHandle<'a> {
         let coin_id = *tx.inputs.get(0).ok_or(StateError::MalformedTx).unwrap();
         let coin_data = self.get_coin(coin_id).ok_or(StateError::MalformedTx)?;
         // make sure the time is long enough that we can easily measure it
-        if self.state.height - coin_data.height < 100 {
+        if (self.state.height - coin_data.height).0 < 100 {
             log::warn!("too recent");
             return Err(StateError::InvalidMelPoW);
         }
@@ -276,12 +276,12 @@ impl<'a> StateHandle<'a> {
             return Err(StateError::InvalidMelPoW);
         }
         // compute speeds
-        let my_speed = 2u128.pow(difficulty) / (self.state.height - coin_data.height) as u128;
+        let my_speed = 2u128.pow(difficulty) / (self.state.height - coin_data.height).0 as u128;
         let reward_real = melmint::calculate_reward(
             my_speed,
             self.state
                 .history
-                .get(&(self.state.height - 1))
+                .get(&BlockHeight(self.state.height.0 - 1))
                 .0
                 .unwrap()
                 .dosc_speed,
@@ -307,7 +307,7 @@ impl<'a> StateHandle<'a> {
         // first we check that the data is correct
         let stake_doc: StakeDoc =
             stdcode::deserialize(&tx.data).map_err(|_| StateError::MalformedTx)?;
-        let curr_epoch = self.state.height / STAKE_EPOCH;
+        let curr_epoch = self.state.height.epoch();
         // then we check that the first coin is valid
         let first_coin = tx.outputs.get(0).ok_or(StateError::MalformedTx)?;
         if first_coin.denom != Denom::Sym {
