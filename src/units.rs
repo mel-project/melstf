@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use arbitrary::Arbitrary;
-use derive_more::{Add, AddAssign, Display, Div, DivAssign, From, FromStr, Into, Sub, SubAssign};
+use derive_more::{Mul, MulAssign, Add, AddAssign, Display, Div, DivAssign, From, FromStr, Into, Sub, SubAssign};
 use serde::{Deserialize, Serialize};
 
 use crate::{MICRO_CONVERTER, STAKE_EPOCH};
@@ -28,6 +28,8 @@ use crate::{MICRO_CONVERTER, STAKE_EPOCH};
     SubAssign,
     Div,
     DivAssign,
+    Mul,
+    MulAssign,
 )]
 #[serde(transparent)]
 pub struct CoinValue(pub u128);
