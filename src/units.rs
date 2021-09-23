@@ -77,6 +77,8 @@ impl CoinValue {
     FromStr,
     Div,
     DivAssign,
+    Mul,
+    MulAssign,
 )]
 #[serde(transparent)]
 pub struct BlockHeight(pub u64);
