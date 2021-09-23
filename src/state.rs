@@ -417,18 +417,6 @@ impl Header {
     pub fn hash(&self) -> tmelcrypt::HashVal {
         tmelcrypt::hash_single(&stdcode::serialize(self).unwrap())
     }
-
-    pub fn validate_cproof(
-        &self,
-        _cproof: &ConsensusProof,
-        previous_state: Option<&State>,
-    ) -> bool {
-        if previous_state.is_none() && self.height.0 != 0 {
-            return false;
-        }
-        // TODO
-        true
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
