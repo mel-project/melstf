@@ -104,6 +104,18 @@ fn read_bts(r: &mut impl Read, n: usize) -> Option<Vec<u8>> {
 }
 
 impl State {
+    /// Returns true iff TIP 901 rule changes apply.
+    pub fn tip_901(&self) -> bool {
+        self.height >= TIP_901_HEIGHT
+            || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
+    }
+
+    /// Returns true iff TIP 902 rule changes apply.
+    pub fn tip_902(&self) -> bool {
+        self.height >= TIP_902_HEIGHT
+            || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
+    }
+
     /// Generates an encoding of the state that, in conjunction with a SMT database, can recover the entire state.
     pub fn partial_encoding(&self) -> Vec<u8> {
         let mut out = Vec::new();
@@ -196,7 +208,7 @@ impl State {
         self = preseal_melmint(self);
         assert!(self.pools.val_iter().count() >= 2);
 
-        let after_tip_901 = self.height >= TIP_901_HEIGHT;
+        let after_tip_901 = self.tip_901();
 
         // apply the proposer action
         if let Some(action) = action {

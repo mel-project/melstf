@@ -9,7 +9,7 @@ use crate::{
     melpow,
     melvm::{Address, CovenantEnv},
     BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc, State,
-    StateError, Transaction, TxHash, TxKind, STAKE_EPOCH,
+    StateError, Transaction, TxHash, TxKind,
 };
 
 use super::melmint;

@@ -5,7 +5,7 @@ use tap::Pipe;
 use super::melswap::PoolState;
 use crate::{
     BlockHeight, CoinData, CoinDataHeight, CoinValue, Denom, PoolKey, State, Transaction, TxKind,
-    MAX_COINVAL, MICRO_CONVERTER, TIP_902_HEIGHT,
+    MAX_COINVAL, MICRO_CONVERTER,
 };
 
 thread_local! {
@@ -95,7 +95,7 @@ fn create_builtins(mut state: State) -> State {
     {
         state.pools.insert(PoolKey::mel_and(Denom::NomDosc), def)
     }
-    if state.height >= TIP_902_HEIGHT
+    if state.tip_902()
         && state
             .pools
             .get(&PoolKey::new(Denom::NomDosc, Denom::Sym))
@@ -360,7 +360,7 @@ fn process_withdrawals(mut state: State) -> State {
 /// Process pegging.
 fn process_pegging(mut state: State) -> State {
     // first calculate the implied sym/nomDOSC exchange rate
-    let x_sd = if state.height >= TIP_902_HEIGHT {
+    let x_sd = if state.tip_902() {
         state
             .pools
             .get(&PoolKey::new(Denom::Sym, Denom::NomDosc))
@@ -386,11 +386,7 @@ fn process_pegging(mut state: State) -> State {
         x_s / x_d
     };
 
-    let throttler = if state.height >= TIP_902_HEIGHT {
-        200
-    } else {
-        1000
-    };
+    let throttler = if state.tip_902() { 200 } else { 1000 };
 
     // get the right pool
     let mut sm_pool = state.pools.get(&PoolKey::mel_and(Denom::Sym)).0.unwrap();
