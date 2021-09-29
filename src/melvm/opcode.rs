@@ -207,7 +207,7 @@ impl OpCode {
             OpCode::PushIC(i) => {
                 output.write_all(&[OPCODE_PUSHIC]).unwrap();
                 let bytes_repr = i.to_be_bytes();
-                let leading_zeros = i.leading_zeros() / 8;
+                let leading_zeros = bytes_repr.iter().take_while(|i| **i == 0).count();
                 output.write_all(&[32 - (leading_zeros as u8)]).unwrap();
                 output
                     .write_all(&bytes_repr[leading_zeros as usize..])
@@ -295,18 +295,19 @@ impl OpCode {
                 Ok(OpCode::PushI(U256::from_be_bytes(buf)))
             }
             OPCODE_PUSHIC => {
+                let mut buf = [0; 32];
                 let nonzero_len = read_byte(input)?;
-                let mut blit = vec![0u8; nonzero_len as usize];
+                if nonzero_len > 32 {
+                    return Err(DecodeError::InvalidVarint);
+                }
+                let mut blit = &mut buf[..nonzero_len as usize];
                 input.read_exact(&mut blit)?;
                 if blit.len() > 32 {
                     return Err(DecodeError::InvalidVarint);
                 }
                 blit.reverse();
-                let blit_len = blit.len();
-                blit.resize(32, 0);
-                // TODO TODO TODO ensure canonicalness
-                let integ = U256::from_le_bytes(blit.as_slice().try_into().unwrap());
-                if 32 - (integ.leading_zeros() / 8) != blit_len as u32 {
+                let integ = U256::from_le_bytes(buf);
+                if 32 - (integ.leading_zeros() / 8) != nonzero_len as u32 {
                     return Err(DecodeError::InvalidVarint);
                 }
                 Ok(OpCode::PushIC(integ))

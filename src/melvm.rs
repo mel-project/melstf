@@ -19,6 +19,7 @@ use self::{
 };
 mod consts;
 pub mod opcode;
+mod pbytes;
 
 #[derive(Clone, Eq, PartialEq, Debug, Arbitrary, Serialize, Deserialize, Hash)]
 /// A MelVM covenant. Essentially, given a transaction that attempts to spend it, it either allows the transaction through or doesn't.
@@ -163,7 +164,7 @@ impl Covenant {
 
     /// Converts to a vector of OpCodes.
     pub fn to_ops(&self) -> Result<Vec<OpCode>, DecodeError> {
-        let mut collected = Vec::new();
+        let mut collected = Vec::with_capacity(128);
         let mut rdr = self.0.as_slice();
         while !rdr.is_empty() {
             collected.push(OpCode::decode(&mut rdr)?);
@@ -298,6 +299,7 @@ impl Executor {
     }
 
     /// Execute an instruction, modifying state and program counter.
+    #[inline(always)]
     pub fn step(&mut self) -> Option<()> {
         let mut inner = || {
             let op = self.instrs.get(self.pc)?.clone();
