@@ -15,12 +15,12 @@ fn eval_fitness(input: &[u8]) -> OF64 {
     if val.to_ops().is_err() {
         return 0.0.into();
     }
-    let mut runtime = f64::MAX;
-    for _ in 0..10 {
-        let start = CLOCK.start();
-        val.check_raw(&[]);
-        runtime = runtime.min((CLOCK.end() - start) as f64);
-    }
+    // let mut runtime = f64::MAX;
+    // for _ in 0..10 {
+    //     let start = CLOCK.start();
+    //     val.check_raw(&[]);
+    //     runtime = runtime.min((CLOCK.end() - start) as f64);
+    // }
     if val
         .to_ops()
         .unwrap_or_default()
@@ -31,7 +31,10 @@ fn eval_fitness(input: &[u8]) -> OF64 {
     };
     let weight = val.weight().unwrap() as f64;
     let ilen = input.len() as f64;
-    (runtime / (ilen + 200.0 + weight)).into()
+    if ilen == 0.0 {
+        return 0.0.into();
+    }
+    (ilen / weight + ilen).into()
 }
 
 /// Maybe mutate the input
@@ -48,7 +51,7 @@ fn mutate(input: &mut Vec<u8>) {
 }
 
 fn main() {
-    let mut population: Vec<(Vec<u8>, OrderedFloat<f64>)> = (0..256)
+    let mut population: Vec<(Vec<u8>, OrderedFloat<f64>)> = (0..2048)
         .map(|_| loop {
             let r: u64 = rand::random();
             let v = r.to_le_bytes().to_vec();
