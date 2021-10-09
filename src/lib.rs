@@ -29,7 +29,7 @@ pub use state::melswap::PoolState;
 pub use state::*;
 use std::ops::{Deref, DerefMut};
 pub use transaction::*;
-
+pub use txbuilder::*;
 pub mod melpow;
 
 #[cfg(test)]
