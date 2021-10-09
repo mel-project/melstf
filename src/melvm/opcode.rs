@@ -1,4 +1,4 @@
-use std::{convert::TryInto, io::Write};
+use std::{fmt::Display, io::Write};
 
 use super::consts::{
     OPCODE_ADD, OPCODE_AND, OPCODE_BAPPEND, OPCODE_BCONS, OPCODE_BEMPTY, OPCODE_BEZ,
@@ -82,6 +82,67 @@ pub enum OpCode {
 
     // duplication
     Dup,
+}
+
+#[derive(Error, Debug, Clone)]
+pub enum ParseOpCodeError {
+    #[error("invalid opcode")]
+    InvalidOpcode,
+}
+
+impl Display for OpCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OpCode::Noop => "noop".fmt(f),
+            OpCode::Add => "add".fmt(f),
+            OpCode::Sub => "sub".fmt(f),
+            OpCode::Mul => "mul".fmt(f),
+            OpCode::Div => "div".fmt(f),
+            OpCode::Rem => "rem".fmt(f),
+            OpCode::And => "and".fmt(f),
+            OpCode::Or => "or".fmt(f),
+            OpCode::Xor => "xor".fmt(f),
+            OpCode::Not => "not".fmt(f),
+            OpCode::Eql => "eql".fmt(f),
+            OpCode::Lt => "lt".fmt(f),
+            OpCode::Gt => "gt".fmt(f),
+            OpCode::Shl => "shl".fmt(f),
+            OpCode::Shr => "shr".fmt(f),
+            OpCode::Hash(i) => format!("hash {}", i).fmt(f),
+            OpCode::SigEOk(i) => format!("sigeok {}", i).fmt(f),
+            OpCode::Store => "store".fmt(f),
+            OpCode::Load => "load".fmt(f),
+            OpCode::StoreImm(i) => format!("storeimm {}", i).fmt(f),
+            OpCode::LoadImm(i) => format!("loadimm {}", i).fmt(f),
+            OpCode::VRef => "vref".fmt(f),
+            OpCode::VAppend => "vappend".fmt(f),
+            OpCode::VEmpty => "vempty".fmt(f),
+            OpCode::VLength => "vlength".fmt(f),
+            OpCode::VSlice => "vslice".fmt(f),
+            OpCode::VSet => "vset".fmt(f),
+            OpCode::VPush => "vpush".fmt(f),
+            OpCode::VCons => "vcons".fmt(f),
+            OpCode::BRef => "bref".fmt(f),
+            OpCode::BAppend => "bappend".fmt(f),
+            OpCode::BEmpty => "bempty".fmt(f),
+            OpCode::BLength => "blength".fmt(f),
+            OpCode::BSlice => "bslice".fmt(f),
+            OpCode::BSet => "bset".fmt(f),
+            OpCode::BPush => "bpush".fmt(f),
+            OpCode::BCons => "bcons".fmt(f),
+            OpCode::Bez(i) => format!("bez {}", i).fmt(f),
+            OpCode::Bnz(i) => format!("bnz {}", i).fmt(f),
+            OpCode::Jmp(i) => format!("jmp {}", i).fmt(f),
+            OpCode::Loop(i, j) => format!("loop {} {}", i, j).fmt(f),
+            OpCode::ItoB => "itob".fmt(f),
+            OpCode::BtoI => "btoi".fmt(f),
+            OpCode::TypeQ => "typeq".fmt(f),
+            OpCode::PushB(v) => format!("pushb {}", hex::encode(&v)).fmt(f),
+            OpCode::PushI(i) => format!("pushi {}", i).fmt(f),
+            OpCode::PushIC(i) => format!("pushic {}", i).fmt(f),
+            OpCode::Dup => "dup".fmt(f),
+        }
+    }
 }
 
 /// Opcode encoding error

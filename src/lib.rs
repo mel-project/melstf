@@ -14,6 +14,7 @@ mod genesis;
 pub mod melvm;
 mod stake;
 mod state;
+mod txbuilder;
 mod units;
 pub use state::melmint::*;
 pub use units::*;
