@@ -3,6 +3,7 @@ use crate::{
     CoinData, CoinID, CoinValue, Denom, Transaction, TxKind,
 };
 use std::collections::{BTreeMap, BTreeSet};
+use tap::Pipe;
 use thiserror::Error;
 
 #[derive(Error, Debug, Clone)]
@@ -75,8 +76,24 @@ impl TransactionBuilder {
         self
     }
 
+    /// "Automatically" adds the base fee. An upper-bound for the number of signatures and the size of each signature is required.
+    pub fn auto_base_fee(
+        self,
+        fee_multiplier: u128,
+        max_sig_count: usize,
+        max_sig_size: usize,
+    ) -> Self {
+        let fee = self.in_progress.clone().pipe(|mut tx| {
+            for _ in 0..max_sig_count {
+                tx.sigs.push(vec![0; max_sig_size].into())
+            }
+            tx.base_fee(fee_multiplier, 0)
+        });
+        self.fee(fee)
+    }
+
     /// Balance the transaction on the given denomination. Sends any excess to a change output.
-    pub fn balance(mut self, denom: Denom, change_addr: Address) -> Self {
+    pub fn change(mut self, denom: Denom, change_addr: Address) -> Self {
         let input = self.in_balance.get(&denom).copied().unwrap_or_default();
         let output = self.out_balance.get(&denom).copied().unwrap_or_default();
         if input >= output {
@@ -145,8 +162,14 @@ mod tests {
                 &TransactionBuilder::new()
                     .input(CoinID::zero_zero(), init_coindata)
                     .fee(10000.into())
+                    .output(CoinData {
+                        covhash: Covenant::always_true().hash(),
+                        value: 1000.into(),
+                        denom: Denom::Mel,
+                        additional_data: vec![],
+                    })
                     .script(Covenant::always_true())
-                    .balance(Denom::Mel, Covenant::always_true().hash())
+                    .change(Denom::Mel, Covenant::always_true().hash())
                     .build()
                     .expect("build failed"),
             )

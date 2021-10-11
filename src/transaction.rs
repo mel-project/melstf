@@ -275,6 +275,9 @@ impl Transaction {
     /// added to the transaction as signatures. 100 is a good value for a ballast.
     /// Provide the index of the output to deduct from;
     /// returns None if the output doesn't have enough money to cover fees.
+    ///
+    /// **Deprecated**: you should use TransactionBuilder instead.
+    #[deprecated]
     pub fn applied_fee(
         mut self,
         fee_multiplier: u128,

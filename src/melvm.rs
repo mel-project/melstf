@@ -19,7 +19,6 @@ use self::{
 };
 mod consts;
 pub mod opcode;
-mod pbytes;
 
 #[derive(Clone, Eq, PartialEq, Debug, Arbitrary, Serialize, Deserialize, Hash)]
 /// A MelVM covenant. Essentially, given a transaction that attempts to spend it, it either allows the transaction through or doesn't.
