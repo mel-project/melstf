@@ -1,5 +1,8 @@
-use crate::{melvm::Address, CoinData, CoinID, CoinValue, Denom, Transaction, TxKind};
-use std::collections::BTreeMap;
+use crate::{
+    melvm::{Address, Covenant},
+    CoinData, CoinID, CoinValue, Denom, Transaction, TxKind,
+};
+use std::collections::{BTreeMap, BTreeSet};
 use thiserror::Error;
 
 #[derive(Error, Debug, Clone)]
@@ -8,12 +11,16 @@ pub enum TransactionBuildError {
     NotWellFormed,
     #[error("inputs and outputs unbalanced")]
     Unbalanced,
+    #[error("missing a covenant with hash {0}")]
+    MissingCovenant(Address),
 }
 
 /// A helper struct for creating transactions.
 #[derive(Debug)]
 pub struct TransactionBuilder {
     in_progress: Transaction,
+    required_covenants: BTreeSet<Address>,
+    given_covenants: BTreeSet<Address>,
     in_balance: BTreeMap<Denom, CoinValue>,
     out_balance: BTreeMap<Denom, CoinValue>,
 }
@@ -24,6 +31,8 @@ impl TransactionBuilder {
         let in_progress = Transaction::empty_test();
         TransactionBuilder {
             in_progress,
+            required_covenants: BTreeSet::new(),
+            given_covenants: BTreeSet::new(),
             in_balance: BTreeMap::new(),
             out_balance: BTreeMap::new(),
         }
@@ -35,10 +44,11 @@ impl TransactionBuilder {
         self
     }
 
-    /// Adds an input. A denomination and value must be provided.
-    pub fn input(mut self, coin_id: CoinID, denom: Denom, value: CoinValue) -> Self {
+    /// Adds an input. A CoinData must be provided.
+    pub fn input(mut self, coin_id: CoinID, coin_data: CoinData) -> Self {
         self.in_progress.inputs.push(coin_id);
-        *self.in_balance.entry(denom).or_default() += value;
+        *self.in_balance.entry(coin_data.denom).or_default() += coin_data.value;
+        self.required_covenants.insert(coin_data.covhash);
         self
     }
 
@@ -48,6 +58,13 @@ impl TransactionBuilder {
             *self.out_balance.entry(data.denom).or_default() += data.value;
         }
         self.in_progress.outputs.push(data);
+        self
+    }
+
+    /// Adds a covenant script.
+    pub fn script(mut self, script: Covenant) -> Self {
+        self.given_covenants.insert(script.hash());
+        self.in_progress.scripts.push(script);
         self
     }
 
@@ -64,7 +81,7 @@ impl TransactionBuilder {
         let output = self.out_balance.get(&denom).copied().unwrap_or_default();
         if input >= output {
             let delta = input - output;
-            self.in_progress.outputs.push(CoinData {
+            self = self.output(CoinData {
                 covhash: change_addr,
                 value: delta,
                 denom,
@@ -82,6 +99,11 @@ impl TransactionBuilder {
         if !self.in_progress.is_well_formed() {
             return Err(TransactionBuildError::NotWellFormed);
         }
+        for cov in self.required_covenants.iter() {
+            if !self.given_covenants.contains(cov) {
+                return Err(TransactionBuildError::MissingCovenant(*cov));
+            }
+        }
         Ok(self.in_progress)
     }
 
@@ -89,5 +111,45 @@ impl TransactionBuilder {
     pub fn data(mut self, data: Vec<u8>) -> Self {
         self.in_progress.data = data;
         self
+    }
+}
+
+impl Default for TransactionBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{melvm::Covenant, GenesisConfig};
+
+    use super::*;
+
+    #[test]
+    fn txbuilder_basic_balance() {
+        let forest = novasmt::Forest::new(novasmt::InMemoryBackend::default());
+        let init_coindata = CoinData {
+            denom: Denom::Mel,
+            value: CoinValue::from_millions(1000u64),
+            additional_data: vec![],
+            covhash: Covenant::always_true().hash(),
+        };
+        let mut state = GenesisConfig {
+            init_coindata: init_coindata.clone(),
+            ..GenesisConfig::std_testnet()
+        }
+        .realize(&forest);
+        state
+            .apply_tx(
+                &TransactionBuilder::new()
+                    .input(CoinID::zero_zero(), init_coindata)
+                    .fee(10000.into())
+                    .script(Covenant::always_true())
+                    .balance(Denom::Mel, Covenant::always_true().hash())
+                    .build()
+                    .expect("build failed"),
+            )
+            .expect("tx failed");
     }
 }
