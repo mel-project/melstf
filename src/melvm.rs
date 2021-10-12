@@ -254,6 +254,7 @@ impl Executor {
         let x = stack.pop()?;
         let y = stack.pop()?;
         stack.push(op(x, y)?);
+        // eprintln!("stack at {}", stack.len());
         Some(())
     }
     fn do_monop(&mut self, op: impl Fn(Value) -> Option<Value>) -> Option<()> {
@@ -308,6 +309,7 @@ impl Executor {
             // eprintln!("STK: {:?}", self.stack);
             // eprintln!();
             self.pc += 1;
+            // eprintln!("running {:?}", op);
             match op {
                 OpCode::Noop => {}
                 // arithmetic
@@ -501,6 +503,7 @@ impl Executor {
                 OpCode::BAppend => self.do_binop(|v1, v2| {
                     let mut v1 = v1.into_bytes()?;
                     let v2 = v2.into_bytes()?;
+                    // eprintln!("append {} to {}", v1.len(), v2.len());
                     v1.append(v2);
                     Some(Value::Bytes(v1))
                 })?,
@@ -776,6 +779,7 @@ impl From<Transaction> for Value {
 mod tests {
     use super::*;
     use quickcheck_macros::*;
+    use tap::Tap;
     fn dontcrash(data: &[u8]) {
         let script = Covenant(data.to_vec());
         if let Ok(ops) = script.to_ops() {
@@ -797,6 +801,85 @@ mod tests {
             data.push(0xb0)
         }
         dontcrash(&data.to_vec())
+    }
+
+    fn testvec(n: usize) -> imbl::Vector<u8> {
+        imbl::Vector::from(vec![0u8; n])
+    }
+
+    fn append(mut x: imbl::Vector<u8>, y: imbl::Vector<u8>) -> imbl::Vector<u8> {
+        eprintln!(">> append {} to {}", x.len(), y.len());
+        x.append(y);
+        x
+    }
+
+    fn cons(x: u8, mut y: imbl::Vector<u8>) -> imbl::Vector<u8> {
+        y.push_front(x);
+        y
+    }
+
+    #[test]
+    fn imbl_bug() {
+        let v7 = append(testvec(0), testvec(0));
+        let v7 = append(testvec(32), v7);
+        let v7 = append(testvec(0), v7);
+        let v7 = cons(0, v7);
+        let v7 = append(testvec(4096), v7);
+        let v7 = append(testvec(32), v7);
+        let v7 = append(testvec(32), v7);
+        let v7 = append(testvec(0), v7);
+        let v7 = cons(0, v7);
+        let v7 = append(testvec(4096), v7);
+
+        // use opcode::OpCode::*;
+        // let ops = vec![
+        //     VEmpty,
+        //     VEmpty,
+        //     VEmpty,
+        //     VEmpty,
+        //     BEmpty,
+        //     BEmpty,
+        //     Hash(29298),
+        //     BAppend,
+        //     BEmpty,
+        //     BAppend,
+        //     BEmpty,
+        //     Hash(11264),
+        //     BEmpty,
+        //     BEmpty,
+        //     BAppend,
+        //     BEmpty,
+        //     Hash(29298),
+        //     BAppend,
+        //     BEmpty,
+        //     BAppend,
+        //     BEmpty,
+        //     BLength,
+        //     BCons,
+        //     LoadImm(0),
+        //     BAppend,
+        //     BEmpty,
+        //     Hash(29298),
+        //     BAppend,
+        //     BEmpty,
+        //     Hash(29298),
+        //     Hash(29298),
+        //     BAppend,
+        //     BEmpty,
+        //     BAppend,
+        //     BEmpty,
+        //     BLength,
+        //     BCons,
+        //     LoadImm(0),
+        //     BAppend,
+        // ];
+        // let mut exec = Executor::new(
+        //     ops,
+        //     HashMap::new().tap_mut(|hm| {
+        //         hm.insert(0, vec![0u8; 4096].into());
+        //     }),
+        // );
+        // exec.run_to_end();
     }
 
     #[test]

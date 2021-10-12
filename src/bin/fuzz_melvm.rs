@@ -29,9 +29,10 @@ fn test_once(data: &[u8]) {
             return;
         }
     }
-    covenant.check_raw(&[second.to_vec().into()]);
+    eprintln!("{:?}", covenant.to_ops());
+    eprintln!("{:?}", second.len());
+    covenant.check_raw(&[second.iter().map(|f| 0u8).collect::<Vec<_>>().into()]);
     if let Ok(ops) = covenant.to_ops() {
-        dbg!(&ops);
         assert_eq!(Covenant::from_ops(&ops).unwrap(), covenant);
     }
 }

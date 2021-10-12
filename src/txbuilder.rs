@@ -161,7 +161,7 @@ mod tests {
             .apply_tx(
                 &TransactionBuilder::new()
                     .input(CoinID::zero_zero(), init_coindata)
-                    .fee(10000.into())
+                    .fee(20000.into())
                     .output(CoinData {
                         covhash: Covenant::always_true().hash(),
                         value: 1000.into(),
