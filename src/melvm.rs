@@ -1,11 +1,13 @@
 pub use crate::{CoinData, CoinID, Transaction};
 use crate::{CoinDataHeight, Denom, Header, HexBytes};
 use arbitrary::Arbitrary;
+use catvec::CatVec;
 use derive_more::{From, Into};
 use ethnum::U256;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, str::FromStr};
 use std::{convert::TryInto, fmt::Display};
+use tap::Tap;
 use thiserror::Error;
 use tmelcrypt::HashVal;
 
@@ -381,7 +383,8 @@ impl Executor {
                     if to_hash.len() > n as usize {
                         return None;
                     }
-                    let hash = tmelcrypt::hash_single(&to_hash.iter().cloned().collect::<Vec<_>>());
+                    let to_hash: Vec<u8> = to_hash.into();
+                    let hash = tmelcrypt::hash_single(&to_hash);
                     Some(Value::from_bytes(&hash.0))
                 })?,
                 OpCode::SigEOk(n) => self.do_triop(|message, public_key, signature| {
@@ -390,18 +393,18 @@ impl Executor {
                     if pk.len() > 32 {
                         return Some(Value::from_bool(false));
                     }
-                    let pk_b: Vec<u8> = pk.iter().cloned().collect();
+                    let pk_b: Vec<u8> = pk.into();
                     let public_key = tmelcrypt::Ed25519PK::from_bytes(&pk_b)?;
                     let message = message.into_bytes()?;
                     if message.len() > n as usize {
                         return None;
                     }
-                    let message: Vec<u8> = message.iter().cloned().collect();
+                    let message: Vec<u8> = message.into();
                     let signature = signature.into_bytes()?;
                     if signature.len() > 64 {
                         return Some(Value::from_bool(false));
                     }
-                    let signature: Vec<u8> = signature.iter().cloned().collect();
+                    let signature: Vec<u8> = signature.into();
                     Some(Value::from_bool(public_key.verify(&message, &signature)))
                 })?,
                 // storage access
@@ -431,12 +434,8 @@ impl Executor {
                 OpCode::VSet => self.do_triop(|vec, idx, value| {
                     let idx = idx.into_u16()? as usize;
                     let mut vec = vec.into_vector()?;
-                    if idx < vec.len() {
-                        vec.set(idx, value);
-                        Some(Value::Vector(vec))
-                    } else {
-                        None
-                    }
+                    *vec.get_mut(idx)? = value;
+                    Some(Value::Vector(vec))
                 })?,
                 OpCode::VAppend => self.do_binop(|v1, v2| {
                     let mut v1 = v1.into_vector()?;
@@ -448,11 +447,11 @@ impl Executor {
                     let i = i.into_u16()? as usize;
                     let j = j.into_u16()? as usize;
                     match vec {
-                        Value::Vector(mut vec) => {
+                        Value::Vector(vec) => {
                             if j >= vec.len() || j <= i {
-                                Some(Value::Vector(imbl::Vector::new()))
+                                Some(Value::Vector(Default::default()))
                             } else {
-                                Some(Value::Vector(vec.slice(i..j)))
+                                Some(Value::Vector(vec.tap_mut(|vec| vec.slice_into(i..j))))
                             }
                         }
                         _ => None,
@@ -462,7 +461,7 @@ impl Executor {
                     Value::Vector(vec) => Some(Value::Int(U256::from(vec.len() as u64))),
                     _ => None,
                 })?,
-                OpCode::VEmpty => self.stack.push(Value::Vector(imbl::Vector::new())),
+                OpCode::VEmpty => self.stack.push(Value::Vector(Default::default())),
                 OpCode::VPush => self.do_binop(|vec, item| {
                     let mut vec = vec.into_vector()?;
                     vec.push_back(item);
@@ -470,11 +469,11 @@ impl Executor {
                 })?,
                 OpCode::VCons => self.do_binop(|item, vec| {
                     let mut vec = vec.into_vector()?;
-                    vec.push_front(item);
+                    vec.insert(0, item);
                     Some(Value::Vector(vec))
                 })?,
                 // bit stuff
-                OpCode::BEmpty => self.stack.push(Value::Bytes(imbl::Vector::new())),
+                OpCode::BEmpty => self.stack.push(Value::Bytes(Default::default())),
                 OpCode::BPush => self.do_binop(|vec, val| {
                     let mut vec = vec.into_bytes()?;
                     let val = val.into_int()?;
@@ -483,7 +482,7 @@ impl Executor {
                 })?,
                 OpCode::BCons => self.do_binop(|item, vec| {
                     let mut vec = vec.into_bytes()?;
-                    vec.push_front(item.into_truncated_u8()?);
+                    vec.insert(0, item.into_truncated_u8()?);
                     Some(Value::Bytes(vec))
                 })?,
                 OpCode::BRef => self.do_binop(|vec, idx| {
@@ -493,12 +492,8 @@ impl Executor {
                 OpCode::BSet => self.do_triop(|vec, idx, value| {
                     let idx = idx.into_u16()? as usize;
                     let mut vec = vec.into_bytes()?;
-                    if idx < vec.len() {
-                        vec.set(idx, value.into_truncated_u8()?);
-                        Some(Value::Bytes(vec))
-                    } else {
-                        None
-                    }
+                    *vec.get_mut(idx)? = value.into_truncated_u8()?;
+                    Some(Value::Bytes(vec))
                 })?,
                 OpCode::BAppend => self.do_binop(|v1, v2| {
                     let mut v1 = v1.into_bytes()?;
@@ -513,9 +508,10 @@ impl Executor {
                     match vec {
                         Value::Bytes(mut vec) => {
                             if j >= vec.len() || j <= i {
-                                Some(Value::Bytes(imbl::Vector::new()))
+                                Some(Value::Bytes(Default::default()))
                             } else {
-                                Some(Value::Bytes(vec.slice(i..j)))
+                                vec.slice_into(i..j);
+                                Some(Value::Bytes(vec))
                             }
                         }
                         _ => None,
@@ -528,14 +524,14 @@ impl Executor {
                 // control flow
                 OpCode::Bez(jgap) => {
                     let top = self.stack.pop()?;
-                    if top == Value::Int(0u32.into()) {
+                    if top.into_int() == Some(0u32.into()) {
                         self.pc += jgap as usize;
                         return Some(());
                     }
                 }
                 OpCode::Bnz(jgap) => {
                     let top = self.stack.pop()?;
-                    if top != Value::Int(0u32.into()) {
+                    if top.into_int() != Some(0u32.into()) {
                         self.pc += jgap as usize;
                         return Some(());
                     }
@@ -561,13 +557,13 @@ impl Executor {
                 // Conversions
                 OpCode::BtoI => self.do_monop(|x| {
                     let bytes = x.into_bytes()?;
-                    let bytes: [u8; 32] = bytes.into_iter().collect::<Vec<_>>().try_into().ok()?;
+                    let bytes: Vec<u8> = bytes.into();
 
-                    Some(Value::Int(U256::from_be_bytes(bytes)))
+                    Some(Value::Int(U256::from_be_bytes(bytes.try_into().ok()?)))
                 })?,
                 OpCode::ItoB => self.do_monop(|x| {
                     let n = x.into_int()?;
-                    Some(Value::Bytes(n.to_be_bytes().iter().copied().collect()))
+                    Some(Value::Bytes(n.to_be_bytes().into()))
                 })?,
                 // literals
                 OpCode::PushB(bts) => {
@@ -596,11 +592,11 @@ impl Executor {
     }
 }
 
-#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
+#[derive(Clone, Debug)]
 pub enum Value {
     Int(U256),
-    Bytes(imbl::Vector<u8>),
-    Vector(imbl::Vector<Value>),
+    Bytes(CatVec<u8, 256>),
+    Vector(CatVec<Value, 32>),
 }
 
 impl Value {
@@ -630,11 +626,7 @@ impl Value {
         Some(*num.low() as u8)
     }
     pub fn from_bytes(bts: &[u8]) -> Self {
-        let mut new = imbl::Vector::new();
-        for b in bts {
-            new.push_back(*b);
-        }
-        Value::Bytes(new)
+        Value::Bytes(bts.into())
     }
     fn from_bool(b: bool) -> Self {
         if b {
@@ -644,14 +636,14 @@ impl Value {
         }
     }
 
-    fn into_bytes(self) -> Option<imbl::Vector<u8>> {
+    fn into_bytes(self) -> Option<CatVec<u8, 256>> {
         match self {
             Value::Bytes(bts) => Some(bts),
             _ => None,
         }
     }
 
-    fn into_vector(self) -> Option<imbl::Vector<Value>> {
+    fn into_vector(self) -> Option<CatVec<Value, 32>> {
         match self {
             Value::Vector(vec) => Some(vec),
             _ => None,
@@ -673,45 +665,48 @@ impl From<u64> for Value {
 
 impl From<CoinData> for Value {
     fn from(cd: CoinData) -> Self {
-        Value::Vector(imbl::vector![
-            cd.covhash.0.into(),
-            cd.value.0.into(),
-            cd.denom.into(),
-            cd.additional_data.into()
-        ])
+        Value::Vector(
+            vec![
+                cd.covhash.0.into(),
+                cd.value.0.into(),
+                cd.denom.into(),
+                cd.additional_data.into(),
+            ]
+            .into(),
+        )
     }
 }
 
 impl From<Header> for Value {
     fn from(cd: Header) -> Self {
-        Value::Vector(imbl::vector![
-            (cd.network as u64).into(),
-            cd.previous.into(),
-            cd.height.0.into(),
-            cd.history_hash.into(),
-            cd.coins_hash.into(),
-            cd.transactions_hash.into(),
-            cd.fee_pool.0.into(),
-            cd.fee_multiplier.into(),
-            cd.dosc_speed.into(),
-            cd.pools_hash.into(),
-            cd.stakes_hash.into()
-        ])
+        Value::Vector(
+            vec![
+                (cd.network as u64).into(),
+                cd.previous.into(),
+                cd.height.0.into(),
+                cd.history_hash.into(),
+                cd.coins_hash.into(),
+                cd.transactions_hash.into(),
+                cd.fee_pool.0.into(),
+                cd.fee_multiplier.into(),
+                cd.dosc_speed.into(),
+                cd.pools_hash.into(),
+                cd.stakes_hash.into(),
+            ]
+            .into(),
+        )
     }
 }
 
 impl From<CoinDataHeight> for Value {
     fn from(cd: CoinDataHeight) -> Self {
-        Value::Vector(imbl::vector![cd.coin_data.into(), cd.height.0.into()])
+        Value::Vector(vec![cd.coin_data.into(), cd.height.0.into()].into())
     }
 }
 
 impl From<CoinID> for Value {
     fn from(c: CoinID) -> Self {
-        Value::Vector(imbl::vector![
-            c.txhash.0.into(),
-            Value::Int(U256::from(c.index))
-        ])
+        Value::Vector(vec![c.txhash.0.into(), Value::Int(U256::from(c.index))].into())
     }
 }
 
@@ -723,31 +718,31 @@ impl From<Covenant> for Value {
 
 impl From<[u8; 32]> for Value {
     fn from(v: [u8; 32]) -> Self {
-        Value::Bytes(v.iter().cloned().collect::<imbl::Vector<u8>>())
+        Value::Bytes(v.into())
     }
 }
 
 impl From<HashVal> for Value {
     fn from(v: HashVal) -> Self {
-        Value::Bytes(v.iter().cloned().collect::<imbl::Vector<u8>>())
+        Value::Bytes(v.into())
     }
 }
 
 impl From<Denom> for Value {
     fn from(v: Denom) -> Self {
-        Value::Bytes(v.to_bytes().into_iter().collect::<imbl::Vector<u8>>())
+        Value::Bytes(v.to_bytes().into())
     }
 }
 
 impl From<Vec<u8>> for Value {
     fn from(v: Vec<u8>) -> Self {
-        Value::Bytes(v.into_iter().collect::<imbl::Vector<u8>>())
+        Value::Bytes(v.into())
     }
 }
 
 impl From<HexBytes> for Value {
     fn from(v: HexBytes) -> Self {
-        Value::Bytes(v.0.into_iter().collect::<imbl::Vector<u8>>())
+        Value::Bytes(v.0.into())
     }
 }
 
@@ -756,22 +751,26 @@ impl<T: Into<Value>> From<Vec<T>> for Value {
         Value::Vector(
             v.into_iter()
                 .map(|x| x.into())
-                .collect::<imbl::Vector<Value>>(),
+                .collect::<Vec<Value>>()
+                .into(),
         )
     }
 }
 
 impl From<Transaction> for Value {
     fn from(tx: Transaction) -> Self {
-        Value::Vector(imbl::vector![
-            Value::Int(U256::from(tx.kind as u8)),
-            tx.inputs.into(),
-            tx.outputs.into(),
-            tx.fee.0.into(),
-            tx.scripts.into(),
-            tx.data.into(),
-            tx.sigs.into()
-        ])
+        Value::Vector(
+            vec![
+                Value::Int(U256::from(tx.kind as u8)),
+                tx.inputs.into(),
+                tx.outputs.into(),
+                tx.fee.0.into(),
+                tx.scripts.into(),
+                tx.data.into(),
+                tx.sigs.into(),
+            ]
+            .into(),
+        )
     }
 }
 
@@ -802,84 +801,57 @@ mod tests {
         }
         dontcrash(&data.to_vec())
     }
-
-    fn testvec(n: usize) -> imbl::Vector<u8> {
-        imbl::Vector::from(vec![0u8; n])
-    }
-
-    fn append(mut x: imbl::Vector<u8>, y: imbl::Vector<u8>) -> imbl::Vector<u8> {
-        eprintln!(">> append {} to {}", x.len(), y.len());
-        x.append(y);
-        x
-    }
-
-    fn cons(x: u8, mut y: imbl::Vector<u8>) -> imbl::Vector<u8> {
-        y.push_front(x);
-        y
-    }
-
     #[test]
     fn imbl_bug() {
-        let v7 = append(testvec(0), testvec(0));
-        let v7 = append(testvec(32), v7);
-        let v7 = append(testvec(0), v7);
-        let v7 = cons(0, v7);
-        let v7 = append(testvec(4096), v7);
-        let v7 = append(testvec(32), v7);
-        let v7 = append(testvec(32), v7);
-        let v7 = append(testvec(0), v7);
-        let v7 = cons(0, v7);
-        let v7 = append(testvec(4096), v7);
-
-        // use opcode::OpCode::*;
-        // let ops = vec![
-        //     VEmpty,
-        //     VEmpty,
-        //     VEmpty,
-        //     VEmpty,
-        //     BEmpty,
-        //     BEmpty,
-        //     Hash(29298),
-        //     BAppend,
-        //     BEmpty,
-        //     BAppend,
-        //     BEmpty,
-        //     Hash(11264),
-        //     BEmpty,
-        //     BEmpty,
-        //     BAppend,
-        //     BEmpty,
-        //     Hash(29298),
-        //     BAppend,
-        //     BEmpty,
-        //     BAppend,
-        //     BEmpty,
-        //     BLength,
-        //     BCons,
-        //     LoadImm(0),
-        //     BAppend,
-        //     BEmpty,
-        //     Hash(29298),
-        //     BAppend,
-        //     BEmpty,
-        //     Hash(29298),
-        //     Hash(29298),
-        //     BAppend,
-        //     BEmpty,
-        //     BAppend,
-        //     BEmpty,
-        //     BLength,
-        //     BCons,
-        //     LoadImm(0),
-        //     BAppend,
-        // ];
-        // let mut exec = Executor::new(
-        //     ops,
-        //     HashMap::new().tap_mut(|hm| {
-        //         hm.insert(0, vec![0u8; 4096].into());
-        //     }),
-        // );
-        // exec.run_to_end();
+        use opcode::OpCode::*;
+        let ops = vec![
+            VEmpty,
+            VEmpty,
+            VEmpty,
+            VEmpty,
+            BEmpty,
+            BEmpty,
+            Hash(29298),
+            BAppend,
+            BEmpty,
+            BAppend,
+            BEmpty,
+            Hash(11264),
+            BEmpty,
+            BEmpty,
+            BAppend,
+            BEmpty,
+            Hash(29298),
+            BAppend,
+            BEmpty,
+            BAppend,
+            BEmpty,
+            BLength,
+            BCons,
+            LoadImm(0),
+            BAppend,
+            BEmpty,
+            Hash(29298),
+            BAppend,
+            BEmpty,
+            Hash(29298),
+            Hash(29298),
+            BAppend,
+            BEmpty,
+            BAppend,
+            BEmpty,
+            BLength,
+            BCons,
+            LoadImm(0),
+            BAppend,
+        ];
+        let mut exec = Executor::new(
+            ops,
+            HashMap::new().tap_mut(|hm| {
+                hm.insert(0, vec![0u8; 4096].into());
+            }),
+        );
+        exec.run_to_end();
     }
 
     #[test]
