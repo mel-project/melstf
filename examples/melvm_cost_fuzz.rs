@@ -15,12 +15,12 @@ fn eval_fitness(input: &[u8]) -> OF64 {
     if val.to_ops().is_err() {
         return 0.0.into();
     }
-    // let mut runtime = f64::MAX;
-    // for _ in 0..10 {
-    //     let start = CLOCK.start();
-    //     val.check_raw(&[]);
-    //     runtime = runtime.min((CLOCK.end() - start) as f64);
-    // }
+    let mut runtime = f64::MAX;
+    for _ in 0..10 {
+        let start = CLOCK.start();
+        val.check_raw(&[]);
+        runtime = runtime.min((CLOCK.end() - start) as f64);
+    }
     if val
         .to_ops()
         .unwrap_or_default()
@@ -34,7 +34,7 @@ fn eval_fitness(input: &[u8]) -> OF64 {
     if ilen == 0.0 {
         return 0.0.into();
     }
-    (ilen / weight + ilen).into()
+    (runtime / ilen).into()
 }
 
 /// Maybe mutate the input
