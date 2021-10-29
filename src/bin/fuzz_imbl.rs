@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use arbitrary::{Arbitrary, Unstructured};
 
 #[cfg(fuzzing)]
