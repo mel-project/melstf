@@ -1,18 +1,16 @@
+use crate::{
+    melpow,
+    melvm::{Address, CovenantEnv},
+    BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, stake::StakeDoc, state::melmint, State,
+    StateError, Transaction, TxHash, TxKind,
+};
+
 use std::convert::TryInto;
 
 use dashmap::DashMap;
 use parking_lot::Mutex;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use tmelcrypt::HashVal;
-
-use crate::{
-    melpow,
-    melvm::{Address, CovenantEnv},
-    BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc, State,
-    StateError, Transaction, TxHash, TxKind,
-};
-
-use super::melmint;
 
 /// A mutable "handle" to a particular State. Can be "committed" like a database transaction.
 pub(crate) struct StateHandle<'a> {

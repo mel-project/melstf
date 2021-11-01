@@ -3,11 +3,7 @@ use crate::{
     melvm::{self, Address, Covenant},
     BlockHeight, CoinValue, HexBytes,
 };
-use arbitrary::Arbitrary;
-use derive_more::{Display, From, Into};
-use num_enum::{IntoPrimitive, TryFromPrimitive};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_repr::{Deserialize_repr, Serialize_repr};
+
 use std::{
     collections::HashMap,
     convert::TryInto,
@@ -15,6 +11,12 @@ use std::{
     num::ParseIntError,
     str::FromStr,
 };
+
+use arbitrary::Arbitrary;
+use derive_more::{Display, From, Into};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 use thiserror::Error;
 use tmelcrypt::{Ed25519SK, HashVal};
 
@@ -34,15 +36,13 @@ use tmelcrypt::{Ed25519SK, HashVal};
 #[repr(u8)]
 /// An enumeration of all the different possible transaction kinds. Currently contains a "faucet" kind that will be (obviously) removed in production.
 pub enum TxKind {
-    Normal = 0x00,
-    Stake = 0x10,
-
     DoscMint = 0x50,
-    Swap = 0x51,
+    Faucet = 0xff,
     LiqDeposit = 0x52,
     LiqWithdraw = 0x53,
-
-    Faucet = 0xff,
+    Normal = 0x00,
+    Stake = 0x10,
+    Swap = 0x51,
 }
 
 impl Display for TxKind {
@@ -213,22 +213,24 @@ impl Transaction {
     /// total_outputs returns a HashMap mapping each type of coin to its total value. Fees will be included in the Mel cointype.
     pub fn total_outputs(&self) -> HashMap<Denom, CoinValue> {
         let mut toret: HashMap<Denom, CoinValue> = HashMap::new();
-        for output in self.outputs.iter() {
+
+        self.outputs.iter().for_each(|output| {
             let old = toret.get(&output.denom).copied().unwrap_or_default();
+
             toret.insert(output.denom, old + output.value);
-        }
+        });
+
         let old = toret.get(&Denom::Mel).copied().unwrap_or_default();
         toret.insert(Denom::Mel, old + self.fee);
+
         toret
     }
 
     /// scripts_as_map returns a HashMap mapping the hash of each script in the transaction to the script itself.
     pub fn script_as_map(&self) -> HashMap<Address, Covenant> {
-        let mut toret = HashMap::new();
-        for s in self.scripts.iter() {
-            toret.insert(s.hash(), s.clone());
-        }
-        toret
+        self.scripts.iter().map(|script| {
+            (script.hash(), script.clone())
+        }).collect::<HashMap<Address, Covenant>>()
     }
 
     /// Returns the minimum fee of the transaction at a given fee multiplier, with a given "ballast".

@@ -1,12 +1,13 @@
-use num::{integer::Roots, rational::Ratio, BigInt, BigRational};
-use std::{cell::RefCell, convert::TryInto};
-use tap::Pipe;
-
-use super::melswap::PoolState;
+use crate::state::melswap::PoolState;
 use crate::{
     BlockHeight, CoinData, CoinDataHeight, CoinValue, Denom, PoolKey, State, Transaction, TxKind,
     MAX_COINVAL, MICRO_CONVERTER,
 };
+
+use std::{cell::RefCell, convert::TryInto};
+
+use num::{integer::Roots, rational::Ratio, BigInt, BigRational};
+use tap::Pipe;
 
 thread_local! {
     static INFLATOR_TABLE: RefCell<Vec<u128>> = Default::default();
@@ -112,7 +113,7 @@ fn create_builtins(mut state: State) -> State {
 /// Process swaps.
 fn process_swaps(mut state: State) -> State {
     // find the swap requests
-    let swap_reqs = state
+    let swap_reqs: Vec<Transaction> = state
         .transactions
         .val_iter()
         .filter_map(|tx| {
@@ -124,7 +125,8 @@ fn process_swaps(mut state: State) -> State {
                 .then(|| ())?; // ensure that the first output is either left or right
             Some(tx)
         })
-        .collect::<Vec<_>>();
+        .collect::<Vec<Transaction>>();
+
     log::trace!("{} swap requests", swap_reqs.len());
     // find the pools mentioned
     let mut pools = swap_reqs
@@ -134,10 +136,10 @@ fn process_swaps(mut state: State) -> State {
     pools.sort_unstable();
     pools.dedup();
     // for each pool
-    for pool in pools {
-        let relevant_swaps: Vec<Transaction> = swap_reqs
+    pools.iter().for_each(|pool| {
+        let mut relevant_swaps: Vec<Transaction> = swap_reqs
             .iter()
-            .filter(|tx| Some(pool) == PoolKey::from_bytes(&tx.data))
+            .filter(|tx| Some(pool) == PoolKey::from_bytes(&tx.data).as_ref())
             .cloned()
             .collect();
         log::trace!(
@@ -170,7 +172,7 @@ fn process_swaps(mut state: State) -> State {
         // transmute coins
         let (left_withdrawn, right_withdrawn) = pool_state.swap_many(total_lefts, total_rights);
 
-        for mut swap in relevant_swaps {
+        relevant_swaps.iter_mut().for_each(|swap| {
             let correct_coinid = swap.output_coinid(0);
 
             if swap.outputs[0].denom == pool.left {
@@ -179,14 +181,14 @@ fn process_swaps(mut state: State) -> State {
                     right_withdrawn,
                     Ratio::new(swap.outputs[0].value.0, total_lefts),
                 ))
-                .min(MAX_COINVAL);
+                    .min(MAX_COINVAL);
             } else {
                 swap.outputs[0].denom = pool.left;
                 swap.outputs[0].value = CoinValue(multiply_frac(
                     left_withdrawn,
                     Ratio::new(swap.outputs[0].value.0, total_rights),
                 ))
-                .min(MAX_COINVAL);
+                    .min(MAX_COINVAL);
             }
             state.coins.insert(
                 correct_coinid,
@@ -195,9 +197,10 @@ fn process_swaps(mut state: State) -> State {
                     height: state.height,
                 },
             );
-        }
-        state.pools.insert(pool, pool_state);
-    }
+        });
+
+        state.pools.insert(*pool, pool_state);
+    });
 
     state
 }
@@ -230,35 +233,38 @@ fn process_deposits(mut state: State) -> State {
             v.dedup();
             v
         });
-    for pool in pools {
-        let relevant_txx: Vec<Transaction> = deposit_reqs
+
+    pools.iter().for_each(|pool| {
+        let mut relevant_txx: Vec<Transaction> = deposit_reqs
             .iter()
-            .filter(|tx| PoolKey::from_bytes(&tx.data) == Some(pool))
+            .filter(|tx| PoolKey::from_bytes(&tx.data) == Some(*pool))
             .cloned()
             .collect();
         // sum up total lefts and rights
-        let total_lefts = relevant_txx
+        let total_lefts: u128 = relevant_txx
             .iter()
             .map(|tx| tx.outputs[0].value.0)
             .fold(0u128, |a, b| a.saturating_add(b));
-        let total_rights = relevant_txx
+
+        let total_rights: u128 = relevant_txx
             .iter()
             .map(|tx| tx.outputs[1].value.0)
             .fold(0u128, |a, b| a.saturating_add(b));
+
         let total_mtsqrt = total_lefts.sqrt().saturating_mul(total_rights.sqrt());
         // main logic here
         let total_liqs = if let Some(mut pool_state) = state.pools.get(&pool).0 {
             let liq = pool_state.deposit(total_lefts, total_rights);
-            state.pools.insert(pool, pool_state);
+            state.pools.insert(*pool, pool_state);
             liq
         } else {
             let mut pool_state = PoolState::new_empty();
             let liq = pool_state.deposit(total_lefts, total_rights);
-            state.pools.insert(pool, pool_state);
+            state.pools.insert(*pool, pool_state);
             liq
         };
         // divvy up the liqs
-        for mut deposit in relevant_txx {
+        relevant_txx.iter_mut().for_each(|deposit| {
             let correct_coinid = deposit.output_coinid(0);
             let my_mtsqrt = deposit.outputs[0]
                 .value
@@ -276,15 +282,16 @@ fn process_deposits(mut state: State) -> State {
                 },
             );
             state.coins.delete(&deposit.output_coinid(1));
-        }
-    }
+        });
+    });
+
     state
 }
 
 /// Process deposits.
 fn process_withdrawals(mut state: State) -> State {
     // find the withdrawal requests
-    let withdraw_reqs = state
+    let withdraw_reqs: Vec<Transaction> = state
         .transactions
         .val_iter()
         .filter_map(|tx| {
@@ -307,10 +314,11 @@ fn process_withdrawals(mut state: State) -> State {
             v.dedup();
             v
         });
-    for pool in pools {
-        let relevant_txx: Vec<Transaction> = withdraw_reqs
+
+    pools.iter().for_each(|pool| {
+        let mut relevant_txx: Vec<Transaction> = withdraw_reqs
             .iter()
-            .filter(|tx| PoolKey::from_bytes(&tx.data) == Some(pool))
+            .filter(|tx| PoolKey::from_bytes(&tx.data) == Some(*pool))
             .cloned()
             .collect();
         // sum up total liqs
@@ -321,9 +329,9 @@ fn process_withdrawals(mut state: State) -> State {
         // get the state
         let mut pool_state = state.pools.get(&pool).0.unwrap();
         let (total_left, total_write) = pool_state.withdraw(total_liqs);
-        state.pools.insert(pool, pool_state);
+        state.pools.insert(*pool, pool_state);
         // divvy up the lefts and rights
-        for mut deposit in relevant_txx {
+        relevant_txx.iter_mut().for_each(|deposit| {
             let coinid_0 = deposit.output_coinid(0);
             let coinid_1 = deposit.output_coinid(1);
 
@@ -352,8 +360,9 @@ fn process_withdrawals(mut state: State) -> State {
                     height: state.height,
                 },
             );
-        }
-    }
+        });
+    });
+
     state
 }
 
@@ -438,7 +447,9 @@ mod tests {
         CoinID, Denom,
     };
 
-    use super::*;
+    use crate::*;
+    use crate::melmint::Ratio;
+    use crate::melmint::multiply_frac;
 
     #[test]
     fn math() {
@@ -516,9 +527,11 @@ mod tests {
         .signed_ed25519(my_sk);
         second_state.apply_tx(&deposit_tx).unwrap();
         let second_sealed = second_state.seal(None);
-        for pool in second_sealed.inner_ref().pools.val_iter() {
+
+        second_sealed.inner_ref().pools.val_iter().for_each(|pool| {
             dbg!(pool);
-        }
+        });
+
         dbg!(second_sealed.inner_ref().pools.get(&pool_key).0.unwrap());
     }
 }

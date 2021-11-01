@@ -88,54 +88,59 @@ impl Proof {
     pub fn to_bytes(&self) -> Vec<u8> {
         let unit_size = 8 + 32;
         let mut output = Vec::with_capacity(unit_size * self.0.len());
-        for (k, v) in self.0.iter() {
-            assert_eq!(v.len(), 32);
-            output.extend_from_slice(&k.to_bytes());
-            output.extend_from_slice(v);
-        }
+
+        self.0.iter().for_each(|(key, value)| {
+            assert_eq!(value.len(), 32);
+            output.extend_from_slice(&key.to_bytes());
+            output.extend_from_slice(&value);
+        });
+
         output
     }
 
     /// Deserializes a proof from a byte vector.
     pub fn from_bytes(mut bts: &[u8]) -> Option<Self> {
         let unit_size = 8 + 32;
+
         if bts.len() % unit_size != 0 {
-            return None;
+            None
+        } else {
+            let mut omap = imbl::HashMap::new();
+            while !bts.is_empty() {
+                let nd = node::Node::from_bytes(&bts[0..8])?;
+                let lab = SVec::from_slice(&bts[8..32 + 8]);
+                omap.insert(nd, lab);
+                bts = &bts[unit_size..]
+            }
+
+            Some(Proof(omap))
         }
-        let mut omap = imbl::HashMap::new();
-        while !bts.is_empty() {
-            let nd = node::Node::from_bytes(&bts[0..8])?;
-            let lab = SVec::from_slice(&bts[8..32 + 8]);
-            omap.insert(nd, lab);
-            bts = &bts[unit_size..]
-        }
-        Some(Proof(omap))
     }
 }
 
 fn gen_gammas(puzzle: &[u8], difficulty: usize) -> Vec<node::Node> {
     (0..PROOF_CERTAINTY)
-        .map(|i| {
-            let g_seed = hash::bts_key(puzzle, format!("gamma-{}", i).as_bytes());
+        .map(|index| {
+            let g_seed = hash::bts_key(puzzle, format!("gamma-{}", index).as_bytes());
             let g_int = u64::from_le_bytes(g_seed[0..8].try_into().unwrap());
             let shift = 64 - difficulty;
             let g_int = (g_int >> shift) << shift;
             let g_int = g_int.reverse_bits();
             node::Node::new(g_int, difficulty)
         })
-        .collect()
+        .collect::<Vec<node::Node>>()
 }
 
 fn gamma_to_path(gamma: node::Node) -> Vec<node::Node> {
     let n = gamma.len;
     (0..n)
-        .map(|i| gamma.take(i).append(1 - gamma.get_bit(i) as usize))
-        .collect()
+        .map(|index| gamma.take(index).append(1 - gamma.get_bit(index) as usize))
+        .collect::<Vec<node::Node>>()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::melpow::Proof;
 
     #[test]
     fn test_simple() {

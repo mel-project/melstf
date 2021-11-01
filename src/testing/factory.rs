@@ -3,7 +3,7 @@
 // build the structure manually or use a custom function with sub-factories where appropriate.
 
 use crate::{
-    melvm, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, ProposerAction, StakeDoc,
+    melvm, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, ProposerAction, stake::StakeDoc,
     Transaction, TxKind,
 };
 

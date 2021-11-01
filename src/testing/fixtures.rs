@@ -1,12 +1,6 @@
-use std::collections::HashMap;
-
-use rstest::*;
-
-use tmelcrypt::{Ed25519PK, Ed25519SK};
-
 use crate::testing::utils::*;
 use crate::{
-    melvm, CoinData, CoinDataHeight, CoinID, StakeDoc, State, Transaction, MAX_COINVAL,
+    melvm, CoinData, CoinDataHeight, CoinID, stake::StakeDoc, State, Transaction, MAX_COINVAL,
     MICRO_CONVERTER,
 };
 use crate::{melvm::Covenant, Denom};
@@ -14,6 +8,11 @@ use crate::{
     testing::factory::{CoinDataFactory, CoinDataHeightFactory, TransactionFactory},
     GenesisConfig,
 };
+
+use std::collections::HashMap;
+
+use rstest::*;
+use tmelcrypt::{Ed25519PK, Ed25519SK};
 
 const GENESIS_MEL_SUPPLY: u128 = 21_000_000;
 const GENESIS_NUM_STAKERS: u64 = 10;

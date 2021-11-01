@@ -1,12 +1,12 @@
+use crate::{
+    melvm::Covenant, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID,
+    SmtMapping, stake::StakeDoc, State, TxHash, MICRO_CONVERTER,
+};
+
 use std::{collections::BTreeMap, convert::TryInto};
 
 use serde::{Deserialize, Serialize};
 use tmelcrypt::{Ed25519PK, HashVal};
-
-use crate::{
-    melvm::Covenant, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID,
-    SmtMapping, StakeDoc, State, TxHash, MICRO_CONVERTER,
-};
 
 /// Configuration of a genesis state. Serializable via serde.
 #[derive(Clone, Debug, Serialize, Deserialize)]

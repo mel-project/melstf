@@ -25,20 +25,22 @@ impl StakeMapping {
     pub fn vote_power(&self, epoch: u64, pubkey: Ed25519PK) -> f64 {
         let mut total_votes = 1e-50;
         let mut target_votes = 0.0;
-        for sdoc in self.val_iter() {
+
+        self.val_iter().for_each(|sdoc| {
             if epoch >= sdoc.e_start && epoch < sdoc.e_post_end {
                 total_votes += sdoc.syms_staked.0 as f64;
                 if sdoc.pubkey == pubkey {
                     target_votes += sdoc.syms_staked.0 as f64;
                 }
             }
-        }
+        });
+
         target_votes / total_votes
     }
 
     /// Filter out all the elements that no longer matter.
     pub fn remove_stale(&mut self, epoch: u64) {
-        let stale_key_hashes = self
+        let stale_key_hashes: Vec<[u8; 32]> = self
             .mapping
             .iter()
             .filter_map(|(kh, v)| {
@@ -49,32 +51,37 @@ impl StakeMapping {
                     None
                 }
             })
-            .collect::<Vec<_>>();
-        for stale_key in stale_key_hashes {
-            self.mapping.insert(stale_key, Default::default());
-        }
+            .collect::<Vec<[u8; 32]>>();
+
+        stale_key_hashes.iter().for_each(|stale_key| {
+            self.mapping.insert(*stale_key, Default::default());
+        });
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::stake::StakeDoc;
+    use crate::melvm::Address;
     use crate::{melvm, CoinData, CoinDataHeight, CoinID, CoinValue, GenesisConfig};
     use crate::{Denom, State};
-    use rstest::rstest;
+
     use std::collections::HashMap;
+
+    use novasmt::Forest;
+    use rstest::rstest;
     use tmelcrypt::Ed25519SK;
 
     /// Create a state using a mapping from sk to syms staked for an epoch
     fn create_state(stakers: &HashMap<Ed25519SK, CoinValue>, epoch_start: u64) -> State {
         // Create emtpy state
-        let db = novasmt::Forest::new(novasmt::InMemoryBackend::default());
-        let mut state = GenesisConfig::std_testnet().realize(&db);
+        let db: Forest = novasmt::Forest::new(novasmt::InMemoryBackend::default());
+        let mut state: State = GenesisConfig::std_testnet().realize(&db);
         state.stakes.clear();
 
         // Insert a mel coin into state so we can transact
-        let start_micromels = CoinValue(10000);
-        let start_conshash = melvm::Covenant::always_true().hash();
+        let start_micromels: CoinValue = CoinValue(10000);
+        let start_conshash: Address = melvm::Covenant::always_true().hash();
         state.coins.insert(
             CoinID {
                 txhash: tmelcrypt::HashVal([0; 32]).into(),
@@ -85,16 +92,16 @@ mod tests {
                     covhash: start_conshash,
                     value: start_micromels,
                     denom: Denom::Mel,
-                    additional_data: vec![],
+                    additional_data: Vec::new(),
                 },
                 height: 0.into(),
             },
         );
 
         // Insert data need for staking proofs
-        for (i, (sk, syms_staked)) in stakers.iter().enumerate() {
+        stakers.iter().enumerate().for_each(|(index, (sk, syms_staked))| {
             state.stakes.insert(
-                tmelcrypt::hash_single(&(i as u128).to_be_bytes()).into(),
+                tmelcrypt::hash_single(&(index as u128).to_be_bytes()).into(),
                 StakeDoc {
                     pubkey: sk.to_public(),
                     e_start: epoch_start,
@@ -102,7 +109,8 @@ mod tests {
                     syms_staked: *syms_staked,
                 },
             );
-        }
+        });
+
         state
     }
 

@@ -1,17 +1,22 @@
+mod consts;
+pub mod opcode;
+
 pub use crate::{CoinData, CoinID, Transaction};
 use crate::{CoinDataHeight, Denom, Header, HexBytes};
+
+use std::{collections::HashMap, str::FromStr};
+use std::{convert::TryInto, fmt::Display};
+
 use arbitrary::Arbitrary;
 use catvec::CatVec;
 use derive_more::{From, Into};
 use ethnum::U256;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, str::FromStr};
-use std::{convert::TryInto, fmt::Display};
 use tap::Tap;
 use thiserror::Error;
 use tmelcrypt::HashVal;
 
-use self::{
+use crate::melvm::{
     consts::{
         HADDR_LAST_HEADER, HADDR_PARENT_ADDITIONAL_DATA, HADDR_PARENT_DENOM, HADDR_PARENT_HEIGHT,
         HADDR_PARENT_INDEX, HADDR_PARENT_TXHASH, HADDR_PARENT_VALUE, HADDR_SELF_HASH,
@@ -19,8 +24,7 @@ use self::{
     },
     opcode::{opcodes_weight, DecodeError, EncodeError, OpCode},
 };
-mod consts;
-pub mod opcode;
+
 
 #[derive(Clone, Eq, PartialEq, Debug, Arbitrary, Serialize, Deserialize, Hash)]
 /// A MelVM covenant. Essentially, given a transaction that attempts to spend it, it either allows the transaction through or doesn't.
@@ -103,10 +107,12 @@ impl Covenant {
 
     /// Checks with respect to a manually instantiated initial heap.
     pub fn check_raw(&self, args: &[Value]) -> bool {
-        let mut hm = HashMap::new();
-        for (i, v) in args.iter().enumerate() {
-            hm.insert(i as u16, v.clone());
-        }
+        let mut hm: HashMap<u16, Value> = HashMap::new();
+
+        args.iter().enumerate().for_each(|(index, value)| {
+            hm.insert(index as u16, value.clone());
+        });
+
         if let Ok(ops) = self.to_ops() {
             Executor::new(ops, hm).run_to_end()
         } else {

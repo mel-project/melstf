@@ -1,6 +1,4 @@
-use std::{fmt::Display, io::Write};
-
-use super::consts::{
+use crate::melvm::consts::{
     OPCODE_ADD, OPCODE_AND, OPCODE_BAPPEND, OPCODE_BCONS, OPCODE_BEMPTY, OPCODE_BEZ,
     OPCODE_BLENGTH, OPCODE_BNZ, OPCODE_BPUSH, OPCODE_BREF, OPCODE_BSET, OPCODE_BSLICE, OPCODE_BTOI,
     OPCODE_DIV, OPCODE_DUP, OPCODE_EQL, OPCODE_GT, OPCODE_HASH, OPCODE_ITOB, OPCODE_JMP,
@@ -10,6 +8,9 @@ use super::consts::{
     OPCODE_VCONS, OPCODE_VEMPTY, OPCODE_VLENGTH, OPCODE_VPUSH, OPCODE_VREF, OPCODE_VSET,
     OPCODE_VSLICE, OPCODE_XOR,
 };
+
+use std::{fmt::Display, io::Write};
+
 use ethnum::U256;
 use thiserror::Error;
 

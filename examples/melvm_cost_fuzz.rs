@@ -1,10 +1,9 @@
-use std::time::Instant;
-
 use once_cell::sync::Lazy;
 use ordered_float::OrderedFloat;
 use quanta::Clock;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 use themelio_stf::melvm::{opcode::OpCode, Covenant};
+
 type OF64 = OrderedFloat<f64>;
 
 static CLOCK: Lazy<Clock> = Lazy::new(Clock::new);
