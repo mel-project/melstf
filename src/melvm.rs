@@ -137,7 +137,7 @@ impl Covenant {
             OpCode::LoadImm(1),
             OpCode::SigEOk(32),
         ])
-        .unwrap()
+        .expect("Could not create a legacy ed25519 signature checking covenant.")
     }
 
     /// Returns a new ed25519 signature checking covenant, which checks the *nth* signature when spent as the nth input.
@@ -152,17 +152,26 @@ impl Covenant {
             OpCode::LoadImm(1),
             OpCode::SigEOk(32),
         ])
-        .unwrap()
+            .expect("Could not create a new ed25519 signature checking covenant.")
     }
 
     /// Create a Covenant from a slice of OpCodes.
     pub fn from_ops(ops: &[OpCode]) -> Result<Self, EncodeError> {
         let mut output: Vec<u8> = Vec::new();
         // go through output
-        for op in ops {
-            output.extend_from_slice(&op.encode()?)
+        let was_encoding_successful: Result<(), EncodeError> = ops.iter().try_for_each(|op| {
+            match op.encode() {
+                Ok(data) => {
+                    Ok(output.extend_from_slice(&data))
+                },
+                Err(error) => Err(error),
+            }
+        });
+
+        match was_encoding_successful {
+            Ok(()) => Ok(Covenant(output)),
+            Err(error) => Err(error),
         }
-        Ok(Covenant(output))
     }
 
     pub fn always_true() -> Self {
@@ -173,9 +182,11 @@ impl Covenant {
     pub fn to_ops(&self) -> Result<Vec<OpCode>, DecodeError> {
         let mut collected = Vec::with_capacity(128);
         let mut rdr = self.0.as_slice();
+
         while !rdr.is_empty() {
             collected.push(OpCode::decode(&mut rdr)?);
         }
+
         Ok(collected)
     }
 
@@ -303,6 +314,7 @@ impl Executor {
                 return false;
             }
         }
+
         self.stack.pop().map(|f| f.into_bool()).unwrap_or_default()
     }
 

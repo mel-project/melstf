@@ -182,24 +182,29 @@ impl Transaction {
     /// Checks whether or not the transaction is well formed, respecting coin size bounds and such. **Does not** fully validate the transaction.
     pub fn is_well_formed(&self) -> bool {
         // check bounds
-        for out in self.outputs.iter() {
+        let mut output: bool = true;
+
+        self.outputs.iter().for_each(|out| {
             if out.value > MAX_COINVAL {
-                return false;
+                output = false;
             }
-        }
+        });
+
         if self.fee > MAX_COINVAL {
-            return false;
+            output = false;
         }
+
         if self.outputs.len() > 255 || self.inputs.len() > 255 {
-            return false;
+            output = false;
         }
-        true
+
+        output
     }
 
     /// hash_nosigs returns the hash of the transaction with a zeroed-out signature field. This is what signatures are computed against.
     pub fn hash_nosigs(&self) -> TxHash {
         let mut s = self.clone();
-        s.sigs = vec![];
+        s.sigs = Vec::new();
         let self_bytes = stdcode::serialize(&s).unwrap();
         tmelcrypt::hash_single(&self_bytes).into()
     }
@@ -493,9 +498,9 @@ pub(crate) mod tests {
 
     #[rstest]
     fn test_is_well_formed(valid_txx: Vec<Transaction>) {
-        for valid_tx in valid_txx.iter() {
+        valid_txx.iter().for_each(|valid_tx| {
             assert!(valid_tx.is_well_formed());
-        }
+        });
     }
 
     #[rstest]
@@ -597,18 +602,19 @@ pub(crate) mod tests {
         // sign it N times
         let mut mult_signature_tx = no_sigs_tx;
         let n = 5;
-        for (_pk, sk) in vec![tmelcrypt::ed25519_keygen(); n].iter() {
-            mult_signature_tx = mult_signature_tx.signed_ed25519(*sk);
-        }
+
+        vec![tmelcrypt::ed25519_keygen(); n].iter().for_each(|(_pk, sk)| {
+            mult_signature_tx = mult_signature_tx.clone().signed_ed25519(*sk);
+        });
 
         // verify it has N signatures
         assert_eq!(mult_signature_tx.sigs.len(), n);
 
         // sign it M times
         let m = 8;
-        for (_pk, sk) in vec![tmelcrypt::ed25519_keygen(); m].iter() {
-            mult_signature_tx = mult_signature_tx.signed_ed25519(*sk);
-        }
+        vec![tmelcrypt::ed25519_keygen(); m].iter().for_each(|(_pk, sk)| {
+            mult_signature_tx = mult_signature_tx.clone().signed_ed25519(*sk);
+        });
 
         // verify it has N + M signatures
         assert_eq!(mult_signature_tx.sigs.len(), n + m);
