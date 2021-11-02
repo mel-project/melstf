@@ -814,9 +814,13 @@ mod tests {
     #[test]
     fn stack_overflow() {
         let mut data = Vec::new();
-        for _ in 0..100000 {
+
+        let range = 0..100000;
+
+        range.into_iter().for_each(|_index| {
             data.push(0xb0)
-        }
+        });
+
         dontcrash(&data.to_vec())
     }
     #[test]

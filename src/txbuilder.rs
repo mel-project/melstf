@@ -2,7 +2,9 @@ use crate::{
     melvm::{Address, Covenant},
     CoinData, CoinID, CoinValue, Denom, Transaction, TxKind,
 };
+
 use std::collections::{BTreeMap, BTreeSet};
+
 use tap::Pipe;
 use thiserror::Error;
 
@@ -84,9 +86,12 @@ impl TransactionBuilder {
         max_sig_size: usize,
     ) -> Self {
         let fee = self.in_progress.clone().pipe(|mut tx| {
-            for _ in 0..max_sig_count {
+            let range = 0..max_sig_count;
+
+            range.into_iter().for_each(|_index| {
                 tx.sigs.push(vec![0; max_sig_size].into())
-            }
+            });
+
             tx.base_fee(fee_multiplier, 0)
         });
         self.fee(fee)
@@ -111,17 +116,24 @@ impl TransactionBuilder {
     /// Attempts to generate the transaction.
     pub fn build(self) -> Result<Transaction, TransactionBuildError> {
         if self.in_balance != self.out_balance {
-            return Err(TransactionBuildError::Unbalanced);
-        }
-        if !self.in_progress.is_well_formed() {
-            return Err(TransactionBuildError::NotWellFormed);
-        }
-        for cov in self.required_covenants.iter() {
-            if !self.given_covenants.contains(cov) {
-                return Err(TransactionBuildError::MissingCovenant(*cov));
+            Err(TransactionBuildError::Unbalanced)
+        } else if !self.in_progress.is_well_formed() {
+            Err(TransactionBuildError::NotWellFormed)
+        } else {
+            let was_covenant_creation_successful: Result<(), TransactionBuildError> = self.required_covenants.iter().try_for_each(|cov| {
+                let is_covenant_missing_from_given_covenants: bool = !self.given_covenants.contains(cov);
+
+                match is_covenant_missing_from_given_covenants {
+                    true => Err(TransactionBuildError::MissingCovenant(*cov)),
+                    false => Ok(()),
+                }
+            });
+
+            match was_covenant_creation_successful {
+                Ok(()) => Ok(self.in_progress),
+                Err(error) => Err(error),
             }
         }
-        Ok(self.in_progress)
     }
 
     /// Sets the associated data.
