@@ -4,9 +4,11 @@
 
 mod hash;
 mod node;
+
+use crate::melpow::node::SVec;
+
 use std::convert::TryInto;
 
-use node::SVec;
 use rustc_hash::FxHashMap;
 
 const PROOF_CERTAINTY: usize = 200;
@@ -21,17 +23,21 @@ impl Proof {
         let mut proof_map = FxHashMap::default();
         let chi = hash::bts_key(puzzle, b"chi");
         let gammas = gen_gammas(puzzle, difficulty);
-        for g in gammas {
-            for pn in gamma_to_path(g) {
+
+        gammas.into_iter().for_each(|gamma| {
+            gamma_to_path(gamma).into_iter().for_each(|pn| {
                 proof_map.insert(pn, SVec::new());
-            }
-            proof_map.insert(g, SVec::new());
-        }
+            });
+
+            proof_map.insert(gamma, SVec::new());
+        });
+
         node::calc_labels(&chi, difficulty, &mut |nd, lab| {
             if proof_map.get(&nd).is_some() || nd.len == 0 {
                 proof_map.insert(nd, SVec::from_slice(lab));
             }
         });
+
         Proof(proof_map.into_iter().collect())
     }
 
@@ -45,43 +51,51 @@ impl Proof {
         let gammas = gen_gammas(puzzle, difficulty);
         let phi = self.0[&node::Node::new_zero()].clone();
         let mut temp_map = self.0.clone();
-        for gamma in gammas {
+
+        let mut output: bool = true;
+
+        gammas.iter().for_each(|gamma| {
             match self.0.get(&gamma) {
                 None => {
-                    return false;
+                    output = false;
                 }
                 Some(label) => {
                     // verify that the label is correctly calculated from parents
                     let mut hasher = hash::Accumulator::new(&chi);
                     hasher.add(&gamma.to_bytes());
-                    for parent in gamma.get_parents(difficulty) {
+
+                    gamma.get_parents(difficulty).iter().for_each(|parent| {
                         match self.0.get(&parent) {
-                            None => return false,
+                            None => output = false,
                             Some(parlab) => {
                                 hasher.add(parlab);
                             }
                         }
-                    }
+                    });
+
                     if hasher.hash() != *label {
-                        return false;
+                        output = false;
                     }
+
                     // check "merkle-like" commitment
-                    for i in (0..difficulty).rev() {
+                    (0..difficulty).rev().for_each(|index| {
                         let mut h = hash::Accumulator::new(&chi);
-                        h.add(&gamma.take(i).to_bytes());
-                        let g_l_0 = gamma.take(i).append(0);
-                        let g_l_1 = gamma.take(i).append(1);
-                        let g_l = gamma.take(i);
+                        h.add(&gamma.take(index).to_bytes());
+                        let g_l_0 = gamma.take(index).append(0);
+                        let g_l_1 = gamma.take(index).append(1);
+                        let g_l = gamma.take(index);
                         let h = h.add(&temp_map[&g_l_0]).add(&temp_map[&g_l_1]).hash();
                         temp_map.insert(g_l, h);
-                    }
+                    });
+
                     if phi != self.0[&node::Node::new_zero()].clone() {
-                        return false;
+                        output = false;
                     }
                 }
             }
-        }
-        true
+        });
+
+        output
     }
 
     /// Serializes the proof to a byte vector.

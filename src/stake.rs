@@ -147,11 +147,11 @@ mod tests {
         let state = create_state(&stakers, 0);
 
         // Check the vote power of each staker in epoch 0 has expected value
-        for (sk, vote) in stakers.iter() {
+        stakers.iter().for_each(|(sk, vote)| {
             let vote_power = state.stakes.vote_power(0, sk.to_public());
             let expected_vote_power = (vote.0 as f64) / (total_staked_syms as f64);
             assert_eq!(expected_vote_power - vote_power, 0.0);
-        }
+        });
     }
 
     #[rstest(
@@ -167,19 +167,22 @@ mod tests {
         let state = create_state(&stakers, epoch_start);
 
         // Check the vote power of each staker in epoch has expected value
-        for (sk, _vote) in stakers.iter() {
+        stakers.iter().for_each(|(sk, _vote)| {
             // Go through all previous epochs before epoch_start
             // and ensure no vote power
-            for epoch in 0..epoch_start {
+            let range = 0..epoch_start;
+
+            range.into_iter().for_each(|epoch| {
                 let vote_power = state.stakes.vote_power(epoch, sk.to_public());
                 let expected_vote_power = 0.0;
                 assert_eq!(vote_power, expected_vote_power);
-            }
+            });
+
             // Confirm vote power is non zero if at epoch_start
             let vote_power = state.stakes.vote_power(epoch_start, sk.to_public());
             let expected_vote_power = 0.0;
             assert_ne!(vote_power, expected_vote_power);
-        }
+        });
     }
 
     #[rstest(
@@ -222,10 +225,10 @@ mod tests {
         let state = create_state(&stakers, 0);
 
         // Check the vote power of each staker in epoch 0 has expected value
-        for (sk, _vote) in stakers.iter() {
+        stakers.iter().for_each(|(sk, _vote)| {
             let vote_power = state.stakes.vote_power(0, sk.to_public());
             assert_eq!(vote_power, 0.0);
-        }
+        });
     }
 
     #[test]
@@ -242,9 +245,9 @@ mod tests {
         // All stakes should be stale past this epoch
         state.stakes.remove_stale(100000000000);
 
-        for (_key, value) in state.stakes.mapping.iter() {
+        state.stakes.mapping.iter().for_each(|(_key, value)| {
             assert_eq!(value.as_ref(), b"");
-        }
+        });
     }
 
     #[test]
@@ -261,8 +264,8 @@ mod tests {
         // No stakes should be stale past this epoch
         state.stakes.remove_stale(100);
 
-        for (_key, value) in state.stakes.mapping.iter() {
+        state.stakes.mapping.iter().for_each(|(_key, value)| {
             assert_ne!(value.as_ref(), b"");
-        }
+        });
     }
 }

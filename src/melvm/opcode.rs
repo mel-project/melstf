@@ -402,11 +402,15 @@ fn opcodes_car_weight(opcodes: &[OpCode]) -> (u128, &[OpCode]) {
         OpCode::Loop(iters, body_len) => {
             let mut sum = 0u128;
             let mut rest = rest;
-            for _ in 0..*body_len {
+
+            let range = 0..*body_len;
+
+            range.into_iter().for_each(|_index| {
                 let (weight, rem) = opcodes_car_weight(rest);
                 sum = sum.saturating_add(weight);
                 rest = rem;
-            }
+            });
+
             (sum.saturating_mul(*iters as u128).saturating_add(1), rest)
         }
         OpCode::Add => (4, rest),

@@ -57,12 +57,15 @@ impl<'a> StateHandle<'a> {
 
     /// Applies a batch of transactions, returning an error if any of them fail. Consumes and re-returns the handle; if any fail the handle is gone.
     pub fn apply_tx_batch(mut self, txx: &[Transaction]) -> Result<Self, StateError> {
-        for tx in txx.iter() {
-            if tx.kind == TxKind::Faucet {
+        let was_batch_successful: Result<(), crate::state::StateError> = txx.iter().try_for_each(|tx| {
+            let is_transaction_a_faucet: bool = tx.kind == TxKind::Faucet;
+
+            if is_transaction_a_faucet {
                 let pseudocoin = faucet_dedup_pseudocoin(tx.hash_nosigs());
+
                 if self.state.coins.get(&pseudocoin).0.is_some() {
                     return Err(StateError::DuplicateTx);
-                } else {
+                } else if self.state.coins.get(&pseudocoin).0.is_none() {
                     self.state.coins.insert(
                         pseudocoin,
                         CoinDataHeight {
@@ -76,16 +79,17 @@ impl<'a> StateHandle<'a> {
                         },
                     );
                 }
+            } if !tx.is_well_formed() {
+                Err(StateError::MalformedTx)
+            } else if is_transaction_a_faucet && self.state.network == NetID::Mainnet {
+                Err(StateError::UnbalancedInOut)
+            } else {
+                self.transactions_cache.insert(tx.hash_nosigs(), tx.clone());
+
+                self.apply_tx_fees(tx)
             }
-            if !tx.is_well_formed() {
-                return Err(StateError::MalformedTx);
-            }
-            if tx.kind == TxKind::Faucet && self.state.network == NetID::Mainnet {
-                return Err(StateError::UnbalancedInOut);
-            }
-            self.transactions_cache.insert(tx.hash_nosigs(), tx.clone());
-            self.apply_tx_fees(tx)?;
-        }
+        });
+
         // apply specials in parallel
         txx.par_iter()
             .filter(|tx| tx.kind != TxKind::Normal && tx.kind != TxKind::Faucet)
@@ -97,30 +101,38 @@ impl<'a> StateHandle<'a> {
         txx.par_iter()
             .map(|tx| self.apply_tx_inputs(tx))
             .collect::<Result<_, _>>()?;
-        Ok(self)
+
+        match was_batch_successful {
+            Ok(()) => Ok(self),
+            Err(error) => Err(error)
+        }
     }
 
     /// Commits all the changes in this handle, at once.
     pub fn commit(self) {
         // commit coins
-        for (k, v) in self.coin_cache {
-            if let Some(v) = v {
-                self.state.coins.insert(k, v);
+        self.coin_cache.into_iter().for_each(|(key, value)| {
+            if let Some(value) = value {
+                self.state.coins.insert(key, value);
             } else {
-                self.state.coins.delete(&k);
+                self.state.coins.delete(&key);
             }
-        }
+        });
+
         // commit txx
-        for (k, v) in self.transactions_cache {
-            self.state.transactions.insert(k, v);
-        }
+        self.transactions_cache.into_iter().for_each(|(key, value)| {
+            self.state.transactions.insert(key, value);
+        });
+
         // commit fees
         self.state.fee_pool = self.fee_pool_cache;
         self.state.tips = self.tips_cache;
+
         // commit stakes
-        for (k, v) in self.stakes_cache {
-            self.state.stakes.insert(k, v);
-        }
+        self.stakes_cache.into_iter().for_each(|(key, value)| {
+            self.state.stakes.insert(key, value);
+        });
+
         self.state.dosc_speed = *self.dosc_speed_cache.lock()
     }
 
@@ -135,7 +147,92 @@ impl<'a> StateHandle<'a> {
             .get(&BlockHeight(self.state.height.0.saturating_sub(1)))
             .0
             .unwrap_or_else(|| self.state.clone().seal(None).header());
+
+
+
+
         // iterate through the inputs
+        // let was_batch_successful: Result<(), crate::state::StateError> = txx.iter().try_for_each(|tx| {
+        //     let is_transaction_a_faucet: bool = tx.kind == TxKind::Faucet;
+        //
+        //     if is_transaction_a_faucet {
+        //         let pseudocoin = faucet_dedup_pseudocoin(tx.hash_nosigs());
+        //
+        //         if self.state.coins.get(&pseudocoin).0.is_some() {
+        //             return Err(StateError::DuplicateTx);
+        //         } else if self.state.coins.get(&pseudocoin).0.is_none() {
+        //             self.state.coins.insert(
+        //                 pseudocoin,
+        //                 CoinDataHeight {
+        //                     coin_data: CoinData {
+        //                         denom: Denom::Mel,
+        //                         value: 0.into(),
+        //                         additional_data: vec![],
+        //                         covhash: HashVal::default().into(),
+        //                     },
+        //                     height: 0.into(),
+        //                 },
+        //             );
+        //         }
+        //     } if !tx.is_well_formed() {
+        //         Err(StateError::MalformedTx)
+        //     } else if is_transaction_a_faucet && self.state.network == NetID::Mainnet {
+        //         Err(StateError::UnbalancedInOut)
+        //     } else {
+        //         self.transactions_cache.insert(tx.hash_nosigs(), tx.clone());
+        //
+        //         self.apply_tx_fees(tx)
+        //     }
+        // });
+        //
+        // match was_batch_successful {
+        //     Ok(()) => Ok(self),
+        //     Err(error) => Err(error)
+        // }
+
+
+        // tx.inputs.iter().enumerate().for_each(|(spend_idx, coin_id)| {
+        //     if self.get_stake(coin_id.txhash).is_some() && coin_id.index == 0 {
+        //         // only the first output is locked
+        //         return Err(StateError::CoinLocked);
+        //     }
+        //     let coin_data = self.get_coin(*coin_id);
+        //     match coin_data {
+        //         None => return Err(StateError::NonexistentCoin(*coin_id)),
+        //         Some(coin_data) => {
+        //             log::trace!(
+        //                 "coin_data {:?} => {:?} for txid {:?}",
+        //                 coin_id,
+        //                 coin_data,
+        //                 tx.hash_nosigs()
+        //             );
+        //             let script = scripts
+        //                 .get(&coin_data.coin_data.covhash)
+        //                 .ok_or(StateError::NonexistentScript(coin_data.coin_data.covhash))?;
+        //             if !script.check(
+        //                 tx,
+        //                 CovenantEnv {
+        //                     parent_coinid: coin_id,
+        //                     parent_cdh: &coin_data,
+        //                     spender_index: spend_idx as u8,
+        //                     last_header: &last_header,
+        //                 },
+        //             ) {
+        //                 return Err(StateError::ViolatesScript(coin_data.coin_data.covhash));
+        //             }
+        //             self.del_coin(*coin_id);
+        //             in_coins.insert(
+        //                 coin_data.coin_data.denom,
+        //                 in_coins
+        //                     .get(&coin_data.coin_data.denom)
+        //                     .cloned()
+        //                     .unwrap_or_else(|| 0u128.into())
+        //                     + coin_data.coin_data.value,
+        //             );
+        //         }
+        //     }
+        // });
+
         for (spend_idx, coin_id) in tx.inputs.iter().enumerate() {
             if self.get_stake(coin_id.txhash).is_some() && coin_id.index == 0 {
                 // only the first output is locked
@@ -177,6 +274,7 @@ impl<'a> StateHandle<'a> {
                 }
             }
         }
+
         // balance inputs and outputs. ignore outputs with empty cointype (they create a new token kind)
         let out_coins = tx.total_outputs();
         if tx.kind != TxKind::Faucet {
