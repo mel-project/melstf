@@ -61,173 +61,148 @@ impl StakeMapping {
 
 #[cfg(test)]
 mod tests {
-    use crate::stake::StakeDoc;
-    use crate::melvm::Address;
-    use crate::{melvm, CoinData, CoinDataHeight, CoinID, CoinValue, GenesisConfig};
-    use crate::{Denom, State};
+    use crate::CoinValue;
 
     use std::collections::HashMap;
 
-    use novasmt::Forest;
-    use rstest::rstest;
-    use tmelcrypt::Ed25519SK;
+    use crate::testing::functions::create_state;
 
-    /// Create a state using a mapping from sk to syms staked for an epoch
-    fn create_state(stakers: &HashMap<Ed25519SK, CoinValue>, epoch_start: u64) -> State {
-        // Create emtpy state
-        let db: Forest = novasmt::Forest::new(novasmt::InMemoryBackend::default());
-        let mut state: State = GenesisConfig::std_testnet().realize(&db);
-        state.stakes.clear();
 
-        // Insert a mel coin into state so we can transact
-        let start_micromels: CoinValue = CoinValue(10000);
-        let start_conshash: Address = melvm::Covenant::always_true().hash();
-        state.coins.insert(
-            CoinID {
-                txhash: tmelcrypt::HashVal([0; 32]).into(),
-                index: 0,
-            },
-            CoinDataHeight {
-                coin_data: CoinData {
-                    covhash: start_conshash,
-                    value: start_micromels,
-                    denom: Denom::Mel,
-                    additional_data: Vec::new(),
-                },
-                height: 0.into(),
-            },
-        );
+    #[test]
+    fn test_non_staker_has_no_vote_power() {
+        let mut staked_sym_group: Vec<Vec<u128>> = Vec::new();
+        staked_sym_group.push(vec![100]);
+        staked_sym_group.push(vec![100, 10]);
+        staked_sym_group.push(vec![1, 2, 3]);
 
-        // Insert data need for staking proofs
-        stakers.iter().enumerate().for_each(|(index, (sk, syms_staked))| {
-            state.stakes.insert(
-                tmelcrypt::hash_single(&(index as u128).to_be_bytes()).into(),
-                StakeDoc {
-                    pubkey: sk.to_public(),
-                    e_start: epoch_start,
-                    e_post_end: 1000000000,
-                    syms_staked: *syms_staked,
-                },
-            );
-        });
+        staked_sym_group.iter().for_each(|staked_syms| {
+            // Generate genesis block for stakers
+            // let staked_syms =vec![100 as u64; 3];
+            let stakers = staked_syms
+                .into_iter()
+                .map(|e| (tmelcrypt::ed25519_keygen().1, CoinValue(*e)))
+                .collect();
+            let genesis = create_state(&stakers, 0);
 
-        state
-    }
+            // call vote_power for a key pair who is not a staker
+            let (pk, _sk) = tmelcrypt::ed25519_keygen();
+            let vote_power = genesis.stakes.vote_power(0, pk);
 
-    #[rstest(
-        staked_syms => [vec![100u128], vec![100u128, 10], vec![1u128, 2u128, 3u128]]
-    )]
-    fn test_non_staker_has_no_vote_power(staked_syms: Vec<u128>) {
-        // Generate genesis block for stakers
-        // let staked_syms =vec![100 as u64; 3];
-        let stakers = staked_syms
-            .into_iter()
-            .map(|e| (tmelcrypt::ed25519_keygen().1, CoinValue(e)))
-            .collect();
-        let genesis = create_state(&stakers, 0);
-
-        // call vote_power for a key pair who is not a staker
-        let (pk, _sk) = tmelcrypt::ed25519_keygen();
-        let vote_power = genesis.stakes.vote_power(0, pk);
-
-        // assert they have no vote power
-        assert_eq!(vote_power, 0.0)
-    }
-
-    #[rstest(
-        staked_syms => [vec![100_u128, 200_u128, 300_u128], vec![100_u128, 10], vec![1_128, 2_u128, 30_u128]]
-    )]
-    fn test_staker_has_correct_vote_power_in_epoch(staked_syms: Vec<u128>) {
-        // Generate state for stakers
-        let total_staked_syms: u128 = staked_syms.iter().sum();
-        let stakers = staked_syms
-            .into_iter()
-            .map(|e| (tmelcrypt::ed25519_keygen().1, CoinValue(e)))
-            .collect();
-        let state = create_state(&stakers, 0);
-
-        // Check the vote power of each staker in epoch 0 has expected value
-        stakers.iter().for_each(|(sk, vote)| {
-            let vote_power = state.stakes.vote_power(0, sk.to_public());
-            let expected_vote_power = (vote.0 as f64) / (total_staked_syms as f64);
-            assert_eq!(expected_vote_power - vote_power, 0.0);
+            // assert they have no vote power
+            assert_eq!(vote_power, 0.0)
         });
     }
 
-    #[rstest(
-        epoch_start => [1, 2, 100]
-    )]
-    fn test_staker_has_no_vote_power_in_previous_epoch(epoch_start: u64) {
-        // Generate state for stakers
-        let staked_syms = vec![100u128; 3];
-        let stakers = staked_syms
-            .into_iter()
-            .map(|e| (tmelcrypt::ed25519_keygen().1, CoinValue(e)))
-            .collect();
-        let state = create_state(&stakers, epoch_start);
+    #[test]
+    fn test_staker_has_correct_vote_power_in_epoch() {
+        let mut staked_sym_group: Vec<Vec<u128>> = Vec::new();
+        staked_sym_group.push(vec![100, 200, 300]);
+        staked_sym_group.push(vec![100, 10]);
+        staked_sym_group.push(vec![1, 2, 30]);
 
-        // Check the vote power of each staker in epoch has expected value
-        stakers.iter().for_each(|(sk, _vote)| {
-            // Go through all previous epochs before epoch_start
-            // and ensure no vote power
-            let range = 0..epoch_start;
+        staked_sym_group.iter().for_each(|staked_syms| {
+            // Generate state for stakers
+            let total_staked_syms: u128 = staked_syms.iter().sum();
+            let stakers = staked_syms
+                .into_iter()
+                .map(|e| (tmelcrypt::ed25519_keygen().1, CoinValue(*e)))
+                .collect();
+            let state = create_state(&stakers, 0);
 
-            range.into_iter().for_each(|epoch| {
-                let vote_power = state.stakes.vote_power(epoch, sk.to_public());
-                let expected_vote_power = 0.0;
-                assert_eq!(vote_power, expected_vote_power);
+            // Check the vote power of each staker in epoch 0 has expected value
+            stakers.iter().for_each(|(sk, vote)| {
+                let vote_power = state.stakes.vote_power(0, sk.to_public());
+                let expected_vote_power = (vote.0 as f64) / (total_staked_syms as f64);
+                assert_eq!(expected_vote_power - vote_power, 0.0);
             });
-
-            // Confirm vote power is non zero if at epoch_start
-            let vote_power = state.stakes.vote_power(epoch_start, sk.to_public());
-            let expected_vote_power = 0.0;
-            assert_ne!(vote_power, expected_vote_power);
         });
     }
 
-    #[rstest(
-        staked_sym => [1, 2, 123]
-    )]
-    fn test_vote_power_single_staker_is_total(staked_sym: u128) {
-        // Add in a single staker to get a state at epoch 0
-        let (pk, sk) = tmelcrypt::ed25519_keygen();
-        let mut stakers = HashMap::new();
-        stakers.insert(sk, CoinValue(staked_sym));
-        let state = create_state(&stakers, 0);
+    #[test]
+    fn test_staker_has_no_vote_power_in_previous_epoch() {
+        let epoch_group: [u64; 3] = [1, 2, 100];
 
-        // Ensure staker has 1.0 voting power as expected
-        let expected_voting_power = 1.0;
-        assert_eq!(state.stakes.vote_power(0, pk), expected_voting_power);
+        epoch_group.into_iter().for_each(|epoch_start| {
+            // Generate state for stakers
+            let staked_syms = vec![100u128; 3];
+            let stakers = staked_syms
+                .into_iter()
+                .map(|e| (tmelcrypt::ed25519_keygen().1, CoinValue(e)))
+                .collect();
+            let state = create_state(&stakers, epoch_start);
+
+            // Check the vote power of each staker in epoch has expected value
+            stakers.iter().for_each(|(sk, _vote)| {
+                // Go through all previous epochs before epoch_start
+                // and ensure no vote power
+                let range = 0..epoch_start;
+
+                range.into_iter().for_each(|epoch| {
+                    let vote_power = state.stakes.vote_power(epoch, sk.to_public());
+                    let expected_vote_power = 0.0;
+                    assert_eq!(vote_power, expected_vote_power);
+                });
+
+                // Confirm vote power is non zero if at epoch_start
+                let vote_power = state.stakes.vote_power(epoch_start, sk.to_public());
+                let expected_vote_power = 0.0;
+                assert_ne!(vote_power, expected_vote_power);
+            });
+        });
     }
 
-    #[rstest(
-        epoch => [0, 1, 100]
-    )]
-    fn test_vote_power_is_zero_no_stakers(epoch: u64) {
-        let stakers = HashMap::new();
-        let state = create_state(&stakers, epoch);
+    #[test]
+    fn test_vote_power_single_staker_is_total() {
+        let staked_sym_group: [u128; 3] = [1, 2, 123];
 
-        let voting_power = state
-            .stakes
-            .vote_power(epoch, tmelcrypt::ed25519_keygen().0);
-        assert_eq!(voting_power, 0.0);
+        staked_sym_group.iter().for_each(|staked_sym| {
+            // Add in a single staker to get a state at epoch 0
+            let (pk, sk) = tmelcrypt::ed25519_keygen();
+            let mut stakers = HashMap::new();
+            stakers.insert(sk, CoinValue(*staked_sym));
+            let state = create_state(&stakers, 0);
+
+            // Ensure staker has 1.0 voting power as expected
+            let expected_voting_power = 1.0;
+            assert_eq!(state.stakes.vote_power(0, pk), expected_voting_power);
+        });
     }
 
-    #[rstest(
-        staked_syms => [vec![0], vec![0; 3], vec![0; 100]]
-    )]
-    fn test_vote_power_is_zero_when_stakers_are_staking_zero(staked_syms: Vec<u128>) {
-        // Generate state for stakers
-        let stakers = staked_syms
-            .into_iter()
-            .map(|e| (tmelcrypt::ed25519_keygen().1, CoinValue(e)))
-            .collect();
-        let state = create_state(&stakers, 0);
+    #[test]
+    fn test_vote_power_is_zero_no_stakers() {
+        let epoch_group: [u64; 3] = [0, 1, 100];
 
-        // Check the vote power of each staker in epoch 0 has expected value
-        stakers.iter().for_each(|(sk, _vote)| {
-            let vote_power = state.stakes.vote_power(0, sk.to_public());
-            assert_eq!(vote_power, 0.0);
+        epoch_group.into_iter().for_each(|epoch| {
+            let stakers = HashMap::new();
+            let state = create_state(&stakers, epoch);
+
+            let voting_power = state
+                .stakes
+                .vote_power(epoch, tmelcrypt::ed25519_keygen().0);
+            assert_eq!(voting_power, 0.0);
+        });
+    }
+
+    #[test]
+    fn test_vote_power_is_zero_when_stakers_are_staking_zero() {
+        let mut staked_sym_group: Vec<Vec<u128>> = Vec::new();
+        staked_sym_group.push(vec![0]);
+        staked_sym_group.push(vec![0; 3]);
+        staked_sym_group.push(vec![0; 100]);
+
+        staked_sym_group.iter().for_each(|staked_syms| {
+            // Generate state for stakers
+            let stakers = staked_syms
+                .into_iter()
+                .map(|e| (tmelcrypt::ed25519_keygen().1, CoinValue(*e)))
+                .collect();
+            let state = create_state(&stakers, 0);
+
+            // Check the vote power of each staker in epoch 0 has expected value
+            stakers.iter().for_each(|(sk, _vote)| {
+                let vote_power = state.stakes.vote_power(0, sk.to_public());
+                assert_eq!(vote_power, 0.0);
+            });
         });
     }
 
