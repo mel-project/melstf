@@ -2,13 +2,16 @@
 pub mod bench;
 
 #[cfg(test)]
+pub mod factory;
+
+#[cfg(test)]
 pub mod fixtures;
 
 #[cfg(test)]
-pub mod utils;
+pub mod functions;
 
 #[cfg(test)]
 pub mod integration;
 
 #[cfg(test)]
-pub mod factory;
+pub mod utils;

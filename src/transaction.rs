@@ -493,20 +493,24 @@ pub struct CoinDataHeight {
 #[cfg(test)]
 pub(crate) mod tests {
     use crate::{melvm, CoinData, Transaction, MAX_COINVAL};
-    use crate::{testing::fixtures::valid_txx, Denom};
-    use rstest::*;
+    use crate::Denom;
+    // use std::sync::Arc;
 
-    #[rstest]
-    fn test_is_well_formed(valid_txx: Vec<Transaction>) {
-        valid_txx.iter().for_each(|valid_tx| {
+    lazy_static!{
+        pub static ref VALID_TRANSACTION: Vec<Transaction> = crate::testing::functions::valid_txx(tmelcrypt::ed25519_keygen());
+    }
+
+    #[test]
+    fn test_is_well_formed() {
+        VALID_TRANSACTION.iter().for_each(|valid_tx| {
             assert!(valid_tx.is_well_formed());
         });
     }
 
-    #[rstest]
-    fn test_is_not_well_formed_if_value_gt_max(valid_txx: Vec<Transaction>) {
+    #[test]
+    fn test_is_not_well_formed_if_value_gt_max() {
         // Extract out first coin data from first transaction in valid transactions
-        let valid_tx = valid_txx.get(0).unwrap().clone();
+        let valid_tx = VALID_TRANSACTION.get(0).unwrap().clone();
         let valid_outputs = valid_tx.outputs;
         let valid_output = valid_outputs.get(0).unwrap().clone();
 
@@ -526,50 +530,54 @@ pub(crate) mod tests {
         assert!(!invalid_tx.is_well_formed());
     }
 
-    #[rstest(
-        offset => [1u128, 2u128, 100u128]
-    )]
-    fn test_is_not_well_formed_if_fee_gt_max(offset: u128, valid_txx: Vec<Transaction>) {
-        // Extract out first coin data from first transaction in valid transactions
-        let valid_tx = valid_txx.get(0).unwrap().clone();
+    #[test]
+    fn test_is_not_well_formed_if_fee_gt_max() {
+        let offsets: [u128; 3] = [1, 2, 100];
 
-        // Create an invalid tx by setting an invalid fee value
-        let invalid_tx = Transaction {
-            fee: MAX_COINVAL + offset.into(),
-            ..valid_tx
-        };
+        offsets.iter().for_each(|offset| {
+            // Extract out first coin data from first transaction in valid transactions
+            let valid_tx = VALID_TRANSACTION.get(0).unwrap().clone();
 
-        // Ensure transaction is not well formed
-        assert!(!invalid_tx.is_well_formed());
+            // Create an invalid tx by setting an invalid fee value
+            let invalid_tx = Transaction {
+                fee: MAX_COINVAL + crate::CoinValue::from(*offset),
+                ..valid_tx
+            };
+
+            // Ensure transaction is not well formed
+            assert!(!invalid_tx.is_well_formed());
+        });
     }
 
-    #[rstest(
-        offset => [1, 2, 100]
-    )]
-    fn test_is_not_well_formed_if_io_gt_max(offset: usize, valid_txx: Vec<Transaction>) {
-        // Extract out first coin data from first transaction in valid transactions
-        let valid_tx = valid_txx.get(0).unwrap().clone();
-        let valid_outputs = valid_tx.outputs;
-        let valid_output = valid_outputs.get(0).unwrap().clone();
+    #[test]
+    fn test_is_not_well_formed_if_io_gt_max() {
+        let offsets: [usize; 3] = [1, 2, 100];
 
-        // Create an invalid tx by setting an invalid output value
-        let invalid_output_count = 255 + offset;
-        let invalid_outputs = vec![valid_output; invalid_output_count];
-        let invalid_tx = Transaction {
-            outputs: invalid_outputs,
-            ..valid_tx
-        };
+        offsets.iter().for_each(|offset| {
+            // Extract out first coin data from first transaction in valid transactions
+            let valid_tx = VALID_TRANSACTION.get(0).unwrap().clone();
+            let valid_outputs = valid_tx.outputs;
+            let valid_output = valid_outputs.get(0).unwrap().clone();
 
-        // Ensure transaction is not well formed
-        assert!(!invalid_tx.is_well_formed());
+            // Create an invalid tx by setting an invalid output value
+            let invalid_output_count = 255 + offset;
+            let invalid_outputs = vec![valid_output; invalid_output_count];
+            let invalid_tx = Transaction {
+                outputs: invalid_outputs,
+                ..valid_tx
+            };
+
+            // Ensure transaction is not well formed
+            assert!(!invalid_tx.is_well_formed());
+        });
 
         // TODO: add case for input_count exceeding limit
     }
 
-    #[rstest]
-    fn test_hash_no_sigs(valid_txx: Vec<Transaction>) {
+    #[test]
+    fn test_hash_no_sigs() {
         // Check that valid transaction has a non zero number of signatures
-        let valid_tx = valid_txx.get(0).unwrap().clone();
+        let valid_tx = VALID_TRANSACTION.get(0).unwrap().clone();
         assert_ne!(valid_tx.sigs.len(), 0);
 
         // Create a transaction from it which has no signatures
@@ -590,10 +598,10 @@ pub(crate) mod tests {
         assert_eq!(h1, h3);
     }
 
-    #[rstest]
-    fn test_sign_sigs(valid_txx: Vec<Transaction>) {
+    #[test]
+    fn test_sign_sigs() {
         // Create a transaction from it which has no signatures
-        let valid_tx = valid_txx.get(0).unwrap().clone();
+        let valid_tx = VALID_TRANSACTION.get(0).unwrap().clone();
         assert_ne!(valid_tx.sigs.len(), 0);
         let mut no_sigs_tx = valid_tx;
         no_sigs_tx.sigs = vec![];
@@ -620,10 +628,10 @@ pub(crate) mod tests {
         assert_eq!(mult_signature_tx.sigs.len(), n + m);
     }
 
-    #[rstest]
-    fn test_sign_sigs_and_verify(valid_txx: Vec<Transaction>) {
+    #[test]
+    fn test_sign_sigs_and_verify() {
         // Create a transaction from it which has no signatures
-        let valid_tx = valid_txx.get(0).unwrap().clone();
+        let valid_tx = VALID_TRANSACTION.get(0).unwrap().clone();
         assert_ne!(valid_tx.sigs.len(), 0);
         let mut no_sigs_tx = valid_tx;
         no_sigs_tx.sigs = vec![];
@@ -648,10 +656,10 @@ pub(crate) mod tests {
         assert_eq!(tx.sigs.len(), 2);
     }
 
-    #[rstest]
-    fn test_total_output(valid_txx: Vec<Transaction>) {
+    #[test]
+    fn test_total_output() {
         // create transaction
-        let mut valid_tx = valid_txx.get(0).unwrap().clone();
+        let mut valid_tx = VALID_TRANSACTION.get(0).unwrap().clone();
         let (pk, _sk) = tmelcrypt::ed25519_keygen();
         let scr = melvm::Covenant::std_ed25519_pk_legacy(pk);
 
@@ -681,10 +689,10 @@ pub(crate) mod tests {
         assert_eq!(total, val1 + val2 + fee);
     }
 
-    #[rstest]
-    fn test_script_as_map(valid_txx: Vec<Transaction>) {
+    #[test]
+    fn test_script_as_map() {
         // create transaction
-        let valid_tx = valid_txx.get(0).unwrap().clone();
+        let valid_tx = VALID_TRANSACTION.get(0).unwrap().clone();
         let (pk, _sk) = tmelcrypt::ed25519_keygen();
         let _scr = melvm::Covenant::std_ed25519_pk_legacy(pk);
 
@@ -698,7 +706,7 @@ pub(crate) mod tests {
         // verify hashes match expected value
     }
 
-    #[rstest]
+    #[test]
     fn test_weight_adjust() {
         // create a transaction
 
@@ -707,7 +715,7 @@ pub(crate) mod tests {
         // call weight with N as adjust and ensure difference is adjust
     }
 
-    #[rstest]
+    #[test]
     fn test_weight_does_not_exceed_max_u64() {
         // create a transaction
 
