@@ -406,12 +406,12 @@ impl<'a> StateHandle<'a> {
 
     fn get_stake(&self, txhash: TxHash) -> Option<StakeDoc> {
         if let Some(cached_sd) = self.stakes_cache.get(&txhash).as_deref() {
-            return Some(cached_sd).cloned();
+            Some(cached_sd).cloned()
+        } else if let Some(sd) = self.state.stakes.get(&txhash).0 {
+            self.stakes_cache.insert(txhash, sd)
+        } else {
+            None
         }
-        if let Some(sd) = self.state.stakes.get(&txhash).0 {
-            return self.stakes_cache.insert(txhash, sd);
-        }
-        None
     }
 
     fn set_stake(&self, txhash: TxHash, sdoc: StakeDoc) {
