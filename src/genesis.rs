@@ -108,9 +108,11 @@ impl GenesisConfig {
             pools: SmtMapping::new(empty_tree.clone()),
             stakes: {
                 let mut stakes = SmtMapping::new(empty_tree);
-                for (k, v) in self.stakes.iter() {
-                    stakes.insert(*k, *v);
-                }
+
+                self.stakes.iter().for_each(|(key, value)| {
+                    stakes.insert(*key, *value);
+                });
+
                 stakes
             },
         };
