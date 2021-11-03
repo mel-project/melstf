@@ -443,7 +443,7 @@ fn multiply_frac(x: u128, frac: Ratio<u128>) -> u128 {
 mod tests {
     use crate::{
         melvm,
-        testing::fixtures::{genesis_mel_coin_id, genesis_state},
+        testing::functions::{genesis_mel_coin_id, genesis_state},
         CoinID, Denom,
     };
 

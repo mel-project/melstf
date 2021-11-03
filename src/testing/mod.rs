@@ -2,6 +2,9 @@
 pub mod bench;
 
 #[cfg(test)]
+pub mod constants;
+
+#[cfg(test)]
 pub mod factory;
 
 #[cfg(test)]

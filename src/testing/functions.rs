@@ -1,4 +1,13 @@
 use crate::testing::utils::random_valid_txx;
+use crate::testing::constants::{DB, GENESIS_EPOCH_POST_END, GENESIS_EPOCH_START};
+
+// const GENESIS_MEL_SUPPLY: u128 = 21_000_000;
+// const GENESIS_NUM_STAKERS: u64 = 10;
+// const GENESIS_EPOCH_START: u64 = 0;
+// const GENESIS_EPOCH_POST_END: u64 = 1000;
+// const GENESIS_STAKER_WEIGHT: u128 = 100;
+// pub const SEND_MEL_AMOUNT: u128 = 30_000_000_000;
+
 use crate::{CoinData, CoinDataHeight, CoinID, CoinValue, Denom, GenesisConfig, MICRO_CONVERTER, StakeDoc, State, Transaction};
 use crate::melvm::{Address, Covenant};
 
@@ -67,6 +76,40 @@ pub fn create_state(stakers: &HashMap<Ed25519SK, CoinValue>, epoch_start: u64) -
             },
         );
     });
+
+    state
+}
+
+pub fn genesis_mel_coin_id() -> CoinID {
+    CoinID::zero_zero()
+}
+
+/// Create a genesis state from mel coin and stakeholders
+pub fn genesis_state(
+    genesis_mel_coin_id: CoinID,
+    genesis_mel_coin_data_height: CoinDataHeight,
+    genesis_stakeholders: HashMap<(Ed25519PK, Ed25519SK), u128>,
+) -> State {
+    // Init empty state with db reference
+    let mut state = GenesisConfig::std_testnet().realize(&DB);
+
+    // insert initial mel coin supply
+    state
+        .coins
+        .insert(genesis_mel_coin_id, genesis_mel_coin_data_height);
+
+    // Insert stake holders
+    for (i, (&keypair, &syms_staked)) in genesis_stakeholders.iter().enumerate() {
+        state.stakes.insert(
+            tmelcrypt::hash_single(&(i as u64).to_be_bytes()).into(),
+            StakeDoc {
+                pubkey: keypair.0,
+                e_start: GENESIS_EPOCH_START,
+                e_post_end: GENESIS_EPOCH_POST_END,
+                syms_staked: syms_staked.into(),
+            },
+        );
+    }
 
     state
 }
