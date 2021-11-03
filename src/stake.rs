@@ -62,11 +62,9 @@ impl StakeMapping {
 #[cfg(test)]
 mod tests {
     use crate::CoinValue;
-
-    use std::collections::HashMap;
-
     use crate::testing::functions::create_state;
 
+    use std::collections::HashMap;
 
     #[test]
     fn test_non_staker_has_no_vote_power() {

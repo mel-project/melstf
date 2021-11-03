@@ -1,16 +1,6 @@
-use crate::testing::utils::*;
-
-use crate::MICRO_CONVERTER;
-use crate::CoinData;
-use crate::CoinID;
-use crate::Transaction;
+use crate::testing::utils::random_valid_txx;
+use crate::{CoinData, CoinDataHeight, CoinID, CoinValue, Denom, GenesisConfig, MICRO_CONVERTER, StakeDoc, State, Transaction};
 use crate::melvm::{Address, Covenant};
-use crate::Denom;
-use crate::StakeDoc;
-use crate::CoinDataHeight;
-use crate::State;
-use crate::CoinValue;
-use crate::GenesisConfig;
 
 use std::collections::HashMap;
 
