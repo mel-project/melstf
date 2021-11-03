@@ -371,17 +371,21 @@ impl<'a> StateHandle<'a> {
         let curr_epoch = self.state.height.epoch();
         // then we check that the first coin is valid
         let first_coin = tx.outputs.get(0).ok_or(StateError::MalformedTx)?;
-        if first_coin.denom != Denom::Sym {
-            return Err(StateError::MalformedTx);
-        }
+
+        let is_first_coin_not_a_sym: bool = first_coin.denom != Denom::Sym;
+
+        if is_first_coin_not_a_sym {
+            Err(StateError::MalformedTx)
         // then we check consistency
-        if !(stake_doc.e_start > curr_epoch
+        } else if !(stake_doc.e_start > curr_epoch
             && stake_doc.e_post_end > stake_doc.e_start
-            && stake_doc.syms_staked == first_coin.value)
-        {
+            && stake_doc.syms_staked == first_coin.value) {
             self.set_stake(tx.hash_nosigs(), stake_doc);
+
+            Ok(())
+        } else {
+            Ok(())
         }
-        Ok(())
     }
 
     fn get_coin(&self, coin_id: CoinID) -> Option<CoinDataHeight> {
