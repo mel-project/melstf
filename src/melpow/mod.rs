@@ -44,56 +44,63 @@ impl Proof {
     /// Verifies a MelPoW proof.
     #[must_use]
     pub fn verify(&self, puzzle: &[u8], difficulty: usize) -> bool {
-        if difficulty > 100 {
-            return false;
-        }
-        let chi = hash::bts_key(puzzle, b"chi");
-        let gammas = gen_gammas(puzzle, difficulty);
-        let phi = self.0[&node::Node::new_zero()].clone();
-        let mut temp_map = self.0.clone();
-
         let mut output: bool = true;
 
-        gammas.iter().for_each(|gamma| {
-            match self.0.get(&gamma) {
-                None => {
-                    output = false;
-                }
-                Some(label) => {
-                    // verify that the label is correctly calculated from parents
-                    let mut hasher = hash::Accumulator::new(&chi);
-                    hasher.add(&gamma.to_bytes());
+        if difficulty > 100 {
+            output = false;
+        } else {
+            let chi = hash::bts_key(puzzle, b"chi");
+            let gammas = gen_gammas(puzzle, difficulty);
+            let phi = self.0[&node::Node::new_zero()].clone();
+            let mut temp_map = self.0.clone();
 
-                    gamma.get_parents(difficulty).iter().for_each(|parent| {
-                        match self.0.get(&parent) {
-                            None => output = false,
-                            Some(parlab) => {
-                                hasher.add(parlab);
+            gammas.iter().for_each(|gamma| {
+                match self.0.get(gamma) {
+                    None => {
+                        output = false;
+                    }
+                    Some(label) => {
+                        // verify that the label is correctly calculated from parents
+                        let mut hasher = hash::Accumulator::new(&chi);
+                        hasher.add(&gamma.to_bytes());
+
+                        gamma.get_parents(difficulty).iter().try_for_each(|parent| {
+                            match self.0.get(parent) {
+                                None => {
+                                    output = false;
+
+                                    None
+                                },
+                                Some(parlab) => {
+                                    hasher.add(parlab);
+
+                                    Some(())
+                                }
                             }
+                        });
+
+                        if hasher.hash() != *label {
+                            output = false;
                         }
-                    });
 
-                    if hasher.hash() != *label {
-                        output = false;
-                    }
+                        // check "merkle-like" commitment
+                        (0..difficulty).rev().for_each(|index| {
+                            let mut h = hash::Accumulator::new(&chi);
+                            h.add(&gamma.take(index).to_bytes());
+                            let g_l_0 = gamma.take(index).append(0);
+                            let g_l_1 = gamma.take(index).append(1);
+                            let g_l = gamma.take(index);
+                            let h = h.add(&temp_map[&g_l_0]).add(&temp_map[&g_l_1]).hash();
+                            temp_map.insert(g_l, h);
+                        });
 
-                    // check "merkle-like" commitment
-                    (0..difficulty).rev().for_each(|index| {
-                        let mut h = hash::Accumulator::new(&chi);
-                        h.add(&gamma.take(index).to_bytes());
-                        let g_l_0 = gamma.take(index).append(0);
-                        let g_l_1 = gamma.take(index).append(1);
-                        let g_l = gamma.take(index);
-                        let h = h.add(&temp_map[&g_l_0]).add(&temp_map[&g_l_1]).hash();
-                        temp_map.insert(g_l, h);
-                    });
-
-                    if phi != self.0[&node::Node::new_zero()].clone() {
-                        output = false;
+                        if phi != self.0[&node::Node::new_zero()].clone() {
+                            output = false;
+                        }
                     }
                 }
-            }
-        });
+            });
+        }
 
         output
     }
@@ -106,7 +113,7 @@ impl Proof {
         self.0.iter().for_each(|(key, value)| {
             assert_eq!(value.len(), 32);
             output.extend_from_slice(&key.to_bytes());
-            output.extend_from_slice(&value);
+            output.extend_from_slice(value);
         });
 
         output
