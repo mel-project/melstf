@@ -2,54 +2,54 @@
 // For structs which don't have serialization support
 // build the structure manually or use a custom function with sub-factories where appropriate.
 
-use crate::{
-    melvm, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, ProposerAction, stake::StakeDoc,
-    Transaction, TxKind,
-};
+// use crate::{
+//     melvm, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, ProposerAction, stake::StakeDoc,
+//     Transaction, TxKind,
+// };
 
-beaver::define! {
-    pub CoinIDFactory (CoinID) {
-        txhash -> |_| tmelcrypt::HashVal::random().into(),
-        index -> |n| n as u8,
-    }
-}
+// beaver::define! {
+//     pub CoinIDFactory (CoinID) {
+//         txhash -> |_| tmelcrypt::HashVal::random().into(),
+//         index -> |n| n as u8,
+//     }
+// }
 
-beaver::define! {
-    pub CoinDataFactory (CoinData) {
-        covhash -> |_| tmelcrypt::HashVal::random().into(),
-        value -> |n| CoinValue(n as u128),
-        denom -> |_| Denom::Mel,
-        additional_data -> |_| vec![],
-    }
-}
+// beaver::define! {
+//     pub CoinDataFactory (CoinData) {
+//         covhash -> |_| tmelcrypt::HashVal::random().into(),
+//         value -> |n| CoinValue(n as u128),
+//         denom -> |_| Denom::Mel,
+//         additional_data -> |_| vec![],
+//     }
+// }
 
-beaver::define! {
-    pub CoinDataHeightFactory (CoinDataHeight) {
-        coin_data -> |n| CoinDataFactory::build(n),
-        height -> |n| (n as u64).into(),
-    }
-}
+// beaver::define! {
+//     pub CoinDataHeightFactory (CoinDataHeight) {
+//         coin_data -> |n| CoinDataFactory::build(n),
+//         height -> |n| (n as u64).into(),
+//     }
+// }
 
-beaver::define! {
-    pub TransactionFactory (Transaction) {
-        kind -> |_| TxKind::Normal,
-        inputs -> |n| CoinIDFactory::build_list(3, n),
-        outputs -> |n| CoinDataFactory::build_list(3, n),
-        fee -> |n| CoinValue(n as u128),
-        scripts -> |_| vec![melvm::Covenant::always_true()],
-        data -> |_| vec![],
-        sigs -> |_| vec![],
-    }
-}
+// beaver::define! {
+//     pub TransactionFactory (Transaction) {
+//         kind -> |_| TxKind::Normal,
+//         inputs -> |n| CoinIDFactory::build_list(3, n),
+//         outputs -> |n| CoinDataFactory::build_list(3, n),
+//         fee -> |n| CoinValue(n as u128),
+//         scripts -> |_| vec![melvm::Covenant::always_true()],
+//         data -> |_| vec![],
+//         sigs -> |_| vec![],
+//     }
+// }
 
-beaver::define! {
-    pub StakeDocFactory (StakeDoc) {
-        pubkey -> |_| tmelcrypt::ed25519_keygen().0,
-        e_start -> |n| n as u64,
-        e_post_end -> |n| n as u64,
-        syms_staked -> |n| CoinValue(n as u128),
-    }
-}
+// beaver::define! {
+//     pub StakeDocFactory (StakeDoc) {
+//         pubkey -> |_| tmelcrypt::ed25519_keygen().0,
+//         e_start -> |n| n as u64,
+//         e_post_end -> |n| n as u64,
+//         syms_staked -> |n| CoinValue(n as u128),
+//     }
+// }
 
 // beaver::define! {
 //     pub GenesisConfigFactory (GenesisConfig) {
@@ -61,12 +61,12 @@ beaver::define! {
 //     }
 // }
 
-beaver::define! {
-    pub ProposerActionFactory (ProposerAction) {
-        fee_multiplier_delta -> |n| n as i8,
-        reward_dest -> |_| tmelcrypt::HashVal::random().into(),
-    }
-}
+// beaver::define! {
+//     pub ProposerActionFactory (ProposerAction) {
+//         fee_multiplier_delta -> |n| n as i8,
+//         reward_dest -> |_| tmelcrypt::HashVal::random().into(),
+//     }
+// }
 
 // beaver::define! {
 //     pub HeaderFactory (Header) {
