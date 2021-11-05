@@ -147,7 +147,7 @@ fn process_swaps(mut state: State) -> State {
             relevant_swaps.len(),
             pool
         );
-        let mut pool_state = state.pools.get(&pool).0.unwrap();
+        let mut pool_state = state.pools.get(pool).0.unwrap();
         // sum up total lefts and rights
         let total_lefts = relevant_swaps
             .iter()
@@ -253,7 +253,7 @@ fn process_deposits(mut state: State) -> State {
 
         let total_mtsqrt = total_lefts.sqrt().saturating_mul(total_rights.sqrt());
         // main logic here
-        let total_liqs = if let Some(mut pool_state) = state.pools.get(&pool).0 {
+        let total_liqs = if let Some(mut pool_state) = state.pools.get(pool).0 {
             let liq = pool_state.deposit(total_lefts, total_rights);
             state.pools.insert(*pool, pool_state);
             liq
@@ -327,7 +327,7 @@ fn process_withdrawals(mut state: State) -> State {
             .map(|tx| tx.outputs[0].value.0)
             .fold(0u128, |a, b| a.saturating_add(b));
         // get the state
-        let mut pool_state = state.pools.get(&pool).0.unwrap();
+        let mut pool_state = state.pools.get(pool).0.unwrap();
         let (total_left, total_write) = pool_state.withdraw(total_liqs);
         state.pools.insert(*pool, pool_state);
         // divvy up the lefts and rights
