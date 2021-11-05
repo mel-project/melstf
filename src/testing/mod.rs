@@ -12,3 +12,6 @@ pub mod integration;
 
 #[cfg(test)]
 pub mod factory;
+
+#[cfg(test)]
+pub mod opcodes;
