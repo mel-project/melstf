@@ -64,8 +64,8 @@ impl<'a> StateHandle<'a> {
                 let pseudocoin = faucet_dedup_pseudocoin(tx.hash_nosigs());
 
                 if self.state.coins.get(&pseudocoin).0.is_some() {
-                    return Err(StateError::DuplicateTx);
-                } else if self.state.coins.get(&pseudocoin).0.is_none() {
+                    Err(StateError::DuplicateTx)
+                } else {
                     self.state.coins.insert(
                         pseudocoin,
                         CoinDataHeight {
@@ -78,8 +78,10 @@ impl<'a> StateHandle<'a> {
                             height: 0.into(),
                         },
                     );
+
+                    Ok(())
                 }
-            } if !tx.is_well_formed() {
+            } else if !tx.is_well_formed() {
                 Err(StateError::MalformedTx)
             } else if is_transaction_a_faucet && self.state.network == NetID::Mainnet {
                 Err(StateError::UnbalancedInOut)
@@ -90,20 +92,22 @@ impl<'a> StateHandle<'a> {
             }
         });
 
-        // apply specials in parallel
-        txx.par_iter()
-            .filter(|tx| tx.kind != TxKind::Normal && tx.kind != TxKind::Faucet)
-            .map(|tx| self.apply_tx_special(tx))
-            .collect::<Result<_, _>>()?;
-        // apply outputs in parallel
-        txx.par_iter().for_each(|tx| self.apply_tx_outputs(tx));
-        // apply inputs in parallel
-        txx.par_iter()
-            .map(|tx| self.apply_tx_inputs(tx))
-            .collect::<Result<_, _>>()?;
-
         match was_batch_successful {
-            Ok(()) => Ok(self),
+            Ok(()) => {
+                // apply specials in parallel
+                txx.par_iter()
+                    .filter(|tx| tx.kind != TxKind::Normal && tx.kind != TxKind::Faucet)
+                    .map(|tx| self.apply_tx_special(tx))
+                    .collect::<Result<_, _>>()?;
+                // apply outputs in parallel
+                txx.par_iter().for_each(|tx| self.apply_tx_outputs(tx));
+                // apply inputs in parallel
+                txx.par_iter()
+                    .map(|tx| self.apply_tx_inputs(tx))
+                    .collect::<Result<_, _>>()?;
+
+                Ok(self)
+            },
             Err(error) => Err(error)
         }
     }
