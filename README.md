@@ -10,7 +10,12 @@ This is the **most consensus-critical part of Themelio**, and essentially define
 
 
 ## Benchmarks
-Run:
+First, install `gnuplot` on your system:
+```
+$ apt install gnuplot
+```
+
+Then, run:
 ```
 $ cargo bench
 ```
