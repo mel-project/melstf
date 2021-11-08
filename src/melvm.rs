@@ -89,6 +89,40 @@ pub struct CovenantEnv<'a> {
 }
 
 impl Covenant {
+    /// Converts to a vector of OpCodes.
+    pub fn to_ops(&self) -> Result<Vec<OpCode>, DecodeError> {
+        let mut opcodes: Vec<OpCode> = Vec::with_capacity(128);
+
+        let mut temporary_slice: &[u8] = self.0.as_slice();
+
+        while !temporary_slice.is_empty() {
+            opcodes.push(OpCode::decode(&mut temporary_slice)?);
+        }
+
+        Ok(opcodes)
+    }
+
+    /// Create a Covenant from a slice of OpCodes.
+    pub fn from_ops(ops: &[OpCode]) -> Result<Self, EncodeError> {
+        let mut output: Vec<u8> = Vec::new();
+        // go through output
+        let was_encoding_successful: Result<(), EncodeError> = ops.iter().try_for_each(|op| {
+            match op.encode() {
+                Ok(data) => {
+                    output.extend_from_slice(&data);
+
+                    Ok(())
+                },
+                Err(error) => Err(error),
+            }
+        });
+
+        match was_encoding_successful {
+            Ok(()) => Ok(Covenant(output)),
+            Err(error) => Err(error),
+        }
+    }
+
     /// Checks a transaction, returning whether or not the transaction is valid.
     ///
     /// The caller must also pass in the [CoinID] and [CoinDataHeight] corresponding to the coin that's being spent, as well as the [Header] of the *previous* block (if this transaction is trying to go into block N, then the header of block N-1). This allows the covenant to access (a committment to) its execution environment, allowing constructs like timelock contracts and colored-coin-like systems.
@@ -107,14 +141,14 @@ impl Covenant {
 
     /// Checks with respect to a manually instantiated initial heap.
     pub fn check_raw(&self, args: &[Value]) -> bool {
-        let mut hm: HashMap<u16, Value> = HashMap::new();
+        let mut hashmap: HashMap<u16, Value> = HashMap::new();
 
         args.iter().enumerate().for_each(|(index, value)| {
-            hm.insert(index as u16, value.clone());
+            hashmap.insert(index as u16, value.clone());
         });
 
         if let Ok(ops) = self.to_ops() {
-            Executor::new(ops, hm).run_to_end()
+            Executor::new(ops, hashmap).run_to_end()
         } else {
             false
         }
@@ -155,43 +189,13 @@ impl Covenant {
             .expect("Could not create a new ed25519 signature checking covenant.")
     }
 
-    /// Create a Covenant from a slice of OpCodes.
-    pub fn from_ops(ops: &[OpCode]) -> Result<Self, EncodeError> {
-        let mut output: Vec<u8> = Vec::new();
-        // go through output
-        let was_encoding_successful: Result<(), EncodeError> = ops.iter().try_for_each(|op| {
-            match op.encode() {
-                Ok(data) => {
-                    Ok(output.extend_from_slice(&data))
-                },
-                Err(error) => Err(error),
-            }
-        });
-
-        match was_encoding_successful {
-            Ok(()) => Ok(Covenant(output)),
-            Err(error) => Err(error),
-        }
-    }
-
     pub fn always_true() -> Self {
         Covenant::from_ops(&[OpCode::PushI(1u32.into())]).unwrap()
     }
 
-    /// Converts to a vector of OpCodes.
-    pub fn to_ops(&self) -> Result<Vec<OpCode>, DecodeError> {
-        let mut collected = Vec::with_capacity(128);
-        let mut rdr = self.0.as_slice();
-
-        while !rdr.is_empty() {
-            collected.push(OpCode::decode(&mut rdr)?);
-        }
-
-        Ok(collected)
-    }
-
     pub fn weight(&self) -> Result<u128, DecodeError> {
         let ops = self.to_ops()?;
+
         Ok(opcodes_weight(&ops))
     }
 }

@@ -165,15 +165,18 @@ pub enum DecodeError {
 }
 
 fn read_byte<T: std::io::Read>(input: &mut T) -> std::io::Result<u8> {
-    let mut z = [0; 1];
-    input.read_exact(&mut z)?;
-    Ok(z[0])
+    let mut buffer: [u8; 1] = [0; 1];
+
+    input.read_exact(&mut buffer)?;
+
+    Ok(buffer[0])
 }
 
 impl OpCode {
     /// Encodes an opcode.
     pub fn encode(&self) -> Result<Vec<u8>, EncodeError> {
         let mut output = Vec::new();
+
         match self {
             OpCode::Noop => output.write_all(&[OPCODE_NOOP]).unwrap(),
 
@@ -283,10 +286,11 @@ impl OpCode {
     /// Decodes an opcode from an input.
     pub fn decode<T: std::io::Read>(input: &mut T) -> Result<Self, DecodeError> {
         let u16arg = |input: &mut T| {
-            let mut z = [0; 2];
-            input.read_exact(&mut z)?;
-            Ok::<_, DecodeError>(u16::from_be_bytes(z))
+            let mut buffer: [u8; 2] = [0; 2];
+            input.read_exact(&mut buffer)?;
+            Ok::<_, DecodeError>(u16::from_be_bytes(buffer))
         };
+
         match read_byte(input)? {
             OPCODE_NOOP => Ok(OpCode::Noop),
             // arithmetic
@@ -468,5 +472,17 @@ fn opcodes_car_weight(opcodes: &[OpCode]) -> (u128, &[OpCode]) {
         OpCode::PushIC(_) => (1, rest),
 
         OpCode::Dup => (4, rest),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::melvm::Covenant;
+    use crate::melvm::opcode::OpCode;
+
+    #[test]
+    fn test_noop() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::Noop]).expect("Failed to create a Noop covenant.");
+        assert_eq!(covenant.check_raw(&[]), false)
     }
 }
