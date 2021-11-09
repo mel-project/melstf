@@ -548,8 +548,16 @@ mod tests {
     }
 
     #[test]
-    fn test_divide_with_decimal() {
+    fn test_divide_to_zero() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(2_u8.into()), OpCode::PushI(1_u8.into()), OpCode::Div, OpCode::PushI(0_u8.into()), OpCode::Eql]).expect("Failed to create a Div covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_divide_with_decimal() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Div, OpCode::PushI(1_u8.into()), OpCode::Eql]).expect("Failed to create a Div covenant.");
         let output: bool = covenant.check_raw(&[]);
 
         assert_eq!(output, true);
