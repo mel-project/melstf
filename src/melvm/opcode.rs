@@ -688,4 +688,17 @@ mod tests {
 
         assert_eq!(output, true);
     }
+
+    #[test]
+    fn test_bit_shift_right() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Shr, OpCode::PushI(1_u8.into()), OpCode::Eql]).expect("Failed to create a Shl covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Shr, OpCode::PushI(2_u8.into()), OpCode::Eql]).expect("Failed to create a Shl covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+    }
 }
