@@ -674,4 +674,18 @@ mod tests {
 
         assert_eq!(output, true);
     }
+
+    #[test]
+    fn test_bit_shift_left() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Shl, OpCode::PushI(6_u8.into()), OpCode::Eql]).expect("Failed to create a Shl covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+
+        let half_max: u256 = u256::MAX / 2;
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(half_max.into()), OpCode::Shl, OpCode::PushI((u256::MAX - 1).into()), OpCode::Eql]).expect("Failed to create a Shl covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+    }
 }
