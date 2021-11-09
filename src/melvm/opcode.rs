@@ -562,4 +562,20 @@ mod tests {
 
         assert_eq!(output, true);
     }
+
+    #[test]
+    fn test_remainder() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(6_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Rem, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a Div covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_remainder_is_zero() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Rem, OpCode::PushI(0_u8.into()), OpCode::Eql]).expect("Failed to create a Div covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+    }
 }
