@@ -656,4 +656,22 @@ mod tests {
 
         assert_eq!(output, false);
     }
+
+    #[test]
+    fn test_greater_than() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(4_u8.into()), OpCode::Gt]).expect("Failed to create a Gt covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Lt]).expect("Failed to create a Gt covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, false);
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(4_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Lt]).expect("Failed to create a Gt covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+    }
 }
