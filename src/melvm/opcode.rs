@@ -485,4 +485,28 @@ mod tests {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::Noop]).expect("Failed to create a Noop covenant.");
         assert_eq!(covenant.check_raw(&[]), false)
     }
+
+    #[test]
+    fn test_add() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(2_u8.into()), OpCode::Add, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a Add covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_subtract() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Sub, OpCode::PushI(2_u8.into()), OpCode::Eql]).expect("Failed to create a Sub covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_divide() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(2_u8.into()), OpCode::PushI(6_u8.into()), OpCode::Div, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a Div covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+    }
 }
