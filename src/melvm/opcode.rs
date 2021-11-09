@@ -617,4 +617,12 @@ mod tests {
 
         assert_eq!(output, true);
     }
+
+    #[test]
+    fn test_bitwise_not_with_wraparound() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(0_u8.into()), OpCode::Not, OpCode::PushI(u256::MAX.into()), OpCode::Eql]).expect("Failed to create a Div covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+    }
 }
