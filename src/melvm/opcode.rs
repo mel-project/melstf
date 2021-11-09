@@ -578,4 +578,43 @@ mod tests {
 
         assert_eq!(output, true);
     }
+
+    #[test]
+    fn test_bitwise_and() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(5_u8.into()), OpCode::And, OpCode::PushI(1_u8.into()), OpCode::Eql]).expect("Failed to create a Div covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(2_u8.into()), OpCode::PushI(3_u8.into()), OpCode::And, OpCode::PushI(2_u8.into()), OpCode::Eql]).expect("Failed to create a Div covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_bitwise_or() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Or, OpCode::PushI(7_u8.into()), OpCode::Eql]).expect("Failed to create a Div covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(8_u8.into()), OpCode::PushI(2_u8.into()), OpCode::Or, OpCode::PushI(10_u8.into()), OpCode::Eql]).expect("Failed to create a Div covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_bitwise_xor() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Xor, OpCode::PushI(6_u8.into()), OpCode::Eql]).expect("Failed to create a Div covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(10_u8.into()), OpCode::PushI(2_u8.into()), OpCode::Xor, OpCode::PushI(8_u8.into()), OpCode::Eql]).expect("Failed to create a Div covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+    }
 }
