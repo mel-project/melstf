@@ -336,36 +336,61 @@ impl Executor {
             self.pc += 1;
             // eprintln!("running {:?}", op);
             match op {
-                OpCode::Noop => {}
+                OpCode::Noop => {
+                    dbg!("NoOp");
+                }
                 // arithmetic
                 OpCode::Add => self.do_binop(|x, y| {
                     dbg!("Addition, First: {}", &x);
                     dbg!("Addition, Second: {}", &y);
+
                     Some(Value::Int(x.into_int()?.overflowing_add(y.into_int()?).0))
                 })?,
                 OpCode::Sub => self.do_binop(|x, y| {
                     dbg!("Subtraction, First: {}", &x);
                     dbg!("Subtraction, Second: {}", &y);
+
                     Some(Value::Int(x.into_int()?.overflowing_sub(y.into_int()?).0))
                 })?,
                 OpCode::Mul => self.do_binop(|x, y| {
+                    dbg!("Multiplication, First: {}", &x);
+                    dbg!("Multiplication, Second: {}", &y);
+
                     Some(Value::Int(x.into_int()?.overflowing_mul(y.into_int()?).0))
                 })?,
                 OpCode::Div => self
-                    .do_binop(|x, y| Some(Value::Int(x.into_int()?.checked_div(y.into_int()?)?)))?,
+                    .do_binop(|x, y| {
+                        dbg!("Division, First: {}", &x);
+                        dbg!("Division, Second: {}", &y);
+
+                        Some(Value::Int(x.into_int()?.checked_div(y.into_int()?)?))
+                    })?,
                 OpCode::Rem => self
-                    .do_binop(|x, y| Some(Value::Int(x.into_int()?.checked_rem(y.into_int()?)?)))?,
+                    .do_binop(|x, y| {
+                        dbg!("Remainder, First: {}", &x);
+                        dbg!("Remainder, Second: {}", &y);
+
+                        Some(Value::Int(x.into_int()?.checked_rem(y.into_int()?)?))
+                    })?,
                 // logic
                 OpCode::And => {
-                    self.do_binop(|x, y| Some(Value::Int(x.into_int()? & y.into_int()?)))?
+                    self.do_binop(|x, y| {
+                        Some(Value::Int(x.into_int()? & y.into_int()?))
+                    })?
                 }
                 OpCode::Or => {
-                    self.do_binop(|x, y| Some(Value::Int(x.into_int()? | y.into_int()?)))?
+                    self.do_binop(|x, y| {
+                        Some(Value::Int(x.into_int()? | y.into_int()?))
+                    })?
                 }
                 OpCode::Xor => {
-                    self.do_binop(|x, y| Some(Value::Int(x.into_int()? ^ y.into_int()?)))?
+                    self.do_binop(|x, y| {
+                        Some(Value::Int(x.into_int()? ^ y.into_int()?))
+                    })?
                 }
-                OpCode::Not => self.do_monop(|x| Some(Value::Int(!x.into_int()?)))?,
+                OpCode::Not => self.do_monop(|x| {
+                    Some(Value::Int(!x.into_int()?))
+                })?,
                 OpCode::Eql => self.do_binop(|x, y| match (x, y) {
                     (Value::Int(x), Value::Int(y)) => {
                         dbg!("Equality, First: {}", &x);
@@ -379,6 +404,9 @@ impl Executor {
                     _ => None,
                 })?,
                 OpCode::Lt => self.do_binop(|x, y| {
+                    dbg!("Less than, First: {}", &x);
+                    dbg!("Less than, Second: {}", &y);
+
                     let x = x.into_int()?;
                     let y = y.into_int()?;
                     if x < y {
@@ -388,6 +416,9 @@ impl Executor {
                     }
                 })?,
                 OpCode::Gt => self.do_binop(|x, y| {
+                    dbg!("Greater than, First: {}", &x);
+                    dbg!("Greater than, Second: {}", &y);
+
                     let x = x.into_int()?;
                     let y = y.into_int()?;
                     if x > y {

@@ -480,6 +480,8 @@ mod tests {
     use crate::melvm::Covenant;
     use crate::melvm::opcode::OpCode;
 
+    use ethnum::u256;
+
     #[test]
     fn test_noop() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::Noop]).expect("Failed to create a Noop covenant.");
@@ -487,7 +489,7 @@ mod tests {
     }
 
     #[test]
-    fn test_add() {
+    fn test_addition() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(2_u8.into()), OpCode::Add, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a Add covenant.");
         let output: bool = covenant.check_raw(&[]);
 
@@ -495,8 +497,43 @@ mod tests {
     }
 
     #[test]
-    fn test_subtract() {
+    fn test_addition_with_overflow() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(u256::MAX.into()), OpCode::Add, OpCode::PushI(0_u8.into()), OpCode::Eql]).expect("Failed to create a Add covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_subtraction() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Sub, OpCode::PushI(2_u8.into()), OpCode::Eql]).expect("Failed to create a Sub covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_subtraction_with_wraparound() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(2_u8.into()), OpCode::PushI(1_u8.into()), OpCode::Sub, OpCode::PushI(u256::MAX.into()), OpCode::Eql]).expect("Failed to create a Sub covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_multiply() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(2_u8.into()), OpCode::Mul, OpCode::PushI(6_u8.into()), OpCode::Eql]).expect("Failed to create a Mul covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_multiply_with_overflow() {
+        let half_maximum: u256 = u256::MAX / 2;
+        let maximum_plus_two: u256 = half_maximum + 2;
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(maximum_plus_two.into()), OpCode::PushI(2_u128.into()), OpCode::Mul, OpCode::PushI(2_u8.into()), OpCode::Eql]).expect("Failed to create a Mul covenant.");
         let output: bool = covenant.check_raw(&[]);
 
         assert_eq!(output, true);
