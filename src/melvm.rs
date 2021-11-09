@@ -140,6 +140,7 @@ impl Covenant {
     }
 
     /// Checks with respect to a manually instantiated initial heap.
+    /// This is mostly for testing, when we do not have a transaction.
     pub fn check_raw(&self, args: &[Value]) -> bool {
         let mut hashmap: HashMap<u16, Value> = HashMap::new();
 
@@ -338,9 +339,13 @@ impl Executor {
                 OpCode::Noop => {}
                 // arithmetic
                 OpCode::Add => self.do_binop(|x, y| {
+                    dbg!("Addition, First: {}", &x);
+                    dbg!("Addition, Second: {}", &y);
                     Some(Value::Int(x.into_int()?.overflowing_add(y.into_int()?).0))
                 })?,
                 OpCode::Sub => self.do_binop(|x, y| {
+                    dbg!("Subtraction, First: {}", &x);
+                    dbg!("Subtraction, Second: {}", &y);
                     Some(Value::Int(x.into_int()?.overflowing_sub(y.into_int()?).0))
                 })?,
                 OpCode::Mul => self.do_binop(|x, y| {
@@ -363,6 +368,8 @@ impl Executor {
                 OpCode::Not => self.do_monop(|x| Some(Value::Int(!x.into_int()?)))?,
                 OpCode::Eql => self.do_binop(|x, y| match (x, y) {
                     (Value::Int(x), Value::Int(y)) => {
+                        dbg!("Equality, First: {}", &x);
+                        dbg!("Equality, Second: {}", &y);
                         if x == y {
                             Some(Value::Int(1u32.into()))
                         } else {
