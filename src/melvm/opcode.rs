@@ -482,6 +482,8 @@ mod tests {
 
     use ethnum::u256;
 
+    // use std::io::Read;
+
     #[test]
     fn test_noop() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::Noop]).expect("Failed to create a NoOp covenant.");
@@ -691,12 +693,30 @@ mod tests {
 
     #[test]
     fn test_bit_shift_right() {
-        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Shr, OpCode::PushI(1_u8.into()), OpCode::Eql]).expect("Failed to create a Shl covenant.");
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Shr, OpCode::PushI(1_u8.into()), OpCode::Eql]).expect("Failed to create a Shr covenant.");
         let output: bool = covenant.check_raw(&[]);
 
         assert_eq!(output, true);
 
-        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Shr, OpCode::PushI(2_u8.into()), OpCode::Eql]).expect("Failed to create a Shl covenant.");
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Shr, OpCode::PushI(2_u8.into()), OpCode::Eql]).expect("Failed to create a Shr covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_hash() {
+        let byte_vector: Vec<u8> = vec![3];
+
+        let number_of_bytes_to_hash: u16 = 1;
+
+        let hash: tmelcrypt::HashVal = tmelcrypt::hash_single(&byte_vector[..number_of_bytes_to_hash as usize]);
+
+        let hash_vector: Vec<u8> = hash.to_vec();
+
+        dbg!("Hash Vector: {}", &hash_vector);
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushB(byte_vector), OpCode::Hash(number_of_bytes_to_hash), OpCode::BtoI, OpCode::PushB(hash_vector), OpCode::BtoI, OpCode::Eql]).expect("Failed to create a Hash covenant.");
         let output: bool = covenant.check_raw(&[]);
 
         assert_eq!(output, true);
