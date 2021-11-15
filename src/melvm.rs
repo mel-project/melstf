@@ -430,21 +430,28 @@ impl Executor {
                 OpCode::Shl => self.do_binop(|x, offset| {
                     let x = x.into_int()?;
                     let offset = offset.into_int()?;
+
                     Some(Value::Int(x.wrapping_shl(offset.as_u32())))
                 })?,
                 OpCode::Shr => self.do_binop(|x, offset| {
                     let x = x.into_int()?;
                     let offset = offset.into_int()?;
+
                     Some(Value::Int(x.wrapping_shr(offset.as_u32())))
                 })?,
                 // cryptography
                 OpCode::Hash(n) => self.do_monop(|to_hash| {
-                    let to_hash = to_hash.into_bytes()?;
-                    if to_hash.len() > n as usize {
+                    let bytes: CatVec<u8, 256> = to_hash.into_bytes()?;
+
+                    if bytes.len() > n as usize {
                         return None;
                     }
-                    let to_hash: Vec<u8> = to_hash.into();
-                    let hash = tmelcrypt::hash_single(&to_hash);
+
+                    let byte_vector: Vec<u8> = bytes.into();
+                    let hash: tmelcrypt::HashVal = tmelcrypt::hash_single(&byte_vector);
+
+                    dbg!("Hash: {}", &hash.0);
+
                     Some(Value::from_bytes(&hash.0))
                 })?,
                 OpCode::SigEOk(n) => self.do_triop(|message, public_key, signature| {
