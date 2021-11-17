@@ -776,4 +776,20 @@ mod tests {
 
         assert_eq!(output, true);
     }
+
+    #[test]
+    fn test_sigeok() {
+        let (public_key, secret_key): (Ed25519PK, Ed25519SK) = ed25519_keygen();
+
+        let message_byte_vector: Vec<u8> = vec![3];
+
+        let signature: Vec<u8> = secret_key.sign(&message_byte_vector);
+
+        let number_of_bytes_to_hash: u16 = 1;
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushB(signature), OpCode::PushB(public_key.0.to_vec()), OpCode::PushB(message_byte_vector), OpCode::SigEOk(number_of_bytes_to_hash)]).expect("Failed to create a SigEOk covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+    }
 }
