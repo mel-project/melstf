@@ -481,8 +481,7 @@ mod tests {
     use crate::melvm::opcode::OpCode;
 
     use ethnum::u256;
-
-    // use std::io::Read;
+    use tmelcrypt::{ed25519_keygen, Ed25519PK, Ed25519SK};
 
     #[test]
     fn test_noop() {
@@ -496,6 +495,11 @@ mod tests {
         let output: bool = covenant.check_raw(&[]);
 
         assert_eq!(output, true);
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(2_u8.into()), OpCode::Add, OpCode::PushI(4_u8.into()), OpCode::Eql]).expect("Failed to create a Add covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, false);
     }
 
     #[test]
@@ -512,6 +516,11 @@ mod tests {
         let output: bool = covenant.check_raw(&[]);
 
         assert_eq!(output, true);
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Sub, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a Sub covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, false);
     }
 
     #[test]
@@ -528,6 +537,11 @@ mod tests {
         let output: bool = covenant.check_raw(&[]);
 
         assert_eq!(output, true);
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(2_u8.into()), OpCode::Mul, OpCode::PushI(7_u8.into()), OpCode::Eql]).expect("Failed to create a Mul covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, false);
     }
 
     #[test]
@@ -547,6 +561,11 @@ mod tests {
         let output: bool = covenant.check_raw(&[]);
 
         assert_eq!(output, true);
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Div, OpCode::PushI(0_u8.into()), OpCode::Eql]).expect("Failed to create a Div covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, false);
     }
 
     #[test]
@@ -571,6 +590,11 @@ mod tests {
         let output: bool = covenant.check_raw(&[]);
 
         assert_eq!(output, true);
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(6_u8.into()), OpCode::PushI(6_u8.into()), OpCode::Rem, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a Rem covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, false);
     }
 
     #[test]
@@ -592,6 +616,11 @@ mod tests {
         let output: bool = covenant.check_raw(&[]);
 
         assert_eq!(output, true);
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(2_u8.into()), OpCode::PushI(9_u8.into()), OpCode::And, OpCode::PushI(2_u8.into()), OpCode::Eql]).expect("Failed to create a And covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, false);
     }
 
     #[test]
@@ -605,6 +634,11 @@ mod tests {
         let output: bool = covenant.check_raw(&[]);
 
         assert_eq!(output, true);
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(16_u8.into()), OpCode::PushI(8_u8.into()), OpCode::Or, OpCode::PushI(10_u8.into()), OpCode::Eql]).expect("Failed to create a Or covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, false);
     }
 
     #[test]
@@ -618,6 +652,11 @@ mod tests {
         let output: bool = covenant.check_raw(&[]);
 
         assert_eq!(output, true);
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(10_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Xor, OpCode::PushI(8_u8.into()), OpCode::Eql]).expect("Failed to create a Xor covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, false);
     }
 
     #[test]
@@ -675,6 +714,11 @@ mod tests {
         let output: bool = covenant.check_raw(&[]);
 
         assert_eq!(output, true);
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(4_u8.into()), OpCode::PushI(7_u8.into()), OpCode::Lt]).expect("Failed to create a Gt covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, false);
     }
 
     #[test]
@@ -689,6 +733,12 @@ mod tests {
         let output: bool = covenant.check_raw(&[]);
 
         assert_eq!(output, true);
+
+        let half_max: u256 = u256::MAX / 2;
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(half_max.into()), OpCode::Shl, OpCode::PushI((u256::MAX - 1).into()), OpCode::Eql]).expect("Failed to create a Shl covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, false);
     }
 
     #[test]
@@ -702,6 +752,11 @@ mod tests {
         let output: bool = covenant.check_raw(&[]);
 
         assert_eq!(output, true);
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(2_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Shr, OpCode::PushI(2_u8.into()), OpCode::Eql]).expect("Failed to create a Shr covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, false);
     }
 
     #[test]

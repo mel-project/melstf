@@ -456,23 +456,30 @@ impl Executor {
                 })?,
                 OpCode::SigEOk(n) => self.do_triop(|message, public_key, signature| {
                     //println!("SIGEOK({:?}, {:?}, {:?})", message, public_key, signature);
-                    let pk = public_key.into_bytes()?;
-                    if pk.len() > 32 {
+                    let public_key_bytes: CatVec<u8, 256> = public_key.into_bytes()?;
+
+                    if public_key_bytes.len() > 32 {
                         return Some(Value::from_bool(false));
                     }
-                    let pk_b: Vec<u8> = pk.into();
-                    let public_key = tmelcrypt::Ed25519PK::from_bytes(&pk_b)?;
-                    let message = message.into_bytes()?;
-                    if message.len() > n as usize {
+
+                    let public_key_byte_vector: Vec<u8> = public_key_bytes.into();
+                    let public_key: tmelcrypt::Ed25519PK = tmelcrypt::Ed25519PK::from_bytes(&public_key_byte_vector)?;
+                    let message_bytes: CatVec<u8, 256> = message.into_bytes()?;
+
+                    if message_bytes.len() > n as usize {
                         return None;
                     }
-                    let message: Vec<u8> = message.into();
-                    let signature = signature.into_bytes()?;
-                    if signature.len() > 64 {
+
+                    let message_byte_vector: Vec<u8> = message_bytes.into();
+                    let signature_bytes: CatVec<u8, 256> = signature.into_bytes()?;
+
+                    if signature_bytes.len() > 64 {
                         return Some(Value::from_bool(false));
                     }
-                    let signature: Vec<u8> = signature.into();
-                    Some(Value::from_bool(public_key.verify(&message, &signature)))
+
+                    let signature_byte_vector: Vec<u8> = signature_bytes.into();
+
+                    Some(Value::from_bool(public_key.verify(&message_byte_vector, &signature_byte_vector)))
                 })?,
                 // storage access
                 OpCode::Store => {
