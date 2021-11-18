@@ -792,4 +792,14 @@ mod tests {
 
         assert_eq!(output, true);
     }
+
+    #[test]
+    fn test_heap_store_and_load() {
+        let address: u8 = 0x1;
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(address.into()), OpCode::Store, OpCode::PushI(address.into()), OpCode::Load, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a Store covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+    }
 }
