@@ -802,4 +802,14 @@ mod tests {
 
         assert_eq!(output, true);
     }
+
+    #[test]
+    fn test_heap_storeimm_and_loadimm() {
+        let index: u8 = 1;
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::StoreImm(index.into()), OpCode::LoadImm(index.into()), OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a Store covenant.");
+        let output: bool = covenant.check_raw(&[]);
+
+        assert_eq!(output, true);
+    }
 }
