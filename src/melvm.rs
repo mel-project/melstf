@@ -483,26 +483,39 @@ impl Executor {
                 })?,
                 // storage access
                 OpCode::Store => {
-                    let addr = self.stack.pop()?.into_u16()?;
-                    let val = self.stack.pop()?;
-                    self.heap.insert(addr, val);
+                    let address: u16 = self.stack.pop()?.into_u16()?;
+                    let value: Value = self.stack.pop()?;
+
+                    dbg!("Storing {} at address: {} on the heap.", &value, &address);
+
+                    self.heap.insert(address, value);
                 }
                 OpCode::Load => {
-                    let addr = self.stack.pop()?.into_u16()?;
-                    let res = self.heap.get(&addr)?.clone();
+                    let address: u16 = self.stack.pop()?.into_u16()?;
+                    let res: Value = self.heap.get(&address)?.clone();
+
+                    dbg!("Loading {} from address: {} from the heap.", &res, &address);
+
                     self.stack.push(res)
                 }
                 OpCode::StoreImm(idx) => {
-                    let val = self.stack.pop()?;
-                    self.heap.insert(idx, val);
+                    let value: Value = self.stack.pop()?;
+
+                    dbg!("Storing {} at index {} immutably on the heap.", &value, &idx);
+
+                    self.heap.insert(idx, value);
                 }
                 OpCode::LoadImm(idx) => {
                     let res = self.heap.get(&idx)?.clone();
+
+                    dbg!("Loading {} from index {} immutably from the heap.", &res, &idx);
+
                     self.stack.push(res)
                 }
                 // vector operations
                 OpCode::VRef => self.do_binop(|vec, idx| {
-                    let idx = idx.into_u16()? as usize;
+                    let idx: usize = idx.into_u16()? as usize;
+
                     Some(vec.into_vector()?.get(idx)?.clone())
                 })?,
                 OpCode::VSet => self.do_triop(|vec, idx, value| {
