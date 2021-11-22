@@ -152,13 +152,16 @@ impl Covenant {
             let mut executor: Executor = Executor::new(ops, hashmap);
 
             while executor.pc < executor.instrs.len() {
+                dbg!("Stack (step): {:?}", &executor.stack);
+                dbg!("Heap (step): {:?}", &executor.heap);
+
                 if executor.step().is_none() {
                     return false;
                 }
             }
 
-            dbg!("Stack: {:?}", &executor.stack);
-            dbg!("Heap: {:?}", &executor.heap);
+            dbg!("Stack (final): {:?}", &executor.stack);
+            dbg!("Heap (final): {:?}", &executor.heap);
 
             executor.stack.pop().map(|f| f.into_bool()).unwrap_or_default()
         } else {
