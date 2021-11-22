@@ -477,27 +477,29 @@ fn opcodes_car_weight(opcodes: &[OpCode]) -> (u128, &[OpCode]) {
 
 #[cfg(test)]
 mod tests {
-    use crate::melvm::Covenant;
+    use crate::melvm::{Covenant, Executor, Value};
     use crate::melvm::opcode::OpCode;
 
     use ethnum::u256;
     use tmelcrypt::{ed25519_keygen, Ed25519PK, Ed25519SK};
 
+    use std::collections::HashMap;
+
     #[test]
     fn test_noop() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::Noop]).expect("Failed to create a NoOp covenant.");
-        assert_eq!(covenant.check_raw(&[]), false)
+        assert_eq!(covenant.debug_run_without_transaction(&[]), false)
     }
 
     #[test]
     fn test_addition() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(2_u8.into()), OpCode::Add, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a Add covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(2_u8.into()), OpCode::Add, OpCode::PushI(4_u8.into()), OpCode::Eql]).expect("Failed to create a Add covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
     }
@@ -505,7 +507,7 @@ mod tests {
     #[test]
     fn test_addition_with_overflow() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(u256::MAX.into()), OpCode::Add, OpCode::PushI(0_u8.into()), OpCode::Eql]).expect("Failed to create a Add covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
     }
@@ -513,12 +515,12 @@ mod tests {
     #[test]
     fn test_subtraction() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Sub, OpCode::PushI(2_u8.into()), OpCode::Eql]).expect("Failed to create a Sub covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Sub, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a Sub covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
     }
@@ -526,7 +528,7 @@ mod tests {
     #[test]
     fn test_subtraction_with_wraparound() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(2_u8.into()), OpCode::PushI(1_u8.into()), OpCode::Sub, OpCode::PushI(u256::MAX.into()), OpCode::Eql]).expect("Failed to create a Sub covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
     }
@@ -534,12 +536,12 @@ mod tests {
     #[test]
     fn test_multiply() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(2_u8.into()), OpCode::Mul, OpCode::PushI(6_u8.into()), OpCode::Eql]).expect("Failed to create a Mul covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(2_u8.into()), OpCode::Mul, OpCode::PushI(7_u8.into()), OpCode::Eql]).expect("Failed to create a Mul covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
     }
@@ -550,7 +552,7 @@ mod tests {
         let maximum_plus_two: u256 = half_maximum + 2;
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(maximum_plus_two.into()), OpCode::PushI(2_u128.into()), OpCode::Mul, OpCode::PushI(2_u8.into()), OpCode::Eql]).expect("Failed to create a Mul covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
     }
@@ -558,12 +560,12 @@ mod tests {
     #[test]
     fn test_divide() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(2_u8.into()), OpCode::PushI(6_u8.into()), OpCode::Div, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a Div covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Div, OpCode::PushI(0_u8.into()), OpCode::Eql]).expect("Failed to create a Div covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
     }
@@ -571,7 +573,7 @@ mod tests {
     #[test]
     fn test_divide_to_zero() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(2_u8.into()), OpCode::PushI(1_u8.into()), OpCode::Div, OpCode::PushI(0_u8.into()), OpCode::Eql]).expect("Failed to create a Div covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
     }
@@ -579,7 +581,7 @@ mod tests {
     #[test]
     fn test_divide_with_decimal() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Div, OpCode::PushI(1_u8.into()), OpCode::Eql]).expect("Failed to create a Div covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
     }
@@ -587,12 +589,12 @@ mod tests {
     #[test]
     fn test_remainder() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(6_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Rem, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a Rem covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(6_u8.into()), OpCode::PushI(6_u8.into()), OpCode::Rem, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a Rem covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
     }
@@ -600,7 +602,7 @@ mod tests {
     #[test]
     fn test_remainder_is_zero() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Rem, OpCode::PushI(0_u8.into()), OpCode::Eql]).expect("Failed to create a Rem covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
     }
@@ -608,17 +610,17 @@ mod tests {
     #[test]
     fn test_bitwise_and() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(5_u8.into()), OpCode::And, OpCode::PushI(1_u8.into()), OpCode::Eql]).expect("Failed to create a And covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(2_u8.into()), OpCode::PushI(3_u8.into()), OpCode::And, OpCode::PushI(2_u8.into()), OpCode::Eql]).expect("Failed to create a And covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(2_u8.into()), OpCode::PushI(9_u8.into()), OpCode::And, OpCode::PushI(2_u8.into()), OpCode::Eql]).expect("Failed to create a And covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
     }
@@ -626,17 +628,17 @@ mod tests {
     #[test]
     fn test_bitwise_or() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Or, OpCode::PushI(7_u8.into()), OpCode::Eql]).expect("Failed to create a Or covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(8_u8.into()), OpCode::PushI(2_u8.into()), OpCode::Or, OpCode::PushI(10_u8.into()), OpCode::Eql]).expect("Failed to create a Or covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(16_u8.into()), OpCode::PushI(8_u8.into()), OpCode::Or, OpCode::PushI(10_u8.into()), OpCode::Eql]).expect("Failed to create a Or covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
     }
@@ -644,17 +646,17 @@ mod tests {
     #[test]
     fn test_bitwise_xor() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Xor, OpCode::PushI(6_u8.into()), OpCode::Eql]).expect("Failed to create a Xor covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(10_u8.into()), OpCode::PushI(2_u8.into()), OpCode::Xor, OpCode::PushI(8_u8.into()), OpCode::Eql]).expect("Failed to create a Xor covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(10_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Xor, OpCode::PushI(8_u8.into()), OpCode::Eql]).expect("Failed to create a Xor covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
     }
@@ -662,7 +664,7 @@ mod tests {
     #[test]
     fn test_bitwise_not_with_wraparound() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(0_u8.into()), OpCode::Not, OpCode::PushI(u256::MAX.into()), OpCode::Eql]).expect("Failed to create a Not covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
     }
@@ -670,12 +672,12 @@ mod tests {
     #[test]
     fn test_equality() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a Eql covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(4_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a Eql covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
     }
@@ -683,17 +685,17 @@ mod tests {
     #[test]
     fn test_less_than() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(4_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Lt]).expect("Failed to create a Lt covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Lt]).expect("Failed to create a Lt covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(4_u8.into()), OpCode::Lt]).expect("Failed to create a Lt covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
     }
@@ -701,22 +703,22 @@ mod tests {
     #[test]
     fn test_greater_than() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(4_u8.into()), OpCode::Gt]).expect("Failed to create a Gt covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Lt]).expect("Failed to create a Gt covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(4_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Lt]).expect("Failed to create a Gt covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(4_u8.into()), OpCode::PushI(7_u8.into()), OpCode::Lt]).expect("Failed to create a Gt covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
     }
@@ -724,19 +726,19 @@ mod tests {
     #[test]
     fn test_bit_shift_left() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Shl, OpCode::PushI(6_u8.into()), OpCode::Eql]).expect("Failed to create a Shl covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
 
         let half_max: u256 = u256::MAX / 2;
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(half_max.into()), OpCode::Shl, OpCode::PushI((u256::MAX - 1).into()), OpCode::Eql]).expect("Failed to create a Shl covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
 
         let half_max: u256 = u256::MAX / 2;
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(half_max.into()), OpCode::Shl, OpCode::PushI((u256::MAX - 1).into()), OpCode::Eql]).expect("Failed to create a Shl covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
     }
@@ -744,17 +746,17 @@ mod tests {
     #[test]
     fn test_bit_shift_right() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Shr, OpCode::PushI(1_u8.into()), OpCode::Eql]).expect("Failed to create a Shr covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Shr, OpCode::PushI(2_u8.into()), OpCode::Eql]).expect("Failed to create a Shr covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(2_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Shr, OpCode::PushI(2_u8.into()), OpCode::Eql]).expect("Failed to create a Shr covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
     }
@@ -772,7 +774,7 @@ mod tests {
         dbg!("Hash Vector: {}", &hash_vector);
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushB(byte_vector), OpCode::Hash(number_of_bytes_to_hash), OpCode::BtoI, OpCode::PushB(hash_vector), OpCode::BtoI, OpCode::Eql]).expect("Failed to create a Hash covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
     }
@@ -788,7 +790,7 @@ mod tests {
         let number_of_bytes_to_hash: u16 = 1;
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushB(signature), OpCode::PushB(public_key.0.to_vec()), OpCode::PushB(message_byte_vector), OpCode::SigEOk(number_of_bytes_to_hash)]).expect("Failed to create a SigEOk covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
     }
@@ -797,8 +799,8 @@ mod tests {
     fn test_heap_store_and_load() {
         let address: u8 = 0x1;
 
-        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(address.into()), OpCode::Store, OpCode::PushI(address.into()), OpCode::Load, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a Store covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(address.into()), OpCode::Store, OpCode::PushI(address.into()), OpCode::Load, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a Store/Load covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
     }
@@ -807,9 +809,19 @@ mod tests {
     fn test_heap_storeimm_and_loadimm() {
         let index: u8 = 1;
 
-        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::StoreImm(index.into()), OpCode::LoadImm(index.into()), OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a Store covenant.");
-        let output: bool = covenant.check_raw(&[]);
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::StoreImm(index.into()), OpCode::LoadImm(index.into()), OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a StoreImm/LoadImm covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
     }
+
+    // #[test]
+    // fn test_vref() {
+    //     let index: u8 = 0;
+    //
+    //     let covenant: Covenant = Covenant::from_ops(&[OpCode::PushB(vec![3]), OpCode::PushI(index.into()), OpCode::BRef, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a VRef covenant.");
+    //     let output: bool = covenant.debug_run_without_transaction(&[]);
+    //
+    //     assert_eq!(output, true);
+    // }
 }

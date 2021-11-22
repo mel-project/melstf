@@ -139,9 +139,9 @@ impl Covenant {
         }
     }
 
-    /// Checks with respect to a manually instantiated initial heap.
-    /// This is mostly for testing, when we do not have a transaction.
-    pub fn check_raw(&self, args: &[Value]) -> bool {
+    /// Runs to the end, with respect to a manually instantiated initial heap.
+    /// This is for testing, when we do not have a transaction.
+    pub fn debug_run_without_transaction(&self, args: &[Value]) -> bool {
         let mut hashmap: HashMap<u16, Value> = HashMap::new();
 
         args.iter().enumerate().for_each(|(index, value)| {
@@ -149,7 +149,18 @@ impl Covenant {
         });
 
         if let Ok(ops) = self.to_ops() {
-            Executor::new(ops, hashmap).run_to_end()
+            let mut executor: Executor = Executor::new(ops, hashmap);
+
+            while executor.pc < executor.instrs.len() {
+                if executor.step().is_none() {
+                    return false;
+                }
+            }
+
+            dbg!("Stack: {:?}", &executor.stack);
+            dbg!("Heap: {:?}", &executor.heap);
+
+            executor.stack.pop().map(|f| f.into_bool()).unwrap_or_default()
         } else {
             false
         }
@@ -519,9 +530,11 @@ impl Executor {
                     Some(vec.into_vector()?.get(idx)?.clone())
                 })?,
                 OpCode::VSet => self.do_triop(|vec, idx, value| {
-                    let idx = idx.into_u16()? as usize;
-                    let mut vec = vec.into_vector()?;
+                    let idx: usize = idx.into_u16()? as usize;
+                    let mut vec: CatVec<Value, 32> = vec.into_vector()?;
+
                     *vec.get_mut(idx)? = value;
+
                     Some(Value::Vector(vec))
                 })?,
                 OpCode::VAppend => self.do_binop(|v1, v2| {

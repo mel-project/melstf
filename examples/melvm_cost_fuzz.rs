@@ -17,7 +17,7 @@ fn eval_fitness(input: &[u8]) -> OF64 {
     let mut runtime = f64::MAX;
     for _ in 0..10 {
         let start = CLOCK.start();
-        val.check_raw(&[]);
+        val.debug_run_without_transaction(&[]);
         runtime = runtime.min((CLOCK.end() - start) as f64);
     }
     if val
