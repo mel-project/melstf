@@ -860,6 +860,42 @@ mod tests {
     }
 
     #[test]
+    fn test_verify_an_index_of_a_slice() {
+        let index: u8 = 0;
+        let beginning: u8 = 1;
+        let end: u8 = 3;
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(index.into()), OpCode::PushI(end.into()), OpCode::PushI(beginning.into()), OpCode::PushI(5_u8.into()), OpCode::PushI(4_u8.into()), OpCode::PushI(3_u8.into()), OpCode::PushI(2_u8.into()), OpCode::PushI(1_u8.into()), OpCode::VEmpty, OpCode::VPush, OpCode::VPush, OpCode::VPush, OpCode::VPush, OpCode::VPush, OpCode::VSlice, OpCode::VRef, OpCode::PushI(2_u8.into()), OpCode::Eql]).expect("Failed to create a VEmpty/VPush/VSlice/VRef covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_verify_the_length_of_a_slice() {
+        let length: u8 = 2;
+        let beginning: u8 = 1;
+        let end: u8 = 3;
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(end.into()), OpCode::PushI(beginning.into()), OpCode::PushI(5_u8.into()), OpCode::PushI(4_u8.into()), OpCode::PushI(3_u8.into()), OpCode::PushI(2_u8.into()), OpCode::PushI(1_u8.into()), OpCode::VEmpty, OpCode::VPush, OpCode::VPush, OpCode::VPush, OpCode::VPush, OpCode::VPush, OpCode::VSlice, OpCode::VLength, OpCode::PushI(length.into()), OpCode::Eql]).expect("Failed to create a VEmpty/VPush/VSlice/VLength covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_verify_empty_vector_with_out_of_bounds_slice() {
+        let length: u8 = 0;
+        let beginning: u8 = 1;
+        let end: u8 = 5;
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(end.into()), OpCode::PushI(beginning.into()), OpCode::PushI(5_u8.into()), OpCode::PushI(4_u8.into()), OpCode::PushI(3_u8.into()), OpCode::PushI(2_u8.into()), OpCode::PushI(1_u8.into()), OpCode::VEmpty, OpCode::VPush, OpCode::VPush, OpCode::VPush, OpCode::VPush, OpCode::VPush, OpCode::VSlice, OpCode::VLength, OpCode::PushI(length.into()), OpCode::Eql]).expect("Failed to create a VEmpty/VPush/VSlice/VLength covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
     fn test_bref() {
         let index: u8 = 0;
 

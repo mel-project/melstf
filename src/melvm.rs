@@ -570,18 +570,30 @@ impl Executor {
 
                     Some(Value::Vector(v1))
                 })?,
-                OpCode::VSlice => self.do_triop(|vec, i, j| {
-                    let i = i.into_u16()? as usize;
-                    let j = j.into_u16()? as usize;
+                OpCode::VSlice => self.do_triop(|vec, beginning_value, end_value| {
+                    let beginning: usize = beginning_value.into_u16()? as usize;
+                    let end: usize = end_value.into_u16()? as usize;
+
                     match vec {
                         Value::Vector(vec) => {
-                            if j >= vec.len() || j <= i {
+                            let is_end_greater_or_equal_to_vector_length: bool = end >= vec.len();
+                            let is_end_less_than_or_equal_to_beginning: bool = end <= beginning;
+
+                            if is_end_greater_or_equal_to_vector_length || is_end_less_than_or_equal_to_beginning {
+                                dbg!("Tried to create a slice with invalid bounds. Returning an empty vector.");
+
                                 Some(Value::Vector(Default::default()))
                             } else {
-                                Some(Value::Vector(vec.tap_mut(|vec| vec.slice_into(i..j))))
+                                dbg!("Returning a slice from {} to {} from the vector containing: {}", beginning, end, &vec);
+
+                                Some(Value::Vector(vec.tap_mut(|vec| vec.slice_into(beginning..end))))
                             }
                         }
-                        _ => None,
+                        _ => {
+                            dbg!("Tried to call VSlice on something that was not a Value::Vector.");
+
+                            None
+                        },
                     }
                 })?,
                 OpCode::VLength => self.do_monop(|vec| match vec {
