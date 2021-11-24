@@ -815,13 +815,20 @@ mod tests {
         assert_eq!(output, true);
     }
 
-    // #[test]
-    // fn test_vref() {
-    //     let index: u8 = 0;
-    //
-    //     let covenant: Covenant = Covenant::from_ops(&[OpCode::PushB(vec![3]), OpCode::PushI(index.into()), OpCode::BRef, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a VRef covenant.");
-    //     let output: bool = covenant.debug_run_without_transaction(&[]);
-    //
-    //     assert_eq!(output, true);
-    // }
+    #[test]
+    fn test_bref() {
+        let index: u8 = 0;
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(index.into()), OpCode::PushB(vec![3,4,5]), OpCode::BRef, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a BRef covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
+
+        let index: u8 = 0;
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(index.into()), OpCode::PushB(vec![3,4,5]), OpCode::BRef, OpCode::PushI(5_u8.into()), OpCode::Eql]).expect("Failed to create a BRef covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, false);
+    }
 }
