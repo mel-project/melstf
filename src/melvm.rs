@@ -634,38 +634,48 @@ impl Executor {
                     Some(Value::Vector(vec))
                 })?,
                 // bit stuff
-                OpCode::BEmpty => self.stack.push(Value::Bytes(Default::default())),
+                OpCode::BEmpty => {
+                    dbg!("Creating a new empty byte vector on the stack.");
+
+                    self.stack.push(Value::Bytes(Default::default()))
+                },
                 OpCode::BPush => self.do_binop(|vec, val| {
-                    let mut vec = vec.into_bytes()?;
-                    let val = val.into_int()?;
+                    let mut vec: CatVec<u8, 256> = vec.into_bytes()?;
+                    let val: U256 = val.into_int()?;
                     vec.push_back(*val.low() as u8);
+
                     Some(Value::Bytes(vec))
                 })?,
                 OpCode::BCons => self.do_binop(|item, vec| {
-                    let mut vec = vec.into_bytes()?;
+                    let mut vec: CatVec<u8, 256> = vec.into_bytes()?;
                     vec.insert(0, item.into_truncated_u8()?);
+
                     Some(Value::Bytes(vec))
                 })?,
                 OpCode::BRef => self.do_binop(|vec, idx| {
-                    let idx = idx.into_u16()? as usize;
+                    let idx: usize = idx.into_u16()? as usize;
+
                     Some(Value::Int(vec.into_bytes()?.get(idx).copied()?.into()))
                 })?,
                 OpCode::BSet => self.do_triop(|vec, idx, value| {
-                    let idx = idx.into_u16()? as usize;
-                    let mut vec = vec.into_bytes()?;
+                    let idx: usize = idx.into_u16()? as usize;
+                    let mut vec: CatVec<u8, 256> = vec.into_bytes()?;
                     *vec.get_mut(idx)? = value.into_truncated_u8()?;
+
                     Some(Value::Bytes(vec))
                 })?,
                 OpCode::BAppend => self.do_binop(|v1, v2| {
-                    let mut v1 = v1.into_bytes()?;
-                    let v2 = v2.into_bytes()?;
+                    let mut v1: CatVec<u8, 256> = v1.into_bytes()?;
+                    let v2: CatVec<u8, 256> = v2.into_bytes()?;
                     // eprintln!("append {} to {}", v1.len(), v2.len());
                     v1.append(v2);
+
                     Some(Value::Bytes(v1))
                 })?,
                 OpCode::BSlice => self.do_triop(|vec, i, j| {
-                    let i = i.into_u16()? as usize;
-                    let j = j.into_u16()? as usize;
+                    let i: usize = i.into_u16()? as usize;
+                    let j: usize = j.into_u16()? as usize;
+
                     match vec {
                         Value::Bytes(mut vec) => {
                             if j >= vec.len() || j <= i {

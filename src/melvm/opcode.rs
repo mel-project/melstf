@@ -477,13 +477,11 @@ fn opcodes_car_weight(opcodes: &[OpCode]) -> (u128, &[OpCode]) {
 
 #[cfg(test)]
 mod tests {
-    use crate::melvm::{Covenant, Executor, Value};
+    use crate::melvm::Covenant;
     use crate::melvm::opcode::OpCode;
 
     use ethnum::u256;
     use tmelcrypt::{ed25519_keygen, Ed25519PK, Ed25519SK};
-
-    use std::collections::HashMap;
 
     #[test]
     fn test_noop() {
