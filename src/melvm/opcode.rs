@@ -826,6 +826,17 @@ mod tests {
     }
 
     #[test]
+    fn test_vempty_vpush_vset_and_vref() {
+        let new_value: u8 = 3;
+        let index: u8 = 1;
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(index.into()), OpCode::PushI(new_value.into()), OpCode::PushI(index.into()), OpCode::PushI(5_u8.into()), OpCode::PushI(4_u8.into()), OpCode::PushI(3_u8.into()), OpCode::VEmpty, OpCode::VPush, OpCode::VPush, OpCode::VPush, OpCode::VSet, OpCode::VRef, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a VEmpty/VPush/VSet/VRef covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
     fn test_bref() {
         let index: u8 = 0;
 
