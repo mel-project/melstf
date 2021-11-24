@@ -152,16 +152,34 @@ impl Covenant {
             let mut executor: Executor = Executor::new(ops, hashmap);
 
             while executor.pc < executor.instrs.len() {
-                dbg!("Stack (step): {:?}", &executor.stack);
-                dbg!("Heap (step): {:?}", &executor.heap);
+                if executor.stack.is_empty() {
+                    dbg!("Stack (step) is empty.");
+                } else {
+                    dbg!("Stack (step): {:?}", &executor.stack);
+                }
+
+                if executor.heap.is_empty() {
+                    dbg!("Heap (step) is empty.");
+                } else {
+                    dbg!("Heap (step): {:?}", &executor.heap);
+                }
 
                 if executor.step().is_none() {
                     return false;
                 }
             }
 
-            dbg!("Stack (final): {:?}", &executor.stack);
-            dbg!("Heap (final): {:?}", &executor.heap);
+            if executor.stack.is_empty() {
+                dbg!("Stack (final) is empty.");
+            } else {
+                dbg!("Stack (final): {:?}", &executor.stack);
+            }
+
+            if executor.heap.is_empty() {
+                dbg!("Heap (final) is empty.");
+            } else {
+                dbg!("Heap (final): {:?}", &executor.heap);
+            }
 
             executor.stack.pop().map(|f| f.into_bool()).unwrap_or_default()
         } else {
@@ -595,8 +613,12 @@ impl Executor {
                     Some(Value::Vector(vec))
                 })?,
                 OpCode::VCons => self.do_binop(|item, vec| {
-                    let mut vec = vec.into_vector()?;
+                    let mut vec: CatVec<Value, 32> = vec.into_vector()?;
+
+                    dbg!("Inserting: {} at index 0 of a vector that contains: {}", &item, &vec);
+
                     vec.insert(0, item);
+
                     Some(Value::Vector(vec))
                 })?,
                 // bit stuff
