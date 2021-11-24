@@ -545,7 +545,11 @@ impl Executor {
                 OpCode::VAppend => self.do_binop(|v1, v2| {
                     let mut v1 = v1.into_vector()?;
                     let v2 = v2.into_vector()?;
+
+                    dbg!("Appending a vector that contains {} to a vector that contains {}", &v2, &v1);
+
                     v1.append(v2);
+
                     Some(Value::Vector(v1))
                 })?,
                 OpCode::VSlice => self.do_triop(|vec, i, j| {
@@ -563,8 +567,18 @@ impl Executor {
                     }
                 })?,
                 OpCode::VLength => self.do_monop(|vec| match vec {
-                    Value::Vector(vec) => Some(Value::Int(U256::from(vec.len() as u64))),
-                    _ => None,
+                    Value::Vector(vec) => {
+                        let length: usize = vec.len();
+
+                        dbg!("Vector is of length: {}", length);
+
+                        Some(Value::Int(U256::from(length as u64)))
+                    },
+                    _ => {
+                        dbg!("Tried to call VLength on something that was not a Value::Vector.");
+
+                        None
+                    },
                 })?,
                 OpCode::VEmpty => {
                     dbg!("Creating a new empty vector on the stack.");

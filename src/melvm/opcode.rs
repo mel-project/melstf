@@ -837,6 +837,19 @@ mod tests {
     }
 
     #[test]
+    fn test_vempty_vpush_vappend_and_vlength() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(8_u8.into()), OpCode::PushI(7_u8.into()), OpCode::PushI(6_u8.into()), OpCode::VEmpty, OpCode::VPush, OpCode::VPush, OpCode::VPush, OpCode::PushI(5_u8.into()), OpCode::PushI(4_u8.into()), OpCode::PushI(3_u8.into()), OpCode::VEmpty, OpCode::VPush, OpCode::VPush, OpCode::VPush, OpCode::VAppend, OpCode::VLength, OpCode::PushI(6_u8.into()), OpCode::Eql]).expect("Failed to create a VEmpty/VPush/VAppend/VLength covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::VLength]).expect("Failed to create a VEmpty/VPush/VAppend/VLength covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, false);
+    }
+
+    #[test]
     fn test_bref() {
         let index: u8 = 0;
 
