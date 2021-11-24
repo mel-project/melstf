@@ -530,6 +530,8 @@ impl Executor {
                 OpCode::VRef => self.do_binop(|vec, idx| {
                     let idx: usize = idx.into_u16()? as usize;
 
+                    dbg!("Loading index {} from VM vector containing {} onto the stack.", &idx, &vec);
+
                     Some(vec.into_vector()?.get(idx)?.clone())
                 })?,
                 OpCode::VSet => self.do_triop(|vec, idx, value| {
