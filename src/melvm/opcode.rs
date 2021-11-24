@@ -850,7 +850,7 @@ mod tests {
     }
 
     #[test]
-    fn test_insert_at_beginning_of_a_vector() {
+    fn test_insert_at_the_beginning_of_a_vector() {
         let index: u8 = 0;
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(index.into()), OpCode::PushI(5_u8.into()), OpCode::PushI(4_u8.into()), OpCode::VEmpty, OpCode::VPush, OpCode::VPush, OpCode::PushI(3_u8.into()), OpCode::VCons, OpCode::VRef, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a VEmpty/VPush/VCons/VRef covenant.");
