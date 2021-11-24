@@ -564,10 +564,18 @@ impl Executor {
                     Value::Vector(vec) => Some(Value::Int(U256::from(vec.len() as u64))),
                     _ => None,
                 })?,
-                OpCode::VEmpty => self.stack.push(Value::Vector(Default::default())),
+                OpCode::VEmpty => {
+                    dbg!("Creating a new empty vector on the stack.");
+
+                    self.stack.push(Value::Vector(Default::default()))
+                },
                 OpCode::VPush => self.do_binop(|vec, item| {
-                    let mut vec = vec.into_vector()?;
+                    let mut vec: CatVec<Value, 32> = vec.into_vector()?;
+
+                    dbg!("Pushing: {} into a VM vector that contains: {}.", &item, &vec);
+
                     vec.push_back(item);
+
                     Some(Value::Vector(vec))
                 })?,
                 OpCode::VCons => self.do_binop(|item, vec| {
