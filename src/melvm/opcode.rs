@@ -816,7 +816,7 @@ mod tests {
     }
 
     #[test]
-    fn test_vempty_vpush_and_vref() {
+    fn test_verify_an_index_of_a_vector() {
         let index: u8 = 0;
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(index.into()), OpCode::PushI(3_u8.into()), OpCode::VEmpty, OpCode::VPush, OpCode::VRef, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a VEmpty/VPush/VRef covenant.");
@@ -826,7 +826,7 @@ mod tests {
     }
 
     #[test]
-    fn test_vempty_vpush_vset_and_vref() {
+    fn test_overwrite_an_index_of_a_vector() {
         let new_value: u8 = 3;
         let index: u8 = 1;
 
@@ -837,7 +837,7 @@ mod tests {
     }
 
     #[test]
-    fn test_vempty_vpush_vappend_and_vlength() {
+    fn test_append_one_vector_to_another() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(8_u8.into()), OpCode::PushI(7_u8.into()), OpCode::PushI(6_u8.into()), OpCode::VEmpty, OpCode::VPush, OpCode::VPush, OpCode::VPush, OpCode::PushI(5_u8.into()), OpCode::PushI(4_u8.into()), OpCode::PushI(3_u8.into()), OpCode::VEmpty, OpCode::VPush, OpCode::VPush, OpCode::VPush, OpCode::VAppend, OpCode::VLength, OpCode::PushI(6_u8.into()), OpCode::Eql]).expect("Failed to create a VEmpty/VPush/VAppend/VLength covenant.");
         let output: bool = covenant.debug_run_without_transaction(&[]);
 
@@ -850,7 +850,7 @@ mod tests {
     }
 
     #[test]
-    fn test_vempty_vpush_vcons_and_vref() {
+    fn test_insert_at_beginning_of_a_vector() {
         let index: u8 = 0;
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(index.into()), OpCode::PushI(5_u8.into()), OpCode::PushI(4_u8.into()), OpCode::VEmpty, OpCode::VPush, OpCode::VPush, OpCode::PushI(3_u8.into()), OpCode::VCons, OpCode::VRef, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a VEmpty/VPush/VCons/VRef covenant.");
