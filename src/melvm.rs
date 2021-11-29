@@ -556,6 +556,8 @@ impl Executor {
                     let idx: usize = idx.into_u16()? as usize;
                     let mut vec: CatVec<Value, 32> = vec.into_vector()?;
 
+                    dbg!("Overwriting index {} of a VM vector containing {} with {}", &idx, &vec, &value);
+
                     *vec.get_mut(idx)? = value;
 
                     Some(Value::Vector(vec))
@@ -580,17 +582,17 @@ impl Executor {
                             let is_end_less_than_or_equal_to_beginning: bool = end <= beginning;
 
                             if is_end_greater_or_equal_to_vector_length || is_end_less_than_or_equal_to_beginning {
-                                dbg!("Tried to create a slice with invalid bounds. Returning an empty vector.");
+                                dbg!("Tried to create a VM slice with invalid bounds. Returning an empty VM vector.");
 
                                 Some(Value::Vector(Default::default()))
                             } else {
-                                dbg!("Returning a slice from {} to {} from the vector containing: {}", beginning, end, &vec);
+                                dbg!("Returning a slice from {} to {} from the VM vector containing: {}", beginning, end, &vec);
 
                                 Some(Value::Vector(vec.tap_mut(|vec| vec.slice_into(beginning..end))))
                             }
                         }
                         _ => {
-                            dbg!("Tried to call VSlice on something that was not a Value::Vector.");
+                            dbg!("Tried to call VSlice on something that was not a VM vector (Value::Vector).");
 
                             None
                         },
@@ -600,12 +602,12 @@ impl Executor {
                     Value::Vector(vec) => {
                         let length: usize = vec.len();
 
-                        dbg!("Vector is of length: {}", length);
+                        dbg!("VM vector is of length: {}", length);
 
                         Some(Value::Int(U256::from(length as u64)))
                     },
                     _ => {
-                        dbg!("Tried to call VLength on something that was not a Value::Vector.");
+                        dbg!("Tried to call VLength on something that was not a VM vector (Value::Vector).");
 
                         None
                     },
@@ -668,6 +670,9 @@ impl Executor {
                 OpCode::BSet => self.do_triop(|vec, idx, value| {
                     let idx: usize = idx.into_u16()? as usize;
                     let mut vec: CatVec<u8, 256> = vec.into_bytes()?;
+
+                    dbg!("Overwriting index {} of a byte vector containing {} with {}", &idx, &vec, &value);
+
                     *vec.get_mut(idx)? = value.into_truncated_u8()?;
 
                     Some(Value::Bytes(vec))
@@ -675,30 +680,54 @@ impl Executor {
                 OpCode::BAppend => self.do_binop(|v1, v2| {
                     let mut v1: CatVec<u8, 256> = v1.into_bytes()?;
                     let v2: CatVec<u8, 256> = v2.into_bytes()?;
-                    // eprintln!("append {} to {}", v1.len(), v2.len());
+
+                    dbg!("Appending a vector that contains {} to a vector that contains {}", &v2, &v1);
+
                     v1.append(v2);
 
                     Some(Value::Bytes(v1))
                 })?,
-                OpCode::BSlice => self.do_triop(|vec, i, j| {
-                    let i: usize = i.into_u16()? as usize;
-                    let j: usize = j.into_u16()? as usize;
+                OpCode::BSlice => self.do_triop(|vec, beginning_value, end_value| {
+                    let beginning: usize = beginning_value.into_u16()? as usize;
+                    let end: usize = end_value.into_u16()? as usize;
 
                     match vec {
                         Value::Bytes(mut vec) => {
-                            if j >= vec.len() || j <= i {
+                            let is_end_greater_or_equal_to_vector_length: bool = end >= vec.len();
+                            let is_end_less_than_or_equal_to_beginning: bool = end <= beginning;
+
+                            if is_end_greater_or_equal_to_vector_length || is_end_less_than_or_equal_to_beginning {
+                                dbg!("Tried to create a byte slice with invalid bounds. Returning an empty byte vector.");
+
                                 Some(Value::Bytes(Default::default()))
                             } else {
-                                vec.slice_into(i..j);
+                                dbg!("Returning a byte slice from {} to {} from the byte vector containing: {}", beginning, end, &vec);
+
+                                vec.slice_into(beginning..end);
+
                                 Some(Value::Bytes(vec))
                             }
                         }
-                        _ => None,
+                        _ => {
+                            dbg!("Tried to call VSlice on something that was not a VM vector (Value::Vector).");
+
+                            None
+                        },
                     }
                 })?,
                 OpCode::BLength => self.do_monop(|vec| match vec {
-                    Value::Bytes(vec) => Some(Value::Int(U256::from(vec.len() as u64))),
-                    _ => None,
+                    Value::Bytes(vec) => {
+                        let length: usize = vec.len();
+
+                        dbg!("Byte vector is of length: {}", length);
+
+                        Some(Value::Int(U256::from(length as u64)))
+                    },
+                    _ => {
+                        dbg!("Tried to call BLength on something that was not a byte vector (Value::Bytes).");
+
+                        None
+                    },
                 })?,
                 // control flow
                 OpCode::Bez(jgap) => {

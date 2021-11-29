@@ -814,7 +814,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_an_index_of_a_vector() {
+    fn test_verify_an_index_of_a_vm_vector() {
         let index: u8 = 0;
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(index.into()), OpCode::PushI(3_u8.into()), OpCode::VEmpty, OpCode::VPush, OpCode::VRef, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a VEmpty/VPush/VRef covenant.");
@@ -824,7 +824,7 @@ mod tests {
     }
 
     #[test]
-    fn test_overwrite_an_index_of_a_vector() {
+    fn test_overwrite_an_index_of_a_vm_vector() {
         let new_value: u8 = 3;
         let index: u8 = 1;
 
@@ -835,13 +835,13 @@ mod tests {
     }
 
     #[test]
-    fn test_append_one_vector_to_another() {
+    fn test_append_one_vm_vector_to_another() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(8_u8.into()), OpCode::PushI(7_u8.into()), OpCode::PushI(6_u8.into()), OpCode::VEmpty, OpCode::VPush, OpCode::VPush, OpCode::VPush, OpCode::PushI(5_u8.into()), OpCode::PushI(4_u8.into()), OpCode::PushI(3_u8.into()), OpCode::VEmpty, OpCode::VPush, OpCode::VPush, OpCode::VPush, OpCode::VAppend, OpCode::VLength, OpCode::PushI(6_u8.into()), OpCode::Eql]).expect("Failed to create a VEmpty/VPush/VAppend/VLength covenant.");
         let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
 
-        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::VLength]).expect("Failed to create a VEmpty/VPush/VAppend/VLength covenant.");
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::VLength]).expect("Failed to create a VLength covenant.");
         let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
@@ -858,7 +858,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_an_index_of_a_slice() {
+    fn test_verify_an_index_of_a_vm_slice() {
         let index: u8 = 0;
         let beginning: u8 = 1;
         let end: u8 = 3;
@@ -870,7 +870,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_the_length_of_a_slice() {
+    fn test_verify_the_length_of_a_vm_slice() {
         let length: u8 = 2;
         let beginning: u8 = 1;
         let end: u8 = 3;
@@ -882,12 +882,33 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_empty_vector_with_out_of_bounds_slice() {
+    fn test_verify_empty_vector_with_out_of_bounds_vm_slice() {
         let length: u8 = 0;
         let beginning: u8 = 1;
         let end: u8 = 5;
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(end.into()), OpCode::PushI(beginning.into()), OpCode::PushI(5_u8.into()), OpCode::PushI(4_u8.into()), OpCode::PushI(3_u8.into()), OpCode::PushI(2_u8.into()), OpCode::PushI(1_u8.into()), OpCode::VEmpty, OpCode::VPush, OpCode::VPush, OpCode::VPush, OpCode::VPush, OpCode::VPush, OpCode::VSlice, OpCode::VLength, OpCode::PushI(length.into()), OpCode::Eql]).expect("Failed to create a VEmpty/VPush/VSlice/VLength covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_verify_an_index_of_a_byte_vector() {
+        let index: u8 = 0;
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(index.into()), OpCode::PushI(3_u8.into()), OpCode::BEmpty, OpCode::BPush, OpCode::BRef, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a BEmpty/BPush/BRef covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_overwrite_an_index_of_a_byte_vector() {
+        let new_value: u8 = 3;
+        let index: u8 = 1;
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(index.into()), OpCode::PushI(new_value.into()), OpCode::PushI(index.into()), OpCode::PushI(5_u8.into()), OpCode::PushI(4_u8.into()), OpCode::PushI(3_u8.into()), OpCode::BEmpty, OpCode::BPush, OpCode::BPush, OpCode::BPush, OpCode::BSet, OpCode::BRef, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a BEmpty/BPush/BSet/BRef covenant.");
         let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
@@ -925,6 +946,55 @@ mod tests {
         let index: u8 = 0;
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(index.into()), OpCode::PushI(5_u8.into()), OpCode::PushI(4_u8.into()), OpCode::BEmpty, OpCode::BPush, OpCode::BPush, OpCode::PushI(3_u8.into()), OpCode::BCons, OpCode::BRef, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a BEmpty/BPush/BCons/BRef covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_append_one_byte_vector_to_another() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(8_u8.into()), OpCode::PushI(7_u8.into()), OpCode::PushI(6_u8.into()), OpCode::BEmpty, OpCode::BPush, OpCode::BPush, OpCode::BPush, OpCode::PushI(5_u8.into()), OpCode::PushI(4_u8.into()), OpCode::PushI(3_u8.into()), OpCode::BEmpty, OpCode::BPush, OpCode::BPush, OpCode::BPush, OpCode::BAppend, OpCode::BLength, OpCode::PushI(6_u8.into()), OpCode::Eql]).expect("Failed to create a BEmpty/BPush/BAppend/BLength covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::BLength]).expect("Failed to create a BLength covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, false);
+    }
+
+    #[test]
+    fn test_verify_an_index_of_a_byte_slice() {
+        let index: u8 = 0;
+        let beginning: u8 = 1;
+        let end: u8 = 3;
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(index.into()), OpCode::PushI(end.into()), OpCode::PushI(beginning.into()), OpCode::PushI(5_u8.into()), OpCode::PushI(4_u8.into()), OpCode::PushI(3_u8.into()), OpCode::PushI(2_u8.into()), OpCode::PushI(1_u8.into()), OpCode::BEmpty, OpCode::BPush, OpCode::BPush, OpCode::BPush, OpCode::BPush, OpCode::BPush, OpCode::BSlice, OpCode::BRef, OpCode::PushI(2_u8.into()), OpCode::Eql]).expect("Failed to create a BEmpty/BPush/BSlice/BRef covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_verify_the_length_of_a_byte_slice() {
+        let length: u8 = 2;
+        let beginning: u8 = 1;
+        let end: u8 = 3;
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(end.into()), OpCode::PushI(beginning.into()), OpCode::PushI(5_u8.into()), OpCode::PushI(4_u8.into()), OpCode::PushI(3_u8.into()), OpCode::PushI(2_u8.into()), OpCode::PushI(1_u8.into()), OpCode::BEmpty, OpCode::BPush, OpCode::BPush, OpCode::BPush, OpCode::BPush, OpCode::BPush, OpCode::BSlice, OpCode::BLength, OpCode::PushI(length.into()), OpCode::Eql]).expect("Failed to create a BEmpty/BPush/BSlice/BLength covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_verify_empty_vector_with_out_of_bounds_byte_slice() {
+        let length: u8 = 0;
+        let beginning: u8 = 1;
+        let end: u8 = 5;
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(end.into()), OpCode::PushI(beginning.into()), OpCode::PushI(5_u8.into()), OpCode::PushI(4_u8.into()), OpCode::PushI(3_u8.into()), OpCode::PushI(2_u8.into()), OpCode::PushI(1_u8.into()), OpCode::BEmpty, OpCode::BPush, OpCode::BPush, OpCode::BPush, OpCode::BPush, OpCode::BPush, OpCode::BSlice, OpCode::BLength, OpCode::PushI(length.into()), OpCode::Eql]).expect("Failed to create a BEmpty/BPush/BSlice/BLength covenant.");
         let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
