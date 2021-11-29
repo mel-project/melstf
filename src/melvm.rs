@@ -732,9 +732,15 @@ impl Executor {
                 // control flow
                 OpCode::Bez(jgap) => {
                     let top = self.stack.pop()?;
+
                     if top.into_int() == Some(0u32.into()) {
+                        dbg!("In a call to Bez, the top of the stack was zero. Skipping to {}", &jgap);
+
                         self.pc += jgap as usize;
+
                         return Some(());
+                    } else {
+                        dbg!("In a call to Bez, the top of the stack was not zero. It was {}. Not skipping any operations.", &jgap);
                     }
                 }
                 OpCode::Bnz(jgap) => {
