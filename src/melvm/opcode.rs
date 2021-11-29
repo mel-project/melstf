@@ -909,4 +909,14 @@ mod tests {
 
         assert_eq!(output, false);
     }
+
+    #[test]
+    fn test_bempty_bpush_and_bref() {
+        let index: u8 = 0;
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(index.into()), OpCode::PushI(5_u8.into()), OpCode::PushI(4_u8.into()), OpCode::PushI(3_u8.into()), OpCode::BEmpty, OpCode::BPush, OpCode::BPush, OpCode::BPush, OpCode::BRef, OpCode::PushI(3_u8.into()), OpCode::Eql]).expect("Failed to create a BEmpty/BPush/BRef covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
+    }
 }

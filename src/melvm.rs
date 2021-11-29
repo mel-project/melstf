@@ -642,6 +642,9 @@ impl Executor {
                 OpCode::BPush => self.do_binop(|vec, val| {
                     let mut vec: CatVec<u8, 256> = vec.into_bytes()?;
                     let val: U256 = val.into_int()?;
+
+                    dbg!("Pushing: {} into a byte vector containing: {}", &val, &vec);
+
                     vec.push_back(*val.low() as u8);
 
                     Some(Value::Bytes(vec))
@@ -654,6 +657,8 @@ impl Executor {
                 })?,
                 OpCode::BRef => self.do_binop(|vec, idx| {
                     let idx: usize = idx.into_u16()? as usize;
+
+                    dbg!("Loading index {} from a stack byte vector containing {} onto the stack.", &idx, &vec);
 
                     Some(Value::Int(vec.into_bytes()?.get(idx).copied()?.into()))
                 })?,
