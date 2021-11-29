@@ -756,6 +756,8 @@ impl Executor {
                     }
                 }
                 OpCode::Jmp(jgap) => {
+                    dbg!("Jumping ahead to instruction number {}", &jgap);
+
                     self.pc += jgap as usize;
                     return Some(());
                 }

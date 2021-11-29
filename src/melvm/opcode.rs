@@ -1031,4 +1031,12 @@ mod tests {
 
         assert_eq!(output, true);
     }
+
+    #[test]
+    fn test_skipping_an_operation_with_jmp() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::Jmp(1), OpCode::PushI(3_u8.into()), OpCode::PushI(5_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Eql]).expect("Failed to create a Jmp covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
+    }
 }
