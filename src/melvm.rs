@@ -745,9 +745,14 @@ impl Executor {
                 }
                 OpCode::Bnz(jgap) => {
                     let top = self.stack.pop()?;
+
                     if top.into_int() != Some(0u32.into()) {
+                        dbg!("In a call to Bnz, the top of the stack was not zero. Skipping to {}", &jgap);
+
                         self.pc += jgap as usize;
                         return Some(());
+                    } else {
+                        dbg!("In a call to Bnz, the top of the stack was not zero. It was {}. Not skipping any operations.", &jgap);
                     }
                 }
                 OpCode::Jmp(jgap) => {

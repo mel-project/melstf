@@ -1002,7 +1002,7 @@ mod tests {
 
     #[test]
     fn test_skipping_an_operation_with_bez() {
-        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(0_u8.into()), OpCode::Bez(1), OpCode::PushI(3_u8.into()), OpCode::PushI(5_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Eql]).expect("Failed to create a BEmpty/BPush/BSlice/BLength covenant.");
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(0_u8.into()), OpCode::Bez(1), OpCode::PushI(3_u8.into()), OpCode::PushI(5_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Eql]).expect("Failed to create a Bezh covenant.");
         let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
@@ -1010,7 +1010,23 @@ mod tests {
 
     #[test]
     fn test_not_skipping_an_operation_with_bez() {
-        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(5_u8.into()), OpCode::Bez(1), OpCode::PushI(5_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Eql]).expect("Failed to create a BEmpty/BPush/BSlice/BLength covenant.");
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(5_u8.into()), OpCode::Bez(1), OpCode::PushI(5_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Eql]).expect("Failed to create a Bez covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_skipping_an_operation_with_bnz() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(1_u8.into()), OpCode::Bnz(1), OpCode::PushI(3_u8.into()), OpCode::PushI(5_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Eql]).expect("Failed to create a Bnz covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_not_skipping_an_operation_with_bnz() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(0_u8.into()), OpCode::Bnz(1), OpCode::PushI(5_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Eql]).expect("Failed to create a Bnz covenant.");
         let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
