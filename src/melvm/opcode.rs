@@ -1039,4 +1039,32 @@ mod tests {
 
         assert_eq!(output, true);
     }
+
+    #[test]
+    fn test_loop() {
+        // This will loop the PushI(3) opcode twice, and then run PushI(5).
+        // Comparing equality will fail because it is comparing 5 and 3.
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::Loop(2, 1), OpCode::PushI(3_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Eql]).expect("Failed to create a Jmp covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, false);
+    }
+
+    #[test]
+    fn test_loop_inputs_being_not_positive() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::Loop(0, 3)]).expect("Failed to create a Jmp covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, false);
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::Loop(3, 0)]).expect("Failed to create a Jmp covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, false);
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::Loop(0, 0)]).expect("Failed to create a Jmp covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, false);
+    }
 }

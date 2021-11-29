@@ -762,7 +762,12 @@ impl Executor {
                     return Some(());
                 }
                 OpCode::Loop(iterations, op_count) => {
-                    if iterations > 0 && op_count > 0 {
+                    let is_iterations_positive: bool = iterations > 0;
+                    let is_op_count_positive: bool = op_count > 0;
+
+                    if is_iterations_positive && is_op_count_positive {
+                        dbg!("In a call to Loop, iterations and op_count were positive. Looping {} times.", iterations);
+
                         self.loop_state.push(LoopState {
                             // start after loop instruction
                             begin: self.pc,
@@ -772,6 +777,14 @@ impl Executor {
                             iterations_left: iterations - 1,
                         });
                     } else {
+                        if !is_iterations_positive {
+                            dbg!("In a call to Loop, iterations was not positive: {}. Skipping loop.", iterations);
+                        } else if !is_op_count_positive {
+                            dbg!("In a call to Loop, op_count was not positive: {}. Skipping loop.", iterations);
+                        } else {
+                            dbg!("In a call to Loop, neither iterations: {}, nor op_count were positive: {}. Skipping loop.", iterations, op_count);
+                        }
+
                         return None;
                     }
                 }
