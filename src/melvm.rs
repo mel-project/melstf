@@ -627,7 +627,7 @@ impl Executor {
                 OpCode::VCons => self.do_binop(|item, vec| {
                     let mut vec: CatVec<Value, 32> = vec.into_vector()?;
 
-                    dbg!("Inserting: {} at index 0 of a vector that contains: {}", &item, &vec);
+                    dbg!("Inserting: {} at index 0 of a VM vector that contains: {}", &item, &vec);
 
                     vec.insert(0, item);
 
@@ -651,6 +651,9 @@ impl Executor {
                 })?,
                 OpCode::BCons => self.do_binop(|item, vec| {
                     let mut vec: CatVec<u8, 256> = vec.into_bytes()?;
+
+                    dbg!("Inserting: {} at index 0 of a byte vector that contains: {}", &item, &vec);
+
                     vec.insert(0, item.into_truncated_u8()?);
 
                     Some(Value::Bytes(vec))
