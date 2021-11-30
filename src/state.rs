@@ -21,6 +21,7 @@ mod applytx;
 pub(crate) mod melmint;
 pub(crate) mod melswap;
 mod poolkey;
+pub use melmint::dosc_inflate_r2n;
 pub use poolkey::PoolKey;
 
 #[derive(Error, Debug)]
