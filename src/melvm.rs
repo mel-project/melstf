@@ -789,11 +789,26 @@ impl Executor {
                     }
                 }
                 // Conversions
-                OpCode::BtoI => self.do_monop(|x| {
-                    let bytes = x.into_bytes()?;
-                    let bytes: Vec<u8> = bytes.into();
+                OpCode::BtoI => self.do_monop(|input_byte_vector| {
+                    dbg!("Converting bytes {} into an integer.", &input_byte_vector);
 
-                    Some(Value::Int(U256::from_be_bytes(bytes.try_into().ok()?)))
+                    let bytes = input_byte_vector.into_bytes()?;
+                    let bytes_vector: Vec<u8> = bytes.into();
+
+                    let byte_vector_option: Option<[u8; 32]> = bytes_vector.try_into().ok();
+
+                    match byte_vector_option {
+                        Some(byte_vector) => {
+                            dbg!("In a call to BtoI, successfully converted input bytes to an integer.");
+
+                            Some(Value::Int(U256::from_be_bytes(byte_vector)))
+                        },
+                        None => {
+                            dbg!("In a call to BtoI, failed to convert input bytes to an integer.");
+
+                            None
+                        },
+                    }
                 })?,
                 OpCode::ItoB => self.do_monop(|x| {
                     let n = x.into_int()?;
@@ -820,8 +835,9 @@ impl Executor {
             }
             Some(())
         };
-        let res = inner();
+        let res: Option<()> = inner();
         self.update_pc_state();
+
         res
     }
 }

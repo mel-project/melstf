@@ -1044,7 +1044,7 @@ mod tests {
     fn test_loop() {
         // This will loop the PushI(3) opcode twice, and then run PushI(5).
         // Comparing equality will fail because it is comparing 5 and 3.
-        let covenant: Covenant = Covenant::from_ops(&[OpCode::Loop(2, 1), OpCode::PushI(3_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Eql]).expect("Failed to create a Jmp covenant.");
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::Loop(2, 1), OpCode::PushI(3_u8.into()), OpCode::PushI(5_u8.into()), OpCode::Eql]).expect("Failed to create a Loop covenant.");
         let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
@@ -1052,17 +1052,45 @@ mod tests {
 
     #[test]
     fn test_loop_inputs_being_not_positive() {
-        let covenant: Covenant = Covenant::from_ops(&[OpCode::Loop(0, 3)]).expect("Failed to create a Jmp covenant.");
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::Loop(0, 3)]).expect("Failed to create a Loop covenant.");
         let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
 
-        let covenant: Covenant = Covenant::from_ops(&[OpCode::Loop(3, 0)]).expect("Failed to create a Jmp covenant.");
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::Loop(3, 0)]).expect("Failed to create a Loop covenant.");
         let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
 
-        let covenant: Covenant = Covenant::from_ops(&[OpCode::Loop(0, 0)]).expect("Failed to create a Jmp covenant.");
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::Loop(0, 0)]).expect("Failed to create a Loop covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, false);
+    }
+
+    #[test]
+    fn test_convert_bytes_to_integer() {
+        use std::str::FromStr;
+
+        let array: [u8; 32] = [3; 32];
+
+        let number: u256 = ethnum::U256::from_str("1362259873380190534394952764808093033567882172536947812228912753034272113411").expect("could not create a U256 from a str.");
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushB(array.to_vec()), OpCode::BtoI, OpCode::PushI(number.into()), OpCode::Eql]).expect("Failed to create a BtoI covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_convert_bytes_to_integer_failing() {
+        use std::str::FromStr;
+
+        let array: [u8; 4] = [3; 4];
+
+        let number: u256 = ethnum::U256::from_str("1362259873380190534394952764808093033567882172536947812228912753034272113411").expect("could not create a U256 from a str.");
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushB(array.to_vec()), OpCode::BtoI]).expect("Failed to create a BtoI covenant.");
         let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
