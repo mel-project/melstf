@@ -292,6 +292,7 @@ struct LoopState {
     iterations_left: u16,
 }
 
+/// An object that executes MelVM code.
 pub struct Executor {
     pub stack: Vec<Value>,
     pub heap: HashMap<u16, Value>,
@@ -402,6 +403,19 @@ impl Executor {
         }
 
         self.stack.pop().map(|f| f.into_bool()).unwrap_or_default()
+    }
+
+    /// Execute to the end, without popping.
+    pub fn run_to_end_preserve_stack(&mut self) -> bool {
+        while self.pc < self.instrs.len() {
+            if self.step().is_none() {
+                return false;
+            }
+        }
+        self.stack
+            .last()
+            .map(|f| f.clone().into_bool())
+            .unwrap_or_default()
     }
 
     /// Execute an instruction, modifying state and program counter.
