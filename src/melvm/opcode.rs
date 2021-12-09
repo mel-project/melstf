@@ -483,6 +483,7 @@ mod tests {
     use std::collections::HashMap;
     use std::str::FromStr;
 
+    use catvec::CatVec;
     use ethnum::{u256, U256};
     use tmelcrypt::{ed25519_keygen, Ed25519PK, Ed25519SK};
 
@@ -1097,8 +1098,6 @@ mod tests {
 
     #[test]
     fn test_convert_integer_to_bytes() {
-        use catvec::CatVec;
-
         let array: [u8; 32] = [3; 32];
 
         let catvec_array: CatVec<u8, 256_usize> = CatVec::from(array);
@@ -1113,5 +1112,51 @@ mod tests {
         let byte_vector: CatVec<u8, 256_usize> = stack[0].clone().into_bytes().expect("Could not convert stack index into bytes.");
 
         assert_eq!(catvec_array, byte_vector);
+    }
+
+    #[test]
+    fn test_pushic() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushIC(3_u8.into()), OpCode::Eql]).expect("Failed to create a PushIC covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_typeq_integer() {
+        let integer_code: u8 = 0;
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(integer_code.into()), OpCode::PushI(3_u8.into()), OpCode::TypeQ, OpCode::Eql]).expect("Failed to create a TypeQ covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_typeq_byte_vector() {
+        let byte_vector_code: u8 = 1;
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(byte_vector_code.into()), OpCode::PushB(vec![3,4,5]), OpCode::TypeQ, OpCode::Eql]).expect("Failed to create a TypeQ covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_typeq_vector() {
+        let byte_vector_code: u8 = 2;
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(byte_vector_code.into()), OpCode::PushI(3_u8.into()), OpCode::VEmpty, OpCode::VPush, OpCode::TypeQ, OpCode::Eql]).expect("Failed to create a TypeQ covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, false);
+    }
+
+    #[test]
+    fn test_dup() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::Dup, OpCode::Eql]).expect("Failed to create a Dup covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
     }
 }

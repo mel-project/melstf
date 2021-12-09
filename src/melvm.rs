@@ -879,21 +879,54 @@ impl Executor {
                 })?,
                 // literals
                 OpCode::PushB(bts) => {
-                    let bts = Value::from_bytes(&bts);
-                    self.stack.push(bts);
+                    let bytes: Value = Value::from_bytes(&bts);
+
+                    dbg!("Pushing a byte vector containing {} onto the stack.", &bytes);
+
+                    self.stack.push(bytes);
                 }
-                OpCode::PushI(num) => self.stack.push(Value::Int(num)),
-                OpCode::PushIC(num) => self.stack.push(Value::Int(num)),
-                OpCode::TypeQ => self.do_monop(|x| match x {
-                    Value::Int(_) => Some(Value::Int(0u32.into())),
-                    Value::Bytes(_) => Some(Value::Int(1u32.into())),
-                    Value::Vector(_) => Some(Value::Int(2u32.into())),
+                OpCode::PushI(num) => {
+
+                    let number: Value = Value::Int(num);
+
+                    dbg!("Pushing the integer {} onto the stack.", &number);
+
+                    self.stack.push(number)
+                },
+                OpCode::PushIC(number) => {
+                    let integer: Value = Value::Int(number);
+
+                    dbg!("PushIC called. Pushing the integer {} onto the stack.", &integer);
+
+                    self.stack.push(integer)
+                },
+                OpCode::TypeQ => self.do_monop(|input| {
+                    match input {
+                        Value::Int(integer) => {
+                            dbg!("In a call to TypeQ, the input was an integer: {}. Returning 0 to the stack.", integer);
+
+                            Some(Value::Int(0u32.into()))
+                        }
+                        Value::Bytes(byte_vector) => {
+                            dbg!("In a call to TypeQ, the input was a byte vector containing: {}. Returning 1 to the stack.", byte_vector);
+
+                            Some(Value::Int(1u32.into()))
+                        }
+                        Value::Vector(vector) => {
+                            dbg!("In a call to TypeQ, the input was a vector containing: {}. Returning 2 to the stack.", vector);
+
+                            Some(Value::Int(2u32.into()))
+                        }
+                    }
                 })?,
                 // dup
                 OpCode::Dup => {
-                    let val = self.stack.pop()?;
-                    self.stack.push(val.clone());
-                    self.stack.push(val);
+                    let value: Value = self.stack.pop()?;
+
+                    dbg!("Dup called. Duplicating: {} on the stack.", &value);
+
+                    self.stack.push(value.clone());
+                    self.stack.push(value);
                 }
             }
             Some(())
