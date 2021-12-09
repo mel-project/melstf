@@ -1,6 +1,6 @@
 [package]
 name = "themelio-stf"
-version = "0.6.5-alpha.0"
+version = "0.7.0"
 authors = ["Themelio Labs"]
 edition = "2021"
 
@@ -29,7 +29,7 @@ version = "1.0.126"
 features = ["derive"]
 
 [dependencies]
-catvec = "0.1.2"
+catvec = "0.1.5"
 dashmap = "4.0.2"
 defmac = "0.2.1"
 derive_more = "0.99.16"

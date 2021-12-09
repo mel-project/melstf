@@ -477,10 +477,13 @@ fn opcodes_car_weight(opcodes: &[OpCode]) -> (u128, &[OpCode]) {
 
 #[cfg(test)]
 mod tests {
-    use crate::melvm::Covenant;
+    use crate::melvm::{Covenant, Value};
     use crate::melvm::opcode::OpCode;
 
-    use ethnum::u256;
+    use std::collections::HashMap;
+    use std::str::FromStr;
+
+    use ethnum::{u256, U256};
     use tmelcrypt::{ed25519_keygen, Ed25519PK, Ed25519SK};
 
     #[test]
@@ -1070,11 +1073,9 @@ mod tests {
 
     #[test]
     fn test_convert_bytes_to_integer() {
-        use std::str::FromStr;
-
         let array: [u8; 32] = [3; 32];
 
-        let number: u256 = ethnum::U256::from_str("1362259873380190534394952764808093033567882172536947812228912753034272113411").expect("could not create a U256 from a str.");
+        let number: u256 = U256::from_str("1362259873380190534394952764808093033567882172536947812228912753034272113411").expect("could not create a U256 from a str.");
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushB(array.to_vec()), OpCode::BtoI, OpCode::PushI(number.into()), OpCode::Eql]).expect("Failed to create a BtoI covenant.");
         let output: bool = covenant.debug_run_without_transaction(&[]);
@@ -1084,15 +1085,33 @@ mod tests {
 
     #[test]
     fn test_convert_bytes_to_integer_failing() {
-        use std::str::FromStr;
-
         let array: [u8; 4] = [3; 4];
 
-        let number: u256 = ethnum::U256::from_str("1362259873380190534394952764808093033567882172536947812228912753034272113411").expect("could not create a U256 from a str.");
+        let number: u256 = U256::from_str("1362259873380190534394952764808093033567882172536947812228912753034272113411").expect("could not create a U256 from a str.");
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushB(array.to_vec()), OpCode::BtoI]).expect("Failed to create a BtoI covenant.");
         let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
+    }
+
+    #[test]
+    fn test_convert_integer_to_bytes() {
+        use catvec::CatVec;
+
+        let array: [u8; 32] = [3; 32];
+
+        let catvec_array: CatVec<u8, 256_usize> = CatVec::from(array);
+
+        let number: u256 = U256::from_str("1362259873380190534394952764808093033567882172536947812228912753034272113411").expect("could not create a U256 from a str.");
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(number.into()), OpCode::ItoB]).expect("Failed to create a ItoB covenant.");
+        let (stack, heap): (Vec<Value>, HashMap<u16, Value>) = covenant.debug_run_outputting_stack_and_heap(&[]).expect("Covenant returned a None value.");
+
+        dbg!("{}", &stack);
+
+        let byte_vector: CatVec<u8, 256_usize> = stack[0].clone().into_bytes().expect("Could not convert stack index into bytes.");
+
+        assert_eq!(catvec_array, byte_vector);
     }
 }

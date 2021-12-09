@@ -187,6 +187,55 @@ impl Covenant {
         }
     }
 
+    /// Runs to the end, with respect to a manually instantiated initial heap.
+    /// This is for testing, when we do not have a transaction.
+    /// This method outputs a tuple containing the stack and the heap.
+    pub fn debug_run_outputting_stack_and_heap(&self, args: &[Value]) -> Option<(Vec<Value>, HashMap<u16, Value>)> {
+        let mut hashmap: HashMap<u16, Value> = HashMap::new();
+
+        args.iter().enumerate().for_each(|(index, value)| {
+            hashmap.insert(index as u16, value.clone());
+        });
+
+        if let Ok(ops) = self.to_ops() {
+            let mut executor: Executor = Executor::new(ops, hashmap);
+
+            while executor.pc < executor.instrs.len() {
+                if executor.stack.is_empty() {
+                    dbg!("Stack (step) is empty.");
+                } else {
+                    dbg!("Stack (step): {:?}", &executor.stack);
+                }
+
+                if executor.heap.is_empty() {
+                    dbg!("Heap (step) is empty.");
+                } else {
+                    dbg!("Heap (step): {:?}", &executor.heap);
+                }
+
+                if executor.step().is_none() {
+                    return None;
+                }
+            }
+
+            if executor.stack.is_empty() {
+                dbg!("Stack (final) is empty.");
+            } else {
+                dbg!("Stack (final): {:?}", &executor.stack);
+            }
+
+            if executor.heap.is_empty() {
+                dbg!("Heap (final) is empty.");
+            } else {
+                dbg!("Heap (final): {:?}", &executor.heap);
+            }
+
+            Some((executor.stack, executor.heap))
+        } else {
+            None
+        }
+    }
+
     /// The hash of the covenant.
     pub fn hash(&self) -> Address {
         tmelcrypt::hash_single(&self.0).into()
@@ -810,9 +859,23 @@ impl Executor {
                         },
                     }
                 })?,
-                OpCode::ItoB => self.do_monop(|x| {
-                    let n = x.into_int()?;
-                    Some(Value::Bytes(n.to_be_bytes().into()))
+                OpCode::ItoB => self.do_monop(|input_integer| {
+                    let number_option: Option<U256> = input_integer.into_int();
+
+                    // I may not need this match, because it may not be able to fail, given that only positive integers are available.
+
+                    match number_option {
+                        Some(number) => {
+                            dbg!("In a call to ItoB, successfully converted input integer to bytes.");
+
+                            Some(Value::Bytes(number.to_be_bytes().into()))
+                        },
+                        None => {
+                            dbg!("In a call to ItoB, failed to convert input integer to bytes.");
+
+                            None
+                        },
+                    }
                 })?,
                 // literals
                 OpCode::PushB(bts) => {
