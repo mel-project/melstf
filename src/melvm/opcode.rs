@@ -1149,7 +1149,7 @@ mod tests {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(byte_vector_code.into()), OpCode::PushI(3_u8.into()), OpCode::VEmpty, OpCode::VPush, OpCode::TypeQ, OpCode::Eql]).expect("Failed to create a TypeQ covenant.");
         let output: bool = covenant.debug_run_without_transaction(&[]);
 
-        assert_eq!(output, false);
+        assert_eq!(output, true);
     }
 
     #[test]
