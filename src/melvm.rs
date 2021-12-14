@@ -148,42 +148,47 @@ impl Covenant {
             hashmap.insert(index as u16, value.clone());
         });
 
-        if let Ok(ops) = self.to_ops() {
-            let mut executor: Executor = Executor::new(ops, hashmap);
+        match self.to_ops() {
+            Ok(ops) => {
+                let mut executor: Executor = Executor::new(ops, hashmap);
 
-            while executor.pc < executor.instrs.len() {
+                while executor.pc < executor.instrs.len() {
+                    if executor.stack.is_empty() {
+                        dbg!("Stack (step) is empty.");
+                    } else {
+                        dbg!("Stack (step): {:?}", &executor.stack);
+                    }
+
+                    if executor.heap.is_empty() {
+                        dbg!("Heap (step) is empty.");
+                    } else {
+                        dbg!("Heap (step): {:?}", &executor.heap);
+                    }
+
+                    if executor.step().is_none() {
+                        return false;
+                    }
+                }
+
                 if executor.stack.is_empty() {
-                    dbg!("Stack (step) is empty.");
+                    dbg!("Stack (final) is empty.");
                 } else {
-                    dbg!("Stack (step): {:?}", &executor.stack);
+                    dbg!("Stack (final): {:?}", &executor.stack);
                 }
 
                 if executor.heap.is_empty() {
-                    dbg!("Heap (step) is empty.");
+                    dbg!("Heap (final) is empty.");
                 } else {
-                    dbg!("Heap (step): {:?}", &executor.heap);
+                    dbg!("Heap (final): {:?}", &executor.heap);
                 }
 
-                if executor.step().is_none() {
-                    return false;
-                }
-            }
-
-            if executor.stack.is_empty() {
-                dbg!("Stack (final) is empty.");
-            } else {
-                dbg!("Stack (final): {:?}", &executor.stack);
-            }
-
-            if executor.heap.is_empty() {
-                dbg!("Heap (final) is empty.");
-            } else {
-                dbg!("Heap (final): {:?}", &executor.heap);
-            }
-
-            executor.stack.pop().map(|f| f.into_bool()).unwrap_or_default()
-        } else {
-            false
+                executor.stack.pop().map(|f| f.into_bool()).unwrap_or_default()
+            },
+            Err(error) => {
+                dbg!("While converting inputs to OpCodes, we hit a decode error: {}", error);
+                
+                false
+            },
         }
     }
 
