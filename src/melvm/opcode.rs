@@ -1089,8 +1089,6 @@ mod tests {
     fn test_convert_bytes_to_integer_failing() {
         let array: [u8; 4] = [3; 4];
 
-        let number: u256 = U256::from_str("1362259873380190534394952764808093033567882172536947812228912753034272113411").expect("could not create a U256 from a str.");
-
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushB(array.to_vec()), OpCode::BtoI]).expect("Failed to create a BtoI covenant.");
         let output: bool = covenant.debug_run_without_transaction(&[]);
 
@@ -1106,7 +1104,7 @@ mod tests {
         let number: u256 = U256::from_str("1362259873380190534394952764808093033567882172536947812228912753034272113411").expect("could not create a U256 from a str.");
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(number.into()), OpCode::ItoB]).expect("Failed to create a ItoB covenant.");
-        let (stack, heap): (Vec<Value>, HashMap<u16, Value>) = covenant.debug_run_outputting_stack_and_heap(&[]).expect("Covenant returned a None value.");
+        let (stack, _heap): (Vec<Value>, HashMap<u16, Value>) = covenant.debug_run_outputting_stack_and_heap(&[]).expect("Covenant returned a None value.");
 
         dbg!("{}", &stack);
 
