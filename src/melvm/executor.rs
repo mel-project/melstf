@@ -161,7 +161,7 @@ impl Executor {
     }
 
     /// Checks whether or not the execution has come to an end.
-    pub fn at_end(&mut self) -> bool {
+    pub fn at_end(&self) -> bool {
         self.pc == self.instrs.len()
     }
 
