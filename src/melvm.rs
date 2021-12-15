@@ -213,15 +213,15 @@ impl Covenant {
 
                 while !executor.at_end() {
                     if executor.stack.is_empty() {
-                        dbg!("Stack (step) is empty.");
+                        eprintln!("Stack (step) is empty.");
                     } else {
-                        dbg!("Stack (step): {:?}", &executor.stack);
+                        eprintln!("Stack (step): {:?}", &executor.stack);
                     }
 
                     if executor.heap.is_empty() {
-                        dbg!("Heap (step) is empty.");
+                        eprintln!("Heap (step) is empty.");
                     } else {
-                        dbg!("Heap (step): {:?}", &executor.heap);
+                        eprintln!("Heap (step): {:?}", &executor.heap);
                     }
 
                     if executor.step().is_none() {
@@ -230,21 +230,21 @@ impl Covenant {
                 }
 
                 if executor.stack.is_empty() {
-                    dbg!("Stack (final) is empty.");
+                    eprintln!("Stack (final) is empty.");
                 } else {
-                    dbg!("Stack (final): {:?}", &executor.stack);
+                    eprintln!("Stack (final): {:?}", &executor.stack);
                 }
 
                 if executor.heap.is_empty() {
-                    dbg!("Heap (final) is empty.");
+                    eprintln!("Heap (final) is empty.");
                 } else {
-                    dbg!("Heap (final): {:?}", &executor.heap);
+                    eprintln!("Heap (final): {:?}", &executor.heap);
                 }
 
                 Some((executor.stack, executor.heap))
             }
             Err(error) => {
-                dbg!(
+                eprintln!(
                     "While converting inputs to OpCodes, we hit a decode error: {}",
                     error
                 );

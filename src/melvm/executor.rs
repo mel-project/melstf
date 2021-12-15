@@ -401,7 +401,7 @@ impl Executor {
                             }
                         }
                         _ => {
-                            dbg!("Tried to call VSlice on something that was not a VM vector (Value::Vector).");
+                            log::trace!("Tried to call VSlice on something that was not a VM vector (Value::Vector).");
 
                             None
                         },
