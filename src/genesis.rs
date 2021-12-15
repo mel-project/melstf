@@ -1,12 +1,12 @@
+use crate::{
+    melvm::Covenant, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID,
+    SmtMapping, stake::StakeDoc, State, TxHash, MICRO_CONVERTER,
+};
+
 use std::{collections::BTreeMap, convert::TryInto};
 
 use serde::{Deserialize, Serialize};
 use tmelcrypt::{Ed25519PK, HashVal};
-
-use crate::{
-    melvm::Covenant, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID,
-    SmtMapping, StakeDoc, State, TxHash, MICRO_CONVERTER,
-};
 
 /// Configuration of a genesis state. Serializable via serde.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -108,9 +108,11 @@ impl GenesisConfig {
             pools: SmtMapping::new(empty_tree.clone()),
             stakes: {
                 let mut stakes = SmtMapping::new(empty_tree);
-                for (k, v) in self.stakes.iter() {
-                    stakes.insert(*k, *v);
-                }
+
+                self.stakes.iter().for_each(|(key, value)| {
+                    stakes.insert(*key, *value);
+                });
+
                 stakes
             },
         };

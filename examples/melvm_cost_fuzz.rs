@@ -1,10 +1,9 @@
-use std::time::Instant;
-
 use once_cell::sync::Lazy;
 use ordered_float::OrderedFloat;
 use quanta::Clock;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 use themelio_stf::melvm::{opcode::OpCode, Covenant};
+
 type OF64 = OrderedFloat<f64>;
 
 static CLOCK: Lazy<Clock> = Lazy::new(Clock::new);
@@ -18,7 +17,7 @@ fn eval_fitness(input: &[u8]) -> OF64 {
     let mut runtime = f64::MAX;
     for _ in 0..10 {
         let start = CLOCK.start();
-        val.check_raw(&[]);
+        val.debug_run_without_transaction(&[]);
         runtime = runtime.min((CLOCK.end() - start) as f64);
     }
     if val

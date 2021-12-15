@@ -1,10 +1,7 @@
-use std::rc::Rc;
-
 use arbitrary::{Arbitrary, Unstructured};
 
 #[cfg(fuzzing)]
 use honggfuzz::fuzz;
-use tap::Tap;
 
 #[cfg(fuzzing)]
 #[global_allocator]

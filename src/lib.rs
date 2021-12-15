@@ -11,32 +11,35 @@
 //! - `SmtMapping` represents a type-safe SMT-backed mapping that is extensively used within the crate.
 mod constants;
 mod genesis;
+pub mod melpow;
 pub mod melvm;
 mod stake;
 mod state;
+mod smtmapping;
+mod testing;
+mod transaction;
 mod txbuilder;
 mod units;
-pub use state::melmint::*;
-pub use units::*;
-mod transaction;
-pub use constants::*;
-mod smtmapping;
-use arbitrary::Arbitrary;
-pub use genesis::*;
-use serde::{Deserialize, Serialize};
-pub use smtmapping::*;
-pub use state::melswap::PoolState;
-pub use state::*;
+
+pub use crate::state::melmint::*;
+pub use crate::units::*;
+pub use crate::constants::*;
+pub use crate::genesis::*;
+pub use crate::smtmapping::*;
+pub use crate::state::melswap::PoolState;
+pub use crate::state::*;
+pub use crate::transaction::*;
+pub use crate::txbuilder::*;
+
 use std::ops::{Deref, DerefMut};
-pub use transaction::*;
-pub use txbuilder::*;
-pub mod melpow;
+
+use arbitrary::Arbitrary;
+use serde::{Deserialize, Serialize};
 
 #[cfg(test)]
 #[macro_use]
 extern crate lazy_static;
 
-mod testing;
 
 #[derive(
     Arbitrary, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default,

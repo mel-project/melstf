@@ -1,27 +1,28 @@
-pub use crate::stake::*;
-use crate::{constants::*, melvm::Address, preseal_melmint, CoinDataHeight, Denom, TxHash};
-use crate::{smtmapping::*, BlockHeight, CoinData, CoinValue};
-use crate::{transaction as txn, CoinID};
-use applytx::StateHandle;
-use defmac::defmac;
-use num_enum::{IntoPrimitive, TryFromPrimitive};
-use serde_repr::{Deserialize_repr, Serialize_repr};
-
-use arbitrary::Arbitrary;
-use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
-use std::{collections::BTreeMap, convert::TryInto};
-use std::{collections::BTreeSet, io::Read};
-use thiserror::Error;
-use tmelcrypt::{Ed25519PK, HashVal};
-use txn::Transaction;
-
-use self::melswap::PoolMapping;
 mod applytx;
 pub(crate) mod melmint;
 pub(crate) mod melswap;
 mod poolkey;
-pub use melmint::dosc_inflate_r2n;
+
+pub use crate::stake::*;
+use crate::{constants::*, melvm::Address, preseal_melmint, CoinDataHeight, Denom, TxHash};
+use crate::{smtmapping::*, BlockHeight, CoinData, CoinValue};
+use crate::{transaction::Transaction, CoinID};
+use crate::state::applytx::StateHandle;
+
+use std::fmt::Debug;
+use std::{collections::BTreeMap, convert::TryInto};
+use std::{collections::BTreeSet, io::Read};
+
+use arbitrary::Arbitrary;
+use defmac::defmac;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+use serde::{Deserialize, Serialize};
+use serde_repr::{Deserialize_repr, Serialize_repr};
+use thiserror::Error;
+use tmelcrypt::{Ed25519PK, HashVal};
+
+use crate::state::melswap::PoolMapping;
+
 pub use poolkey::PoolKey;
 
 #[derive(Error, Debug)]
@@ -30,7 +31,7 @@ pub enum StateError {
     #[error("malformed transaction")]
     MalformedTx,
     #[error("attempted to spend non-existent coin {:?}", .0)]
-    NonexistentCoin(txn::CoinID),
+    NonexistentCoin(CoinID),
     #[error("unbalanced inputs and outputs")]
     UnbalancedInOut,
     #[error("insufficient fees (requires {0})")]
@@ -178,7 +179,7 @@ impl State {
     }
 
     /// Applies a single transaction.
-    pub fn apply_tx(&mut self, tx: &txn::Transaction) -> Result<(), StateError> {
+    pub fn apply_tx(&mut self, tx: &Transaction) -> Result<(), StateError> {
         self.apply_tx_batch(std::slice::from_ref(tx))
     }
 
@@ -191,7 +192,7 @@ impl State {
         self.stakes.mapping.save();
     }
 
-    pub fn apply_tx_batch(&mut self, txx: &[txn::Transaction]) -> Result<(), StateError> {
+    pub fn apply_tx_batch(&mut self, txx: &[Transaction]) -> Result<(), StateError> {
         let old_hash = self.coins.root_hash();
         StateHandle::new(self).apply_tx_batch(txx)?.commit();
         log::debug!(
@@ -316,13 +317,15 @@ impl SealedState {
     /// Returns the final state represented as a "block" (header + transactions).
     pub fn to_block(&self) -> Block {
         let mut txx = imbl::HashSet::new();
-        for tx in self.0.transactions.val_iter() {
+        self.0.transactions.val_iter().for_each(|tx| {
             txx.insert(tx);
-        }
+        });
+
         // self check since imbl sometimes is buggy
-        for tx in self.0.transactions.val_iter() {
+        self.0.transactions.val_iter().for_each(|tx| {
             assert!(txx.contains(&tx));
-        }
+        });
+
         Block {
             header: self.header(),
             transactions: txx,
@@ -349,6 +352,7 @@ impl SealedState {
         assert!(basis.pools.val_iter().count() >= 2);
         let basis = basis.seal(block.proposer_action);
         assert!(basis.inner_ref().pools.val_iter().count() >= 2);
+
         if basis.header() != block.header {
             log::warn!(
                 "post-apply header {:#?} doesn't match declared header {:#?} with {} txx",
@@ -356,12 +360,14 @@ impl SealedState {
                 block.header,
                 transactions.len()
             );
-            for tx in block.transactions.iter() {
+            block.transactions.iter().for_each(|tx| {
                 log::warn!("{:?}", tx);
-            }
-            return Err(StateError::WrongHeader);
+            });
+
+            Err(StateError::WrongHeader)
+        } else {
+            Ok(basis)
         }
-        Ok(basis)
     }
 
     /// Confirms a state with a given consensus proof. If called with a second argument, this function is supposed to be called to *verify* the consensus proof.

@@ -1,8 +1,8 @@
 [package]
 name = "themelio-stf"
-version = "0.6.7-alpha.0"
+version = "0.7.0"
 authors = ["Themelio Labs"]
-edition = "2018"
+edition = "2021"
 
 description = "Core state-transition function and data structures for Themelio"
 license = "MPL-2.0"
@@ -11,53 +11,64 @@ repository = "https://github.com/themeliolabs/themelio-stf"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[dependencies]
-tmelcrypt= "0.1.0"
-stdcode= "0.1.2"
-# cached={version="0.23.0", default-features=false, features=["proc_macro"]}
-num_enum = "0.5.4"
-hex= "0.4.3"
-thiserror= "1.0.28"
-rayon= "1.5.1"
-imbl = { version = "1.0.1", features = ["serde"] }
-arbitrary={ version = "1.0.2", features = ["derive"] }
-ethnum= "1.0.3"
-derive_more= "0.99.16"
-dashmap= "4.0.2"
-parking_lot= "0.11.2" 
-log= "0.4.14"
-defmac = "0.2.1"
-serde = { version = "1.0.126", features = ["derive"] }
-serde_repr = "0.1.7"
-once_cell= "1.8.0"
-genawaiter= { version = "0.99.1", default-features = false, features = [] }
-num= "0.3.1"
-novasmt= "0.1.9"
-smallvec = "1.7.0"
-tap= "1.0.1"
-rustc-hash = "1.1.0"
-# stacker="0.1"
-scopeguard= "1.1.0"
-ordered-float = "2.7.0"
-# futures-lite="1"
-catvec="0.1.2"
+[dependencies.arbitrary]
+version = "1.0.2"
+features = ["derive"]
 
-[target.'cfg(fuzzing)'.dependencies] 
-honggfuzz= "0.5.54"
-env_logger= "0.8.4"
-jemallocator="0.3.2"
+[dependencies.genawaiter]
+version = "0.99.1"
+default-features = false
+features = []
+
+[dependencies.imbl]
+version = "1.0.1"
+features = ["serde"]
+
+[dependencies.serde]
+version = "1.0.126"
+features = ["derive"]
+
+[dependencies]
+catvec = "0.1.5"
+dashmap = "5.0.0"
+defmac = "0.2.1"
+derive_more = "0.99.16"
+ethnum = "1.0.3"
+hex = "0.4.3"
+log = "0.4.14"
+num = "0.4.0"
+num_enum = "0.5.4"
+novasmt = "0.1.9"
+once_cell = "1.8.0"
+ordered-float = "2.8.0"
+parking_lot = "0.11.2"
+rayon = "1.5.1"
+rustc-hash = "1.1.0"
+scopeguard = "1.1.0"
+serde_repr = "0.1.7"
+smallvec = "1.7.0"
+stdcode = "0.1.3"
+tap = "1.0.1"
+thiserror = "1.0.28"
+tmelcrypt = "0.2.1"
+
+[target.'cfg(fuzzing)'.dependencies]
+honggfuzz = "0.5.54"
+env_logger = "0.9.0"
+jemallocator ="0.3.2"
+
+[dev-dependencies.chrono]
+version = "0.4.19"
+features = ["serde"]
 
 [dev-dependencies]
-rstest = "0.6.4"
 lazy_static = "1.4.0"
-beaver = "0.1.0"
-chrono = { version = "0.4.19", features = ["serde"] }
-quickcheck = "0.9.2"
-quickcheck_macros = "0.9.1"
-logos= "0.11.4"
-rand= "0.7.3"
-criterion="0.3"
-quanta="0.9"
+quickcheck = "1.0.3"
+quickcheck_macros = "1.0.0"
+logos = "0.12.0"
+rand = "0.8.4"
+criterion ="0.3"
+quanta ="0.9"
 
 
 [[bench]]

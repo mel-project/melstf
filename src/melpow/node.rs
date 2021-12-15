@@ -1,9 +1,10 @@
-use rustc_hash::FxHashMap;
-use smallvec::SmallVec;
+use crate::melpow::hash;
+
 use std::convert::TryInto;
 use std::fmt;
 
-use super::hash;
+use rustc_hash::FxHashMap;
+use smallvec::SmallVec;
 
 pub type SVec<T> = SmallVec<[T; 32]>;
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
@@ -42,15 +43,18 @@ impl Node {
     pub fn get_parents(self, n: usize) -> SVec<Node> {
         let mut parents = SVec::new();
         if self.len == n {
-            for i in 0..n {
-                if (self.bv >> i) & 1 != 0 {
-                    parents.push(self.take(i).append(0))
+            let range = 0..n;
+
+            range.into_iter().for_each(|index| {
+                if (self.bv >> index) & 1 != 0 {
+                    parents.push(self.take(index).append(0))
                 }
-            }
+            });
         } else {
             parents.push(self.append(0));
             parents.push(self.append(1));
         }
+
         parents
     }
 
@@ -117,9 +121,11 @@ fn calc_labels_helper(
         let mut lab_gen = hash::Accumulator::new(chi);
         lab_gen.add(&nd.to_bytes());
         let parents = nd.get_parents(n);
-        for p in parents.iter() {
-            lab_gen.add(&ell[p]);
-        }
+
+        parents.iter().for_each(|parent| {
+            lab_gen.add(&ell[parent]);
+        });
+
         let lab = lab_gen.hash();
         f(nd, &lab);
         lab
@@ -159,14 +165,15 @@ mod tests {
             return;
         }
         printed.insert((n, b));
-        for p in b.get_parents(n) {
-            if p.len <= b.len {
-                println!("\"{}\" -> \"{}\" [constraint=false]", p, b)
+
+        b.get_parents(n).iter().for_each(|parent| {
+            if parent.len <= b.len {
+                println!("\"{}\" -> \"{}\" [constraint=false]", parent, b)
             } else {
-                println!("\"{}\" -> \"{}\"", p, b)
+                println!("\"{}\" -> \"{}\"", parent, b)
             }
-            print_dag_helper(n, p, printed)
-        }
+            print_dag_helper(n, *parent, printed)
+        });
     }
 
     #[test]

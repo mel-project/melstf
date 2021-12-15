@@ -1,7 +1,9 @@
 use crate::{PoolKey, SmtMapping, MICRO_CONVERTER};
+
+use std::convert::TryInto;
+
 use num::{rational::Ratio, BigInt, BigRational, BigUint};
 use serde::{Deserialize, Serialize};
-use std::convert::TryInto;
 
 /// A pool
 pub type PoolMapping = SmtMapping<PoolKey, PoolState>;
@@ -142,11 +144,14 @@ mod tests {
     fn general() {
         let mut pool = PoolState::new_empty();
         let _ = pool.deposit(634684496, 1579230128);
-        for _ in 1..5 {
+
+        let range = 1..5;
+
+        range.into_iter().for_each(|_index| {
             let out = pool.swap_many(100, 0);
             dbg!(pool);
             dbg!(pool.liq_constant());
             dbg!(out);
-        }
+        });
     }
 }

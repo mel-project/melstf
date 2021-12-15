@@ -1,9 +1,10 @@
-use criterion::{criterion_group, criterion_main, Criterion};
-use once_cell::sync::Lazy;
 use themelio_stf::{
     melvm::{Address, Covenant},
     CoinData, Denom, GenesisConfig, State, Transaction,
 };
+
+use criterion::{criterion_group, criterion_main, Criterion};
+use once_cell::sync::Lazy;
 
 fn generate_txx(n: usize) -> Vec<Transaction> {
     let fixed_output = CoinData {
