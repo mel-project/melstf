@@ -1,5 +1,6 @@
 mod consts;
 pub mod opcode;
+mod value;
 
 pub use crate::{CoinData, CoinID, Transaction};
 use crate::{CoinDataHeight, Denom, Header, HexBytes};
@@ -15,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use tap::Tap;
 use thiserror::Error;
 use tmelcrypt::HashVal;
+pub use value::*;
 
 use crate::melvm::{
     consts::{
@@ -24,7 +26,6 @@ use crate::melvm::{
     },
     opcode::{opcodes_weight, DecodeError, EncodeError, OpCode},
 };
-
 
 #[derive(Clone, Eq, PartialEq, Debug, Arbitrary, Serialize, Deserialize, Hash)]
 /// A MelVM covenant. Essentially, given a transaction that attempts to spend it, it either allows the transaction through or doesn't.
@@ -106,16 +107,15 @@ impl Covenant {
     pub fn from_ops(ops: &[OpCode]) -> Result<Self, EncodeError> {
         let mut output: Vec<u8> = Vec::new();
         // go through output
-        let was_encoding_successful: Result<(), EncodeError> = ops.iter().try_for_each(|op| {
-            match op.encode() {
+        let was_encoding_successful: Result<(), EncodeError> =
+            ops.iter().try_for_each(|op| match op.encode() {
                 Ok(data) => {
                     output.extend_from_slice(&data);
 
                     Ok(())
-                },
+                }
                 Err(error) => Err(error),
-            }
-        });
+            });
 
         match was_encoding_successful {
             Ok(()) => Ok(Covenant(output)),
@@ -182,20 +182,30 @@ impl Covenant {
                     dbg!("Heap (final): {:?}", &executor.heap);
                 }
 
-                executor.stack.pop().map(|f| f.into_bool()).unwrap_or_default()
-            },
+                executor
+                    .stack
+                    .pop()
+                    .map(|f| f.into_bool())
+                    .unwrap_or_default()
+            }
             Err(error) => {
-                dbg!("While converting inputs to OpCodes, we hit a decode error: {}", error);
+                dbg!(
+                    "While converting inputs to OpCodes, we hit a decode error: {}",
+                    error
+                );
 
                 false
-            },
+            }
         }
     }
 
     /// Runs to the end, with respect to a manually instantiated initial heap.
     /// This is for testing, when we do not have a transaction.
     /// This method outputs a tuple containing the stack and the heap.
-    pub fn debug_run_outputting_stack_and_heap(&self, args: &[Value]) -> Option<(Vec<Value>, HashMap<u16, Value>)> {
+    pub fn debug_run_outputting_stack_and_heap(
+        &self,
+        args: &[Value],
+    ) -> Option<(Vec<Value>, HashMap<u16, Value>)> {
         let mut hashmap: HashMap<u16, Value> = HashMap::new();
 
         args.iter().enumerate().for_each(|(index, value)| {
@@ -237,12 +247,15 @@ impl Covenant {
                 }
 
                 Some((executor.stack, executor.heap))
-            },
+            }
             Err(error) => {
-                dbg!("While converting inputs to OpCodes, we hit a decode error: {}", error);
+                dbg!(
+                    "While converting inputs to OpCodes, we hit a decode error: {}",
+                    error
+                );
 
                 None
-            },
+            }
         }
     }
 
@@ -278,7 +291,7 @@ impl Covenant {
             OpCode::LoadImm(1),
             OpCode::SigEOk(32),
         ])
-            .expect("Could not create a new ed25519 signature checking covenant.")
+        .expect("Could not create a new ed25519 signature checking covenant.")
     }
 
     pub fn always_true() -> Self {
@@ -555,7 +568,7 @@ impl Executor {
                     let byte_vector: Vec<u8> = bytes.into();
                     let hash: tmelcrypt::HashVal = tmelcrypt::hash_single(&byte_vector);
 
-                    dbg!("Hash: {}", &hash.0);
+                    log::trace!("Hash: {:?}", &hash.0);
 
                     Some(Value::from_bytes(&hash.0))
                 })?,
@@ -591,7 +604,7 @@ impl Executor {
                     let address: u16 = self.stack.pop()?.into_u16()?;
                     let value: Value = self.stack.pop()?;
 
-                    dbg!("Storing {} at address: {} on the heap.", &value, &address);
+                    log::trace!("Storing {:?} at address: {:?} on the heap.", &value, &address);
 
                     self.heap.insert(address, value);
                 }
@@ -599,21 +612,21 @@ impl Executor {
                     let address: u16 = self.stack.pop()?.into_u16()?;
                     let res: Value = self.heap.get(&address)?.clone();
 
-                    dbg!("Loading {} from address: {} from the heap.", &res, &address);
+                    log::trace!("Loading {:?} from address: {:?} from the heap.", &res, &address);
 
                     self.stack.push(res)
                 }
                 OpCode::StoreImm(idx) => {
                     let value: Value = self.stack.pop()?;
 
-                    dbg!("Storing {} at index {} immutably on the heap.", &value, &idx);
+                    log::trace!("Storing {:?} at index {:?} immutably on the heap.", &value, &idx);
 
                     self.heap.insert(idx, value);
                 }
                 OpCode::LoadImm(idx) => {
                     let res = self.heap.get(&idx)?.clone();
 
-                    dbg!("Loading {} from index {} immutably from the heap.", &res, &idx);
+                    log::trace!("Loading {:?} from index {:?} immutably from the heap.", &res, &idx);
 
                     self.stack.push(res)
                 }
@@ -621,7 +634,7 @@ impl Executor {
                 OpCode::VRef => self.do_binop(|vec, idx| {
                     let idx: usize = idx.into_u16()? as usize;
 
-                    dbg!("Loading index {} from VM vector containing {} onto the stack.", &idx, &vec);
+                    log::trace!("Loading index {:?} from VM vector containing {:?} onto the stack.", &idx, &vec);
 
                     Some(vec.into_vector()?.get(idx)?.clone())
                 })?,
@@ -629,7 +642,7 @@ impl Executor {
                     let idx: usize = idx.into_u16()? as usize;
                     let mut vec: CatVec<Value, 32> = vec.into_vector()?;
 
-                    dbg!("Overwriting index {} of a VM vector containing {} with {}", &idx, &vec, &value);
+                    log::trace!("Overwriting index {:?} of a VM vector containing {:?} with {:?}", &idx, &vec, &value);
 
                     *vec.get_mut(idx)? = value;
 
@@ -639,7 +652,7 @@ impl Executor {
                     let mut v1 = v1.into_vector()?;
                     let v2 = v2.into_vector()?;
 
-                    dbg!("Appending a vector that contains {} to a vector that contains {}", &v2, &v1);
+                    log::trace!("Appending a vector that contains {:?} to a vector that contains {:?}", &v2, &v1);
 
                     v1.append(v2);
 
@@ -655,11 +668,11 @@ impl Executor {
                             let is_end_less_than_or_equal_to_beginning: bool = end <= beginning;
 
                             if is_end_greater_or_equal_to_vector_length || is_end_less_than_or_equal_to_beginning {
-                                dbg!("Tried to create a VM slice with invalid bounds. Returning an empty VM vector.");
+                                log::trace!("Tried to create a VM slice with invalid bounds. Returning an empty VM vector.");
 
                                 Some(Value::Vector(Default::default()))
                             } else {
-                                dbg!("Returning a slice from {} to {} from the VM vector containing: {}", beginning, end, &vec);
+                                log::trace!("Returning a slice from {:?} to {:?} from the VM vector containing: {:?}", beginning, end, &vec);
 
                                 Some(Value::Vector(vec.tap_mut(|vec| vec.slice_into(beginning..end))))
                             }
@@ -675,25 +688,25 @@ impl Executor {
                     Value::Vector(vec) => {
                         let length: usize = vec.len();
 
-                        dbg!("VM vector is of length: {}", length);
+                        log::trace!("VM vector is of length: {}", length);
 
                         Some(Value::Int(U256::from(length as u64)))
                     },
                     _ => {
-                        dbg!("Tried to call VLength on something that was not a VM vector (Value::Vector).");
+                        log::trace!("Tried to call VLength on something that was not a VM vector (Value::Vector).");
 
                         None
                     },
                 })?,
                 OpCode::VEmpty => {
-                    dbg!("Creating a new empty vector on the stack.");
+                    log::trace!("Creating a new empty vector on the stack.");
 
                     self.stack.push(Value::Vector(Default::default()))
                 },
                 OpCode::VPush => self.do_binop(|vec, item| {
                     let mut vec: CatVec<Value, 32> = vec.into_vector()?;
 
-                    dbg!("Pushing: {} into a VM vector that contains: {}.", &item, &vec);
+                    log::trace!("Pushing: {:?} into a VM vector that contains: {:?}.", &item, &vec);
 
                     vec.push_back(item);
 
@@ -702,7 +715,7 @@ impl Executor {
                 OpCode::VCons => self.do_binop(|item, vec| {
                     let mut vec: CatVec<Value, 32> = vec.into_vector()?;
 
-                    dbg!("Inserting: {} at index 0 of a VM vector that contains: {}", &item, &vec);
+                    log::trace!("Inserting: {:?} at index 0 of a VM vector that contains: {:?}", &item, &vec);
 
                     vec.insert(0, item);
 
@@ -710,7 +723,7 @@ impl Executor {
                 })?,
                 // bit stuff
                 OpCode::BEmpty => {
-                    dbg!("Creating a new empty byte vector on the stack.");
+                    log::trace!("Creating a new empty byte vector on the stack.");
 
                     self.stack.push(Value::Bytes(Default::default()))
                 },
@@ -718,7 +731,7 @@ impl Executor {
                     let mut vec: CatVec<u8, 256> = vec.into_bytes()?;
                     let val: U256 = val.into_int()?;
 
-                    dbg!("Pushing: {} into a byte vector containing: {}", &val, &vec);
+                    log::trace!("Pushing: {} into a byte vector containing: {:?}", &val, &vec);
 
                     vec.push_back(*val.low() as u8);
 
@@ -727,7 +740,7 @@ impl Executor {
                 OpCode::BCons => self.do_binop(|item, vec| {
                     let mut vec: CatVec<u8, 256> = vec.into_bytes()?;
 
-                    dbg!("Inserting: {} at index 0 of a byte vector that contains: {}", &item, &vec);
+                    log::trace!("Inserting: {:?} at index 0 of a byte vector that contains: {:?}", &item, &vec);
 
                     vec.insert(0, item.into_truncated_u8()?);
 
@@ -736,7 +749,7 @@ impl Executor {
                 OpCode::BRef => self.do_binop(|vec, idx| {
                     let idx: usize = idx.into_u16()? as usize;
 
-                    dbg!("Loading index {} from a stack byte vector containing {} onto the stack.", &idx, &vec);
+                    log::trace!("Loading index {:?} from a stack byte vector containing {:?} onto the stack.", &idx, &vec);
 
                     Some(Value::Int(vec.into_bytes()?.get(idx).copied()?.into()))
                 })?,
@@ -744,7 +757,7 @@ impl Executor {
                     let idx: usize = idx.into_u16()? as usize;
                     let mut vec: CatVec<u8, 256> = vec.into_bytes()?;
 
-                    dbg!("Overwriting index {} of a byte vector containing {} with {}", &idx, &vec, &value);
+                    log::trace!("Overwriting index {:?} of a byte vector containing {:?} with {:?}", &idx, &vec, &value);
 
                     *vec.get_mut(idx)? = value.into_truncated_u8()?;
 
@@ -754,7 +767,7 @@ impl Executor {
                     let mut v1: CatVec<u8, 256> = v1.into_bytes()?;
                     let v2: CatVec<u8, 256> = v2.into_bytes()?;
 
-                    dbg!("Appending a vector that contains {} to a vector that contains {}", &v2, &v1);
+                    log::trace!("Appending a vector that contains {:?} to a vector that contains {:?}", &v2, &v1);
 
                     v1.append(v2);
 
@@ -770,11 +783,11 @@ impl Executor {
                             let is_end_less_than_or_equal_to_beginning: bool = end <= beginning;
 
                             if is_end_greater_or_equal_to_vector_length || is_end_less_than_or_equal_to_beginning {
-                                dbg!("Tried to create a byte slice with invalid bounds. Returning an empty byte vector.");
+                                log::trace!("Tried to create a byte slice with invalid bounds. Returning an empty byte vector.");
 
                                 Some(Value::Bytes(Default::default()))
                             } else {
-                                dbg!("Returning a byte slice from {} to {} from the byte vector containing: {}", beginning, end, &vec);
+                                log::trace!("Returning a byte slice from {:?} to {:?} from the byte vector containing: {:?}", beginning, end, &vec);
 
                                 vec.slice_into(beginning..end);
 
@@ -782,7 +795,7 @@ impl Executor {
                             }
                         }
                         _ => {
-                            dbg!("Tried to call VSlice on something that was not a VM vector (Value::Vector).");
+                            log::trace!("Tried to call VSlice on something that was not a VM vector (Value::Vector).");
 
                             None
                         },
@@ -792,12 +805,12 @@ impl Executor {
                     Value::Bytes(vec) => {
                         let length: usize = vec.len();
 
-                        dbg!("Byte vector is of length: {}", length);
+                        log::trace!("Byte vector is of length: {}", length);
 
                         Some(Value::Int(U256::from(length as u64)))
                     },
                     _ => {
-                        dbg!("Tried to call BLength on something that was not a byte vector (Value::Bytes).");
+                        log::trace!("Tried to call BLength on something that was not a byte vector (Value::Bytes).");
 
                         None
                     },
@@ -807,29 +820,29 @@ impl Executor {
                     let top = self.stack.pop()?;
 
                     if top.into_int() == Some(0u32.into()) {
-                        dbg!("In a call to Bez, the top of the stack was zero. Skipping to {}", &jgap);
+                        log::trace!("In a call to Bez, the top of the stack was zero. Skipping to {}", &jgap);
 
                         self.pc += jgap as usize;
 
                         return Some(());
                     } else {
-                        dbg!("In a call to Bez, the top of the stack was not zero. It was {}. Not skipping any operations.", &jgap);
+                        log::trace!("In a call to Bez, the top of the stack was not zero. It was {}. Not skipping any operations.", &jgap);
                     }
                 }
                 OpCode::Bnz(jgap) => {
                     let top = self.stack.pop()?;
 
                     if top.into_int() != Some(0u32.into()) {
-                        dbg!("In a call to Bnz, the top of the stack was not zero. Skipping to {}", &jgap);
+                        log::trace!("In a call to Bnz, the top of the stack was not zero. Skipping to {}", &jgap);
 
                         self.pc += jgap as usize;
                         return Some(());
                     } else {
-                        dbg!("In a call to Bnz, the top of the stack was not zero. It was {}. Not skipping any operations.", &jgap);
+                        log::trace!("In a call to Bnz, the top of the stack was not zero. It was {}. Not skipping any operations.", &jgap);
                     }
                 }
                 OpCode::Jmp(jgap) => {
-                    dbg!("Jumping ahead to instruction number {}", &jgap);
+                    log::trace!("Jumping ahead to instruction number {}", &jgap);
 
                     self.pc += jgap as usize;
                     return Some(());
@@ -839,7 +852,7 @@ impl Executor {
                     let is_op_count_positive: bool = op_count > 0;
 
                     if is_iterations_positive && is_op_count_positive {
-                        dbg!("In a call to Loop, iterations and op_count were positive. Looping {} times.", iterations);
+                        log::trace!("In a call to Loop, iterations and op_count were positive. Looping {} times.", iterations);
 
                         self.loop_state.push(LoopState {
                             // start after loop instruction
@@ -851,11 +864,11 @@ impl Executor {
                         });
                     } else {
                         if !is_iterations_positive {
-                            dbg!("In a call to Loop, iterations was not positive: {}. Skipping loop.", iterations);
+                            log::trace!("In a call to Loop, iterations was not positive: {}. Skipping loop.", iterations);
                         } else if !is_op_count_positive {
-                            dbg!("In a call to Loop, op_count was not positive: {}. Skipping loop.", iterations);
+                            log::trace!("In a call to Loop, op_count was not positive: {}. Skipping loop.", iterations);
                         } else {
-                            dbg!("In a call to Loop, neither iterations: {}, nor op_count were positive: {}. Skipping loop.", iterations, op_count);
+                            log::trace!("In a call to Loop, neither iterations: {}, nor op_count were positive: {}. Skipping loop.", iterations, op_count);
                         }
 
                         return None;
@@ -863,7 +876,7 @@ impl Executor {
                 }
                 // Conversions
                 OpCode::BtoI => self.do_monop(|input_byte_vector| {
-                    dbg!("Converting bytes {} into an integer.", &input_byte_vector);
+                    log::trace!("Converting bytes {:?} into an integer.", &input_byte_vector);
 
                     let bytes = input_byte_vector.into_bytes()?;
                     let bytes_vector: Vec<u8> = bytes.into();
@@ -872,12 +885,12 @@ impl Executor {
 
                     match byte_vector_option {
                         Some(byte_vector) => {
-                            dbg!("In a call to BtoI, successfully converted input bytes to an integer.");
+                            log::trace!("In a call to BtoI, successfully converted input bytes to an integer.");
 
                             Some(Value::Int(U256::from_be_bytes(byte_vector)))
                         },
                         None => {
-                            dbg!("In a call to BtoI, failed to convert input bytes to an integer.");
+                            log::trace!("In a call to BtoI, failed to convert input bytes to an integer.");
 
                             None
                         },
@@ -890,12 +903,12 @@ impl Executor {
 
                     match number_option {
                         Some(number) => {
-                            dbg!("In a call to ItoB, successfully converted input integer to bytes.");
+                            log::trace!("In a call to ItoB, successfully converted input integer to bytes.");
 
                             Some(Value::Bytes(number.to_be_bytes().into()))
                         },
                         None => {
-                            dbg!("In a call to ItoB, failed to convert input integer to bytes.");
+                            log::trace!("In a call to ItoB, failed to convert input integer to bytes.");
 
                             None
                         },
@@ -905,7 +918,7 @@ impl Executor {
                 OpCode::PushB(bts) => {
                     let bytes: Value = Value::from_bytes(&bts);
 
-                    dbg!("Pushing a byte vector containing {} onto the stack.", &bytes);
+                    log::trace!("Pushing a byte vector containing {:?} onto the stack.", &bytes);
 
                     self.stack.push(bytes);
                 }
@@ -913,31 +926,31 @@ impl Executor {
 
                     let number: Value = Value::Int(num);
 
-                    dbg!("Pushing the integer {} onto the stack.", &number);
+                    log::trace!("Pushing the integer {:?} onto the stack.", &number);
 
                     self.stack.push(number)
                 },
                 OpCode::PushIC(number) => {
                     let integer: Value = Value::Int(number);
 
-                    dbg!("PushIC called. Pushing the integer {} onto the stack.", &integer);
+                    log::trace!("PushIC called. Pushing the integer {:?} onto the stack.", &integer);
 
                     self.stack.push(integer)
                 },
                 OpCode::TypeQ => self.do_monop(|input| {
                     match input {
                         Value::Int(integer) => {
-                            dbg!("In a call to TypeQ, the input was an integer: {}. Returning 0 to the stack.", integer);
+                            log::trace!("In a call to TypeQ, the input was an integer: {:?}. Returning 0 to the stack.", integer);
 
                             Some(Value::Int(0u32.into()))
                         }
                         Value::Bytes(byte_vector) => {
-                            dbg!("In a call to TypeQ, the input was a byte vector containing: {}. Returning 1 to the stack.", byte_vector);
+                            log::trace!("In a call to TypeQ, the input was a byte vector containing: {:?}. Returning 1 to the stack.", byte_vector);
 
                             Some(Value::Int(1u32.into()))
                         }
                         Value::Vector(vector) => {
-                            dbg!("In a call to TypeQ, the input was a vector containing: {}. Returning 2 to the stack.", vector);
+                            log::trace!("In a call to TypeQ, the input was a vector containing: {:?}. Returning 2 to the stack.", vector);
 
                             Some(Value::Int(2u32.into()))
                         }
@@ -947,7 +960,7 @@ impl Executor {
                 OpCode::Dup => {
                     let value: Value = self.stack.pop()?;
 
-                    dbg!("Dup called. Duplicating: {} on the stack.", &value);
+                    log::trace!("Dup called. Duplicating: {:?} on the stack.", &value);
 
                     self.stack.push(value.clone());
                     self.stack.push(value);
@@ -959,188 +972,6 @@ impl Executor {
         self.update_pc_state();
 
         res
-    }
-}
-
-#[derive(Clone, Debug)]
-pub enum Value {
-    Int(U256),
-    Bytes(CatVec<u8, 256>),
-    Vector(CatVec<Value, 32>),
-}
-
-impl Value {
-    fn into_bool(self) -> bool {
-        match self {
-            Value::Int(v) => v != U256::from(0u32),
-            _ => true,
-        }
-    }
-
-    fn into_int(self) -> Option<U256> {
-        match self {
-            Value::Int(bi) => Some(bi),
-            _ => None,
-        }
-    }
-    fn into_u16(self) -> Option<u16> {
-        let num = self.into_int()?;
-        if num > U256::from(65535u32) {
-            None
-        } else {
-            Some(*num.low() as u16)
-        }
-    }
-    fn into_truncated_u8(self) -> Option<u8> {
-        let num = self.into_int()?;
-        Some(*num.low() as u8)
-    }
-    pub fn from_bytes(bts: &[u8]) -> Self {
-        Value::Bytes(bts.into())
-    }
-    fn from_bool(b: bool) -> Self {
-        if b {
-            Value::Int(1u32.into())
-        } else {
-            Value::Int(0u32.into())
-        }
-    }
-
-    fn into_bytes(self) -> Option<CatVec<u8, 256>> {
-        match self {
-            Value::Bytes(bts) => Some(bts),
-            _ => None,
-        }
-    }
-
-    fn into_vector(self) -> Option<CatVec<Value, 32>> {
-        match self {
-            Value::Vector(vec) => Some(vec),
-            _ => None,
-        }
-    }
-}
-
-impl From<u128> for Value {
-    fn from(n: u128) -> Self {
-        Value::Int(U256::from(n))
-    }
-}
-
-impl From<u64> for Value {
-    fn from(n: u64) -> Self {
-        Value::Int(U256::from(n))
-    }
-}
-
-impl From<CoinData> for Value {
-    fn from(cd: CoinData) -> Self {
-        Value::Vector(
-            vec![
-                cd.covhash.0.into(),
-                cd.value.0.into(),
-                cd.denom.into(),
-                cd.additional_data.into(),
-            ]
-            .into(),
-        )
-    }
-}
-
-impl From<Header> for Value {
-    fn from(cd: Header) -> Self {
-        Value::Vector(
-            vec![
-                (cd.network as u64).into(),
-                cd.previous.into(),
-                cd.height.0.into(),
-                cd.history_hash.into(),
-                cd.coins_hash.into(),
-                cd.transactions_hash.into(),
-                cd.fee_pool.0.into(),
-                cd.fee_multiplier.into(),
-                cd.dosc_speed.into(),
-                cd.pools_hash.into(),
-                cd.stakes_hash.into(),
-            ]
-            .into(),
-        )
-    }
-}
-
-impl From<CoinDataHeight> for Value {
-    fn from(cd: CoinDataHeight) -> Self {
-        Value::Vector(vec![cd.coin_data.into(), cd.height.0.into()].into())
-    }
-}
-
-impl From<CoinID> for Value {
-    fn from(c: CoinID) -> Self {
-        Value::Vector(vec![c.txhash.0.into(), Value::Int(U256::from(c.index))].into())
-    }
-}
-
-impl From<Covenant> for Value {
-    fn from(c: Covenant) -> Self {
-        Value::Bytes(c.0.into())
-    }
-}
-
-impl From<[u8; 32]> for Value {
-    fn from(v: [u8; 32]) -> Self {
-        Value::Bytes(v.into())
-    }
-}
-
-impl From<HashVal> for Value {
-    fn from(v: HashVal) -> Self {
-        Value::Bytes(v.into())
-    }
-}
-
-impl From<Denom> for Value {
-    fn from(v: Denom) -> Self {
-        Value::Bytes(v.to_bytes().into())
-    }
-}
-
-impl From<Vec<u8>> for Value {
-    fn from(v: Vec<u8>) -> Self {
-        Value::Bytes(v.into())
-    }
-}
-
-impl From<HexBytes> for Value {
-    fn from(v: HexBytes) -> Self {
-        Value::Bytes(v.0.into())
-    }
-}
-
-impl<T: Into<Value>> From<Vec<T>> for Value {
-    fn from(v: Vec<T>) -> Self {
-        Value::Vector(
-            v.into_iter()
-                .map(|x| x.into())
-                .collect::<Vec<Value>>()
-                .into(),
-        )
-    }
-}
-
-impl From<Transaction> for Value {
-    fn from(tx: Transaction) -> Self {
-        Value::Vector(
-            vec![
-                Value::Int(U256::from(tx.kind as u8)),
-                tx.inputs.into(),
-                tx.outputs.into(),
-                tx.fee.0.into(),
-                tx.scripts.into(),
-                tx.data.into(),
-                tx.sigs.into(),
-            ]
-            .into(),
-        )
     }
 }
 
@@ -1169,9 +1000,7 @@ mod tests {
 
         let range = 0..100000;
 
-        range.into_iter().for_each(|_index| {
-            data.push(0xb0)
-        });
+        range.into_iter().for_each(|_index| data.push(0xb0));
 
         dontcrash(&data.to_vec())
     }
