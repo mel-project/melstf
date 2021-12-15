@@ -28,7 +28,7 @@ fn eval_fitness(input: &[u8]) -> OF64 {
     {
         return 0.0.into();
     };
-    let weight = val.weight().unwrap() as f64;
+    let _weight = val.weight().unwrap() as f64;
     let ilen = input.len() as f64;
     if ilen == 0.0 {
         return 0.0.into();
