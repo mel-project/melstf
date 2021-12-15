@@ -345,7 +345,7 @@ impl OpCode {
                 let iterations = u16arg(input)?;
                 let count = u16arg(input)?;
                 Ok(OpCode::Loop(iterations, count))
-            }
+            },
             OPCODE_ITOB => Ok(OpCode::ItoB),
             OPCODE_BTOI => Ok(OpCode::BtoI),
             // literals
@@ -354,12 +354,12 @@ impl OpCode {
                 let mut blit = vec![0u8; strlen as usize];
                 input.read_exact(&mut blit)?;
                 Ok(OpCode::PushB(blit))
-            }
+            },
             OPCODE_PUSHI => {
                 let mut buf = [0; 32];
                 input.read_exact(&mut buf)?;
                 Ok(OpCode::PushI(U256::from_be_bytes(buf)))
-            }
+            },
             OPCODE_PUSHIC => {
                 let mut buf = [0; 32];
                 let nonzero_len = read_byte(input)?;
@@ -377,7 +377,8 @@ impl OpCode {
                     return Err(DecodeError::InvalidVarint);
                 }
                 Ok(OpCode::PushIC(integ))
-            }
+            },
+            OPCODE_DUP => Ok(OpCode::Dup),
             b => Err(DecodeError::InvalidOpcode(b)),
         }
     }
