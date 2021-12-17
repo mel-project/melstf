@@ -55,6 +55,16 @@ impl CoinValue {
         let i: u64 = i.into();
         Self(i as u128 * MICRO_CONVERTER)
     }
+
+    /// Checked addition.
+    pub fn checked_add(self, other: Self) -> Option<Self> {
+        self.0.checked_add(other.0).map(|a| Self(a))
+    }
+
+    /// Checked subtraction.
+    pub fn checked_sub(self, other: Self) -> Option<Self> {
+        self.0.checked_sub(other.0).map(|a| Self(a))
+    }
 }
 
 /// Newtype representing a block height.
