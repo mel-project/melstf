@@ -1,7 +1,10 @@
 use std::fmt::Display;
 
 use arbitrary::Arbitrary;
-use derive_more::{Mul, MulAssign, Add, AddAssign, Display, Div, DivAssign, From, FromStr, Into, Sub, SubAssign};
+use derive_more::{
+    Add, AddAssign, Display, Div, DivAssign, From, FromStr, Into, Mul, MulAssign, Sub, SubAssign,
+    Sum,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{MICRO_CONVERTER, STAKE_EPOCH};
@@ -30,6 +33,7 @@ use crate::{MICRO_CONVERTER, STAKE_EPOCH};
     DivAssign,
     Mul,
     MulAssign,
+    Sum,
 )]
 #[serde(transparent)]
 pub struct CoinValue(pub u128);
@@ -50,6 +54,16 @@ impl CoinValue {
     pub fn from_millions(i: impl Into<u64>) -> Self {
         let i: u64 = i.into();
         Self(i as u128 * MICRO_CONVERTER)
+    }
+
+    /// Checked addition.
+    pub fn checked_add(self, other: Self) -> Option<Self> {
+        self.0.checked_add(other.0).map(|a| Self(a))
+    }
+
+    /// Checked subtraction.
+    pub fn checked_sub(self, other: Self) -> Option<Self> {
+        self.0.checked_sub(other.0).map(|a| Self(a))
     }
 }
 
