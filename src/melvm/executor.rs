@@ -206,6 +206,31 @@ impl Executor {
 
                         Some(Value::Int(x.into_int()?.checked_div(y.into_int()?)?))
                     })?,
+                OpCode::Exp(_) => self
+                    .do_binop(|b, e| {
+                        log::trace!("Exponentiation, Base: {:?}", &b);
+                        log::trace!("Exponentiation, Exponent: {:?}", &e);
+
+                        let e = e.into_int()?;
+                        let b = b.into_int()?;
+
+                        let mut res: U256 = U256::ONE;
+
+                        // Exponentiate by squaring
+                        while let Some(e) = e.checked_shr(1) {
+                            //if e % 2 == 1 {
+                            // TODO not sure if this is faster than above
+                            if e & U256::ONE == U256::ONE {
+                                // r = r^2 * b
+                                res = res.overflowing_mul( res.overflowing_mul(b).0 ).0;
+                            } else {
+                                // r = r^2
+                                res = res.overflowing_mul(res).0;
+                            }
+                        }
+
+                        Some(Value::Int(res))
+                    })?,
                 OpCode::Rem => self
                     .do_binop(|x, y| {
                         log::trace!("Remainder, First: {:?}", &x);

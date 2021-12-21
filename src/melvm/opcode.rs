@@ -6,7 +6,7 @@ use crate::melvm::consts::{
     OPCODE_OR, OPCODE_PUSHB, OPCODE_PUSHI, OPCODE_PUSHIC, OPCODE_REM, OPCODE_SHL, OPCODE_SHR,
     OPCODE_SIGEOK, OPCODE_STORE, OPCODE_STOREIMM, OPCODE_SUB, OPCODE_TYPEQ, OPCODE_VAPPEND,
     OPCODE_VCONS, OPCODE_VEMPTY, OPCODE_VLENGTH, OPCODE_VPUSH, OPCODE_VREF, OPCODE_VSET,
-    OPCODE_VSLICE, OPCODE_XOR,
+    OPCODE_VSLICE, OPCODE_XOR, OPCODE_EXP,
 };
 
 use std::{fmt::Display, io::Write};
@@ -23,6 +23,7 @@ pub enum OpCode {
     Mul,
     Div,
     Rem,
+    Exp(u8),
     // logic
     And,
     Or,
@@ -99,6 +100,7 @@ impl Display for OpCode {
             OpCode::Sub => "sub".fmt(f),
             OpCode::Mul => "mul".fmt(f),
             OpCode::Div => "div".fmt(f),
+            OpCode::Exp(k) => format!("exp {}", k).fmt(f),
             OpCode::Rem => "rem".fmt(f),
             OpCode::And => "and".fmt(f),
             OpCode::Or => "or".fmt(f),
@@ -185,6 +187,10 @@ impl OpCode {
             OpCode::Mul => output.write_all(&[OPCODE_MUL]).unwrap(),
             OpCode::Div => output.write_all(&[OPCODE_DIV]).unwrap(),
             OpCode::Rem => output.write_all(&[OPCODE_REM]).unwrap(),
+            OpCode::Exp(k) => {
+                output.write_all(&[OPCODE_EXP]).unwrap();
+                output.write_all(&k.to_be_bytes()).unwrap();
+            },
 
             OpCode::And => output.write_all(&[OPCODE_AND]).unwrap(),
             OpCode::Or => output.write_all(&[OPCODE_OR]).unwrap(),
@@ -422,6 +428,7 @@ fn opcodes_car_weight(opcodes: &[OpCode]) -> (u128, &[OpCode]) {
         OpCode::Sub => (4, rest),
         OpCode::Mul => (6, rest),
         OpCode::Div => (6, rest),
+        OpCode::Exp(k) => (6u128.saturating_add(10u128.saturating_mul(*k as u128)), rest),
         OpCode::Rem => (6, rest),
 
         OpCode::And => (4, rest),
