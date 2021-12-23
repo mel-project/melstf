@@ -1,6 +1,6 @@
 [package]
 name = "themelio-stf"
-version = "0.6.18-alpha.0"
+version = "0.6.18"
 authors = ["Themelio Labs"]
 edition = "2021"
 
