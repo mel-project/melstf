@@ -297,6 +297,12 @@ impl OpCode {
             Ok::<_, DecodeError>(u16::from_be_bytes(buffer))
         };
 
+        let u8arg = |input: &mut T| {
+            let mut buffer: [u8; 1] = [0; 1];
+            input.read_exact(&mut buffer)?;
+            Ok::<_, DecodeError>(u8::from_be_bytes(buffer))
+        };
+
         match read_byte(input)? {
             OPCODE_NOOP => Ok(OpCode::Noop),
             // arithmetic
@@ -305,6 +311,7 @@ impl OpCode {
             OPCODE_MUL => Ok(OpCode::Mul),
             OPCODE_DIV => Ok(OpCode::Div),
             OPCODE_REM => Ok(OpCode::Rem),
+            OPCODE_EXP => Ok(OpCode::Exp(u8arg(input)?)),
             // logic
             OPCODE_AND => Ok(OpCode::And),
             OPCODE_OR => Ok(OpCode::Or),
@@ -428,7 +435,8 @@ fn opcodes_car_weight(opcodes: &[OpCode]) -> (u128, &[OpCode]) {
         OpCode::Sub => (4, rest),
         OpCode::Mul => (6, rest),
         OpCode::Div => (6, rest),
-        OpCode::Exp(k) => (6u128.saturating_add(10u128.saturating_mul(*k as u128)), rest),
+        // We add 1 to k bcs the max is 256 bits and min is 1, so 0=>1, 2^8=>256
+        OpCode::Exp(k) => (6u128.saturating_add(10u128.saturating_mul(*k as u128 + 1)), rest),
         OpCode::Rem => (6, rest),
 
         OpCode::And => (4, rest),
@@ -551,6 +559,19 @@ mod tests {
         assert_eq!(output, true);
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(2_u8.into()), OpCode::Mul, OpCode::PushI(7_u8.into()), OpCode::Eql]).expect("Failed to create a Mul covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, false);
+    }
+
+    #[test]
+    fn test_exponentiate() {
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(8_u8.into()), OpCode::PushI(2_u8.into()), OpCode::Exp(3u8), OpCode::PushI(256_u16.into()), OpCode::Eql]).expect("Failed to create a Mul covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
+
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::PushI(3_u8.into()), OpCode::Exp(0u8), OpCode::PushI(27_u8.into()), OpCode::Eql]).expect("Failed to create a Mul covenant.");
         let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
