@@ -389,6 +389,14 @@ impl<'a> StateHandle<'a> {
 
         let is_first_coin_not_a_sym: bool = first_coin.denom != Denom::Sym;
 
+        // Are we operating under OLD BUGGY RULES?
+        if (self.state.network == NetID::Mainnet || self.state.network == NetID::Testnet)
+            && self.state.height.0 < 500000
+        {
+            log::warn!("LETTING THROUGH BAD STAKING TRANSACTION UNDER OLD BUGGY RULES");
+            return Ok(());
+        }
+
         if is_first_coin_not_a_sym {
             Err(StateError::MalformedTx)
         // then we check consistency
