@@ -120,7 +120,7 @@ impl Covenant {
 
     /// Checks a transaction, returning whether or not the transaction is valid.
     ///
-    /// The caller must also pass in the [CoinID] and [CoinDataHeight] corresponding to the coin that's being spent, as well as the [Header] of the *previous* block (if this transaction is trying to go into block N, then the header of block N-1). This allows the covenant to access (a committment to) its execution environment, allowing constructs like timelock contracts and colored-coin-like systems.
+    /// The caller must also pass in the [CoinID] and [CoinDataHeight] corresponding to the coin that's being spent, as well as the [Header] of the *previous* block (if this transaction is trying to go into block N, then the header of block N-1). This allows the covenant to access (a commitment to) its execution environment, allowing constructs like timelock contracts and colored-coin-like systems.
     pub fn check(&self, tx: &Transaction, env: CovenantEnv) -> bool {
         self.check_opt_env(tx, Some(env))
     }
