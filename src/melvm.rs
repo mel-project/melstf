@@ -224,9 +224,7 @@ impl Covenant {
                         eprintln!("Heap (step): {:?}", &executor.heap);
                     }
 
-                    if executor.step().is_none() {
-                        return None;
-                    }
+                    executor.step()?;
                 }
 
                 if executor.stack.is_empty() {

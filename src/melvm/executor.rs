@@ -228,7 +228,7 @@ impl Executor {
                             }
                             b = b.overflowing_mul(b).0;
 
-                            e = e >> 1;
+                            e >>= 1;
                         }
 
                         Some(Value::Int(res))
