@@ -1,6 +1,7 @@
 #![allow(clippy::float_cmp)]
 
 use crate::{CoinValue, SmtMapping, TxHash};
+use novasmt::ContentAddrStore;
 use serde::{Deserialize, Serialize};
 use tmelcrypt::Ed25519PK;
 
@@ -18,9 +19,9 @@ pub struct StakeDoc {
 }
 
 /// A stake mapping
-pub type StakeMapping = SmtMapping<TxHash, StakeDoc>;
+pub type StakeMapping<C> = SmtMapping<C, TxHash, StakeDoc>;
 
-impl StakeMapping {
+impl<C: ContentAddrStore> StakeMapping<C> {
     /// Gets the voting power, as a floating-point number, for a given public key and a given epoch.
     pub fn vote_power(&self, epoch: u64, pubkey: Ed25519PK) -> f64 {
         let mut total_votes = 1e-50;
@@ -61,8 +62,8 @@ impl StakeMapping {
 
 #[cfg(test)]
 mod tests {
-    use crate::CoinValue;
     use crate::testing::functions::create_state;
+    use crate::CoinValue;
 
     use std::collections::HashMap;
 

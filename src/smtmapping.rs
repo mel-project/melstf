@@ -1,39 +1,44 @@
-use novasmt::FullProof;
+use novasmt::{ContentAddrStore, FullProof};
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use tmelcrypt::HashVal;
 
 /// SmtMapping is a type-safe, constant-time cloneable, imperative-style interface to a sparse Merkle tree.
-pub struct SmtMapping<K: Serialize, V: Serialize + DeserializeOwned> {
-    pub mapping: novasmt::Tree,
+pub struct SmtMapping<C: ContentAddrStore, K: Serialize, V: Serialize + DeserializeOwned> {
+    pub mapping: novasmt::Tree<C>,
     _phantom_k: PhantomData<K>,
     _phantom_v: PhantomData<V>,
 }
 
-impl<K: Serialize, V: Serialize + DeserializeOwned> Debug for SmtMapping<K, V> {
+impl<C: ContentAddrStore, K: Serialize, V: Serialize + DeserializeOwned> Debug
+    for SmtMapping<C, K, V>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.mapping.root_hash().fmt(f)
     }
 }
 
-impl<K: Serialize, V: Serialize + DeserializeOwned> Clone for SmtMapping<K, V> {
+impl<C: ContentAddrStore, K: Serialize, V: Serialize + DeserializeOwned> Clone
+    for SmtMapping<C, K, V>
+{
     fn clone(&self) -> Self {
         SmtMapping::new(self.mapping.clone())
     }
 }
 
-impl<K: Serialize, V: Serialize + DeserializeOwned> SmtMapping<K, V> {
+impl<C: ContentAddrStore, K: Serialize, V: Serialize + DeserializeOwned> SmtMapping<C, K, V> {
     /// Clears a mapping.
     pub fn clear(&mut self) {
         self.mapping.clear()
     }
+
     /// Returns true iff the mapping is empty.
     pub fn is_empty(&self) -> bool {
         self.root_hash().0 == [0; 32]
     }
     /// new converts a type-unsafe SMT to a SmtMapping
-    pub fn new(tree: novasmt::Tree) -> Self {
+    pub fn new(tree: novasmt::Tree<C>) -> Self {
         SmtMapping {
             mapping: tree,
             _phantom_k: PhantomData,
@@ -56,7 +61,7 @@ impl<K: Serialize, V: Serialize + DeserializeOwned> SmtMapping<K, V> {
     pub fn insert(&mut self, key: K, val: V) {
         let key = tmelcrypt::hash_single(&stdcode::serialize(&key).unwrap());
         self.mapping
-            .insert(key.0, stdcode::serialize(&val).unwrap().into());
+            .insert(key.0, &stdcode::serialize(&val).unwrap());
     }
     /// delete deletes a mapping, replacing the mapping with a mapping to the empty bytestring
     pub fn delete(&mut self, key: &K) {

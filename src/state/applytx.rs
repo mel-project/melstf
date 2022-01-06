@@ -10,13 +10,14 @@ use crate::{
 use std::convert::TryInto;
 
 use dashmap::DashMap;
+use novasmt::ContentAddrStore;
 use parking_lot::Mutex;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use tmelcrypt::HashVal;
 
 /// A mutable "handle" to a particular State. Can be "committed" like a database transaction.
-pub(crate) struct StateHandle<'a> {
-    state: &'a mut State,
+pub(crate) struct StateHandle<'a, C: ContentAddrStore> {
+    state: &'a mut State<C>,
 
     coin_cache: DashMap<CoinID, Option<CoinDataHeight>>,
     transactions_cache: DashMap<TxHash, Transaction>,
@@ -36,9 +37,9 @@ fn faucet_dedup_pseudocoin(txhash: TxHash) -> CoinID {
     }
 }
 
-impl<'a> StateHandle<'a> {
+impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
     /// Creates a new state handle.
-    pub fn new(state: &'a mut State) -> Self {
+    pub fn new(state: &'a mut State<C>) -> Self {
         let fee_pool_cache = state.fee_pool;
         let tips_cache = state.tips;
         let dosc_speed = state.dosc_speed;

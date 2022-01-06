@@ -6,6 +6,7 @@ use crate::{
 
 use std::{cell::RefCell, convert::TryInto};
 
+use novasmt::ContentAddrStore;
 use num::{integer::Roots, rational::Ratio, BigInt, BigRational};
 use tap::Pipe;
 
@@ -69,7 +70,7 @@ pub fn calculate_reward(my_speed: u128, dosc_speed: u128, difficulty: u32) -> u1
 }
 
 /// Presealing function that is called before a state is sealed to apply melmint actions.
-pub fn preseal_melmint(state: State) -> State {
+pub fn preseal_melmint<C: ContentAddrStore>(state: State<C>) -> State<C> {
     let state = create_builtins(state);
     assert!(state.pools.val_iter().count() >= 2);
     let state = process_swaps(state);
@@ -82,7 +83,7 @@ pub fn preseal_melmint(state: State) -> State {
 }
 
 /// Creates the built-in pools if they don't exist. The built-in pools start out with nonzero liq, so that they can never be completely depleted. This ensures that built-in pools will always exist in the state.
-fn create_builtins(mut state: State) -> State {
+fn create_builtins<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
     let mut def = PoolState::new_empty();
     let _ = def.deposit(MICRO_CONVERTER * 1000, MICRO_CONVERTER * 1000);
     if state.pools.get(&PoolKey::mel_and(Denom::Sym)).0.is_none() {
@@ -111,7 +112,7 @@ fn create_builtins(mut state: State) -> State {
 }
 
 /// Process swaps.
-fn process_swaps(mut state: State) -> State {
+fn process_swaps<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
     // find the swap requests
     let swap_reqs: Vec<Transaction> = state
         .transactions
@@ -181,14 +182,14 @@ fn process_swaps(mut state: State) -> State {
                     right_withdrawn,
                     Ratio::new(swap.outputs[0].value.0, total_lefts),
                 ))
-                    .min(MAX_COINVAL);
+                .min(MAX_COINVAL);
             } else {
                 swap.outputs[0].denom = pool.left;
                 swap.outputs[0].value = CoinValue(multiply_frac(
                     left_withdrawn,
                     Ratio::new(swap.outputs[0].value.0, total_rights),
                 ))
-                    .min(MAX_COINVAL);
+                .min(MAX_COINVAL);
             }
             state.coins.insert(
                 correct_coinid,
@@ -206,7 +207,7 @@ fn process_swaps(mut state: State) -> State {
 }
 
 /// Process deposits.
-fn process_deposits(mut state: State) -> State {
+fn process_deposits<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
     // find the deposit requests
     let deposit_reqs = state
         .transactions
@@ -289,7 +290,7 @@ fn process_deposits(mut state: State) -> State {
 }
 
 /// Process deposits.
-fn process_withdrawals(mut state: State) -> State {
+fn process_withdrawals<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
     // find the withdrawal requests
     let withdraw_reqs: Vec<Transaction> = state
         .transactions
@@ -367,7 +368,7 @@ fn process_withdrawals(mut state: State) -> State {
 }
 
 /// Process pegging.
-fn process_pegging(mut state: State) -> State {
+fn process_pegging<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
     // first calculate the implied sym/nomDOSC exchange rate
     let x_sd = if state.tip_902() {
         state
@@ -447,9 +448,9 @@ mod tests {
         CoinID, Denom,
     };
 
-    use crate::*;
-    use crate::melmint::Ratio;
     use crate::melmint::multiply_frac;
+    use crate::melmint::Ratio;
+    use crate::*;
 
     #[test]
     fn math() {

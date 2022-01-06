@@ -88,9 +88,9 @@ impl TransactionBuilder {
         let fee = self.in_progress.clone().pipe(|mut tx| {
             let range = 0..max_sig_count;
 
-            range.into_iter().for_each(|_index| {
-                tx.sigs.push(vec![0; max_sig_size].into())
-            });
+            range
+                .into_iter()
+                .for_each(|_index| tx.sigs.push(vec![0; max_sig_size].into()));
 
             tx.base_fee(fee_multiplier, 0)
         });
@@ -120,14 +120,16 @@ impl TransactionBuilder {
         } else if !self.in_progress.is_well_formed() {
             Err(TransactionBuildError::NotWellFormed)
         } else {
-            let was_covenant_creation_successful: Result<(), TransactionBuildError> = self.required_covenants.iter().try_for_each(|cov| {
-                let is_covenant_missing_from_given_covenants: bool = !self.given_covenants.contains(cov);
+            let was_covenant_creation_successful: Result<(), TransactionBuildError> =
+                self.required_covenants.iter().try_for_each(|cov| {
+                    let is_covenant_missing_from_given_covenants: bool =
+                        !self.given_covenants.contains(cov);
 
-                match is_covenant_missing_from_given_covenants {
-                    true => Err(TransactionBuildError::MissingCovenant(*cov)),
-                    false => Ok(()),
-                }
-            });
+                    match is_covenant_missing_from_given_covenants {
+                        true => Err(TransactionBuildError::MissingCovenant(*cov)),
+                        false => Ok(()),
+                    }
+                });
 
             match was_covenant_creation_successful {
                 Ok(()) => Ok(self.in_progress),
@@ -151,13 +153,15 @@ impl Default for TransactionBuilder {
 
 #[cfg(test)]
 mod tests {
+    use novasmt::{Database, InMemoryCas};
+
     use crate::{melvm::Covenant, GenesisConfig};
 
     use super::*;
 
     #[test]
     fn txbuilder_basic_balance() {
-        let forest = novasmt::Forest::new(novasmt::InMemoryBackend::default());
+        let forest = Database::new(InMemoryCas::default());
         let init_coindata = CoinData {
             denom: Denom::Mel,
             value: CoinValue::from_millions(1000u64),

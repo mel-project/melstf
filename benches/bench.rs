@@ -1,3 +1,4 @@
+use novasmt::InMemoryCas;
 use themelio_stf::{
     melvm::{Address, Covenant},
     CoinData, Denom, GenesisConfig, State, Transaction,
@@ -40,7 +41,7 @@ fn generate_txx(n: usize) -> Vec<Transaction> {
     toret
 }
 
-fn zerofee_state() -> State {
+fn zerofee_state() -> State<InMemoryCas> {
     let cfg = GenesisConfig {
         network: themelio_stf::NetID::Testnet,
         init_coindata: CoinData {
@@ -52,7 +53,7 @@ fn zerofee_state() -> State {
         stakes: Default::default(),
         init_fee_pool: 0.into(),
     };
-    let mut state = cfg.realize(&novasmt::Forest::new(novasmt::InMemoryBackend::default()));
+    let mut state = cfg.realize(&novasmt::Database::new(InMemoryCas::default()));
     state.fee_multiplier = 0;
     state
 }

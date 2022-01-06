@@ -4,10 +4,10 @@ pub(crate) mod melswap;
 mod poolkey;
 
 pub use crate::stake::*;
+use crate::state::applytx::StateHandle;
 use crate::{constants::*, melvm::Address, preseal_melmint, CoinDataHeight, Denom, TxHash};
 use crate::{smtmapping::*, BlockHeight, CoinData, CoinValue};
 use crate::{transaction::Transaction, CoinID};
-use crate::state::applytx::StateHandle;
 
 use std::fmt::Debug;
 use std::{collections::BTreeMap, convert::TryInto};
@@ -15,6 +15,7 @@ use std::{collections::BTreeSet, io::Read};
 
 use arbitrary::Arbitrary;
 use defmac::defmac;
+use novasmt::ContentAddrStore;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
@@ -80,23 +81,44 @@ pub enum NetID {
 }
 
 /// World state of the Themelio blockchain
-#[derive(Clone, Debug)]
-pub struct State {
+#[derive(Debug)]
+pub struct State<C: ContentAddrStore> {
     pub network: NetID,
 
     pub height: BlockHeight,
-    pub history: SmtMapping<BlockHeight, Header>,
-    pub coins: SmtMapping<CoinID, CoinDataHeight>,
-    pub transactions: SmtMapping<TxHash, Transaction>,
+    pub history: SmtMapping<C, BlockHeight, Header>,
+    pub coins: SmtMapping<C, CoinID, CoinDataHeight>,
+    pub transactions: SmtMapping<C, TxHash, Transaction>,
 
     pub fee_pool: CoinValue,
     pub fee_multiplier: u128,
     pub tips: CoinValue,
 
     pub dosc_speed: u128,
-    pub pools: PoolMapping,
+    pub pools: PoolMapping<C>,
 
-    pub stakes: StakeMapping,
+    pub stakes: StakeMapping<C>,
+}
+
+impl<C: ContentAddrStore> Clone for State<C> {
+    fn clone(&self) -> Self {
+        Self {
+            network: self.network,
+
+            height: self.height.clone(),
+            history: self.history.clone(),
+            coins: self.coins.clone(),
+            transactions: self.transactions.clone(),
+
+            fee_pool: self.fee_pool,
+            fee_multiplier: self.fee_multiplier,
+            tips: self.tips,
+
+            dosc_speed: self.dosc_speed,
+            pools: self.pools.clone(),
+            stakes: self.stakes.clone(),
+        }
+    }
 }
 
 fn read_bts(r: &mut impl Read, n: usize) -> Option<Vec<u8>> {
@@ -105,7 +127,7 @@ fn read_bts(r: &mut impl Read, n: usize) -> Option<Vec<u8>> {
     Some(buf)
 }
 
-impl State {
+impl<C: ContentAddrStore> State<C> {
     /// Returns true iff TIP 901 rule changes apply.
     pub fn tip_901(&self) -> bool {
         self.height >= TIP_901_HEIGHT
@@ -139,11 +161,14 @@ impl State {
     }
 
     /// Restores a state from its partial encoding in conjunction with a database. **Does not validate data and will panic; do not use on untrusted data**
-    pub fn from_partial_encoding_infallible(mut encoding: &[u8], db: &novasmt::Forest) -> Self {
+    pub fn from_partial_encoding_infallible(
+        mut encoding: &[u8],
+        db: &novasmt::Database<C>,
+    ) -> Self {
         defmac!(readu8 => u8::from_be_bytes(read_bts(&mut encoding, 1).unwrap().as_slice().try_into().unwrap()));
         defmac!(readu64 => u64::from_be_bytes(read_bts(&mut encoding, 8).unwrap().as_slice().try_into().unwrap()));
         defmac!(readu128 => u128::from_be_bytes(read_bts(&mut encoding, 16).unwrap().as_slice().try_into().unwrap()));
-        defmac!(readtree => SmtMapping::new(db.open_tree(
+        defmac!(readtree => SmtMapping::new(db.get_tree(
             read_bts(&mut encoding, 32).unwrap().as_slice().try_into().unwrap(),
         ).unwrap()));
         let network: NetID = readu8!().try_into().unwrap();
@@ -183,15 +208,6 @@ impl State {
         self.apply_tx_batch(std::slice::from_ref(tx))
     }
 
-    /// Saves all the SMTs to disk.
-    pub fn save_smts(&mut self) {
-        self.history.mapping.save();
-        self.coins.mapping.save();
-        self.pools.mapping.save();
-        self.transactions.mapping.save();
-        self.stakes.mapping.save();
-    }
-
     pub fn apply_tx_batch(&mut self, txx: &[Transaction]) -> Result<(), StateError> {
         let old_hash = self.coins.root_hash();
         StateHandle::new(self).apply_tx_batch(txx)?.commit();
@@ -205,7 +221,7 @@ impl State {
     }
 
     /// Finalizes a state into a block. This consumes the state.
-    pub fn seal(mut self, action: Option<ProposerAction>) -> SealedState {
+    pub fn seal(mut self, action: Option<ProposerAction>) -> SealedState<C> {
         // first apply melmint
         self = preseal_melmint(self);
         assert!(self.pools.val_iter().count() >= 2);
@@ -258,17 +274,12 @@ impl State {
 /// SealedState represents an immutable state at a finalized block height.
 /// It cannot be constructed except through sealing a State or restoring from persistent storage.
 #[derive(Clone, Debug)]
-pub struct SealedState(State, Option<ProposerAction>);
+pub struct SealedState<C: ContentAddrStore>(State<C>, Option<ProposerAction>);
 
-impl SealedState {
+impl<C: ContentAddrStore> SealedState<C> {
     /// Returns a reference to the State finalized within.
-    pub fn inner_ref(&self) -> &State {
+    pub fn inner_ref(&self) -> &State<C> {
         &self.0
-    }
-
-    /// Saves the inner state to disk.
-    pub fn save_smts(&mut self) {
-        self.0.save_smts()
     }
 
     /// Returns whether or not it's empty.
@@ -283,7 +294,7 @@ impl SealedState {
     }
 
     /// Decodes from the partial encoding.
-    pub fn from_partial_encoding_infallible(bts: &[u8], db: &novasmt::Forest) -> Self {
+    pub fn from_partial_encoding_infallible(bts: &[u8], db: &novasmt::Database<C>) -> Self {
         let tmp: (Vec<u8>, Option<ProposerAction>) = stdcode::deserialize(bts).unwrap();
         SealedState(State::from_partial_encoding_infallible(&tmp.0, db), tmp.1)
     }
@@ -333,8 +344,8 @@ impl SealedState {
         }
     }
     /// Creates a new unfinalized state representing the next block.
-    pub fn next_state(&self) -> State {
-        let mut new = self.inner_ref().clone();
+    pub fn next_state(&self) -> State<C> {
+        let mut new = State::clone(self.inner_ref());
         // fee variables
         new.history.insert(self.0.height, self.header());
         new.height += BlockHeight(1);
@@ -344,7 +355,7 @@ impl SealedState {
     }
 
     /// Applies a block to this state.
-    pub fn apply_block(&self, block: &Block) -> Result<SealedState, StateError> {
+    pub fn apply_block(&self, block: &Block) -> Result<SealedState<C>, StateError> {
         let mut basis = self.next_state();
         assert!(basis.pools.val_iter().count() >= 2);
         let transactions = block.transactions.iter().cloned().collect::<Vec<_>>();
@@ -376,8 +387,8 @@ impl SealedState {
     pub fn confirm(
         self,
         cproof: ConsensusProof,
-        _previous_state: Option<&State>,
-    ) -> Option<ConfirmedState> {
+        _previous_state: Option<&State<C>>,
+    ) -> Option<ConfirmedState<C>> {
         Some(ConfirmedState {
             state: self,
             cproof,
@@ -398,14 +409,14 @@ pub type ConsensusProof = BTreeMap<Ed25519PK, Vec<u8>>;
 
 /// ConfirmedState represents a fully confirmed state with a consensus proof.
 #[derive(Clone, Debug)]
-pub struct ConfirmedState {
-    state: SealedState,
+pub struct ConfirmedState<C: ContentAddrStore> {
+    state: SealedState<C>,
     cproof: ConsensusProof,
 }
 
-impl ConfirmedState {
+impl<C: ContentAddrStore> ConfirmedState<C> {
     /// Returns the wrapped finalized state
-    pub fn inner(&self) -> &SealedState {
+    pub fn inner(&self) -> &SealedState<C> {
         &self.state
     }
 
