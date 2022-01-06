@@ -2,6 +2,8 @@
 
 // use crate::testing::factory::*;
 
+use novasmt::{Database, InMemoryCas};
+
 use crate::SmtMapping;
 
 // // Add fuzz params ranges for rstest (range of num swaps, diff liquidity, etc...)
@@ -196,9 +198,9 @@ use crate::SmtMapping;
 // TODO: Create an integration/smp_mapping.rs integration test and move this there.
 #[test]
 fn smt_mapping() {
-    let db = novasmt::Forest::new(novasmt::InMemoryBackend::default());
-    let tree = db.open_tree(Default::default()).unwrap();
-    let mut map: SmtMapping<u64, u64> = SmtMapping::new(tree);
+    let db = Database::new(InMemoryCas::default());
+    let tree = db.get_tree(Default::default()).unwrap();
+    let mut map: SmtMapping<_, u64, u64> = SmtMapping::new(tree);
     for i in 0..10 {
         map.insert(i, i);
     }

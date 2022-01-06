@@ -6,7 +6,7 @@ use num::{rational::Ratio, BigInt, BigRational, BigUint};
 use serde::{Deserialize, Serialize};
 
 /// A pool
-pub type PoolMapping = SmtMapping<PoolKey, PoolState>;
+pub type PoolMapping<C> = SmtMapping<C, PoolKey, PoolState>;
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub struct PoolState {

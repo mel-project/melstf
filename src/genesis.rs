@@ -1,10 +1,11 @@
 use crate::{
-    melvm::Covenant, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID,
-    SmtMapping, stake::StakeDoc, State, TxHash, MICRO_CONVERTER,
+    melvm::Covenant, stake::StakeDoc, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue,
+    Denom, NetID, SmtMapping, State, TxHash, MICRO_CONVERTER,
 };
 
 use std::{collections::BTreeMap, convert::TryInto};
 
+use novasmt::ContentAddrStore;
 use serde::{Deserialize, Serialize};
 use tmelcrypt::{Ed25519PK, HashVal};
 
@@ -92,8 +93,8 @@ impl GenesisConfig {
     }
 
     /// Creates a [State] from this configuration.
-    pub fn realize(self, db: &novasmt::Forest) -> State {
-        let empty_tree = db.open_tree(HashVal::default().0).unwrap();
+    pub fn realize<C: ContentAddrStore>(self, db: &novasmt::Database<C>) -> State<C> {
+        let empty_tree = db.get_tree(HashVal::default().0).unwrap();
         let mut new_state = State {
             network: self.network,
             height: 0.into(),
@@ -101,7 +102,7 @@ impl GenesisConfig {
             coins: SmtMapping::new(empty_tree.clone()),
             transactions: SmtMapping::new(empty_tree.clone()),
             fee_pool: self.init_fee_pool,
-            fee_multiplier: MICRO_CONVERTER,
+            fee_multiplier: MICRO_CONVERTER, 
             tips: 0.into(),
 
             dosc_speed: MICRO_CONVERTER,
