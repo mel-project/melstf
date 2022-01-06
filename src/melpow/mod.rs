@@ -7,7 +7,7 @@ mod node;
 
 use crate::melpow::node::SVec;
 
-use std::convert::TryInto;
+use std::{convert::TryInto, sync::Arc};
 
 use rustc_hash::FxHashMap;
 
@@ -15,7 +15,7 @@ const PROOF_CERTAINTY: usize = 200;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// A MelPoW proof with an opaque representation that is guaranteed to be stable. It can be cloned relatively cheaply because it's internally reference counted.
-pub struct Proof(imbl::HashMap<node::Node, SVec<u8>>);
+pub struct Proof(Arc<FxHashMap<node::Node, SVec<u8>>>);
 
 impl Proof {
     /// Generates a MelPoW proof with respect to the given starting puzzle and a difficulty.
@@ -38,7 +38,7 @@ impl Proof {
             }
         });
 
-        Proof(proof_map.into_iter().collect())
+        Proof(proof_map.into())
     }
 
     /// Verifies a MelPoW proof.
@@ -53,6 +53,7 @@ impl Proof {
             let gammas = gen_gammas(puzzle, difficulty);
             let phi = self.0[&node::Node::new_zero()].clone();
             let mut temp_map = self.0.clone();
+            let temp_map = Arc::make_mut(&mut temp_map);
 
             gammas.iter().for_each(|gamma| {
                 match self.0.get(gamma) {
@@ -70,7 +71,7 @@ impl Proof {
                                     output = false;
 
                                     None
-                                },
+                                }
                                 Some(parlab) => {
                                     hasher.add(parlab);
 
@@ -126,7 +127,7 @@ impl Proof {
         if bts.len() % unit_size != 0 {
             None
         } else {
-            let mut omap = imbl::HashMap::new();
+            let mut omap = FxHashMap::default();
             while !bts.is_empty() {
                 let nd = node::Node::from_bytes(&bts[0..8])?;
                 let lab = SVec::from_slice(&bts[8..32 + 8]);
@@ -134,7 +135,7 @@ impl Proof {
                 bts = &bts[unit_size..]
             }
 
-            Some(Proof(omap))
+            Some(Proof(omap.into()))
         }
     }
 }

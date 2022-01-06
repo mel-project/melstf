@@ -13,6 +13,7 @@ use dashmap::DashMap;
 use novasmt::ContentAddrStore;
 use parking_lot::Mutex;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rustc_hash::FxHashMap;
 use tmelcrypt::HashVal;
 
 /// A mutable "handle" to a particular State. Can be "committed" like a database transaction.
@@ -165,7 +166,7 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
 
         let scripts = tx.script_as_map();
         // build a map of input coins
-        let mut in_coins: imbl::HashMap<Denom, CoinValue> = imbl::HashMap::new();
+        let mut in_coins: FxHashMap<Denom, CoinValue> = FxHashMap::default();
         // get last header
         let last_header = self
             .state

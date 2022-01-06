@@ -9,14 +9,15 @@ use crate::{constants::*, melvm::Address, preseal_melmint, CoinDataHeight, Denom
 use crate::{smtmapping::*, BlockHeight, CoinData, CoinValue};
 use crate::{transaction::Transaction, CoinID};
 
-use std::fmt::Debug;
 use std::{collections::BTreeMap, convert::TryInto};
 use std::{collections::BTreeSet, io::Read};
+use std::{collections::HashSet, fmt::Debug};
 
 use arbitrary::Arbitrary;
 use defmac::defmac;
 use novasmt::ContentAddrStore;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use thiserror::Error;
@@ -327,7 +328,7 @@ impl<C: ContentAddrStore> SealedState<C> {
 
     /// Returns the final state represented as a "block" (header + transactions).
     pub fn to_block(&self) -> Block {
-        let mut txx = imbl::HashSet::new();
+        let mut txx = HashSet::default();
         self.0.transactions.val_iter().for_each(|tx| {
             txx.insert(tx);
         });
@@ -453,7 +454,7 @@ impl Header {
 /// A (serialized) block.
 pub struct Block {
     pub header: Header,
-    pub transactions: imbl::HashSet<Transaction>,
+    pub transactions: HashSet<Transaction>,
     pub proposer_action: Option<ProposerAction>,
 }
 
