@@ -2,7 +2,7 @@ cargo-features=["edition2021"]
 
 [package]
 name = "themelio-stf"
-version = "0.7.0-alpha.0"
+version = "0.7.1-alpha.0"
 authors = ["Themelio Labs"]
 edition = "2021"
 
@@ -69,6 +69,8 @@ logos = "0.12.0"
 rand = "0.8.4"
 criterion = "0.3.5"
 quanta = "0.9.3"
+once_cell="1"
+ordered-float="1"
 
 
 [[bench]]
