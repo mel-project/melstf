@@ -161,6 +161,27 @@ impl<C: ContentAddrStore> State<C> {
         out
     }
 
+    /// Restores a state from a header, in conjunction with a database. **Does not validate data and will panic; do not use on untrusted data**
+    pub fn from_header_infallible(header: Header, db: &novasmt::Database<C>) -> Self {
+        defmac!(readtree hash => SmtMapping::new(db.get_tree(hash.0).unwrap()));
+        State {
+            network: header.network,
+            height: header.height,
+            history: readtree!(header.history_hash),
+            coins: readtree!(header.coins_hash),
+            transactions: readtree!(header.transactions_hash),
+
+            fee_pool: header.fee_pool,
+            fee_multiplier: header.fee_multiplier,
+            tips: 0.into(),
+
+            dosc_speed: header.dosc_speed,
+            pools: readtree!(header.pools_hash),
+
+            stakes: readtree!(header.stakes_hash),
+        }
+    }
+
     /// Restores a state from its partial encoding in conjunction with a database. **Does not validate data and will panic; do not use on untrusted data**
     pub fn from_partial_encoding_infallible(
         mut encoding: &[u8],
