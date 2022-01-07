@@ -61,6 +61,8 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
 
     /// Applies a batch of transactions, returning an error if any of them fail. Consumes and re-returns the handle; if any fail the handle is gone.
     pub fn apply_tx_batch(mut self, txx: &[Transaction]) -> Result<Self, StateError> {
+        // Create a little copy of the state to try the batch in
+        let mut state_copy = self.state.clone();
         let was_batch_successful: Result<(), crate::state::StateError> =
             txx.iter().try_for_each(|tx| {
                 let is_transaction_a_faucet: bool = tx.kind == TxKind::Faucet;
@@ -68,10 +70,10 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
                 if is_transaction_a_faucet {
                     let pseudocoin = faucet_dedup_pseudocoin(tx.hash_nosigs());
 
-                    if self.state.coins.get(&pseudocoin).0.is_some() {
+                    if state_copy.coins.get(&pseudocoin).0.is_some() {
                         Err(StateError::DuplicateTx)
                     } else {
-                        self.state.coins.insert(
+                        state_copy.coins.insert(
                             pseudocoin,
                             CoinDataHeight {
                                 coin_data: CoinData {
@@ -96,6 +98,7 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
                     self.apply_tx_fees(tx)
                 }
             });
+        *self.state = state_copy;
 
         match was_batch_successful {
             Ok(()) => {
