@@ -61,61 +61,47 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
 
     /// Applies a batch of transactions, returning an error if any of them fail. Consumes and re-returns the handle; if any fail the handle is gone.
     pub fn apply_tx_batch(mut self, txx: &[Transaction]) -> Result<Self, StateError> {
-        // Create a little copy of the state to try the batch in
-        let mut state_copy = self.state.clone();
-        let was_batch_successful: Result<(), crate::state::StateError> =
-            txx.iter().try_for_each(|tx| {
-                let is_transaction_a_faucet: bool = tx.kind == TxKind::Faucet;
-
-                if is_transaction_a_faucet {
-                    let pseudocoin = faucet_dedup_pseudocoin(tx.hash_nosigs());
-
-                    if state_copy.coins.get(&pseudocoin).0.is_some() {
-                        return Err(StateError::DuplicateTx);
-                    } else {
-                        state_copy.coins.insert(
-                            pseudocoin,
-                            CoinDataHeight {
-                                coin_data: CoinData {
-                                    denom: Denom::Mel,
-                                    value: 0.into(),
-                                    additional_data: vec![],
-                                    covhash: HashVal::default().into(),
-                                },
-                                height: 0.into(),
-                            },
-                        );
-                    }
-                } else if !tx.is_well_formed() {
-                    return Err(StateError::MalformedTx);
-                } else if is_transaction_a_faucet && self.state.network == NetID::Mainnet {
-                    return Err(StateError::UnbalancedInOut);
+        for tx in txx.iter() {
+            if tx.kind == TxKind::Faucet {
+                let pseudocoin = faucet_dedup_pseudocoin(tx.hash_nosigs());
+                if self.state.coins.get(&pseudocoin).0.is_some() {
+                    return Err(StateError::DuplicateTx);
                 } else {
-                    self.apply_tx_fees(tx)?
+                    self.state.coins.insert(
+                        pseudocoin,
+                        CoinDataHeight {
+                            coin_data: CoinData {
+                                denom: Denom::Mel,
+                                value: 0.into(),
+                                additional_data: vec![],
+                                covhash: HashVal::default().into(),
+                            },
+                            height: 0.into(),
+                        },
+                    );
                 }
-                self.transactions_cache.insert(tx.hash_nosigs(), tx.clone());
-                Ok(())
-            });
-        *self.state = state_copy;
-
-        match was_batch_successful {
-            Ok(()) => {
-                // apply specials in parallel
-                txx.par_iter()
-                    .filter(|tx| tx.kind != TxKind::Normal && tx.kind != TxKind::Faucet)
-                    .map(|tx| self.apply_tx_special(tx))
-                    .collect::<Result<_, _>>()?;
-                // apply outputs in parallel
-                txx.par_iter().for_each(|tx| self.apply_tx_outputs(tx));
-                // apply inputs in parallel
-                txx.par_iter()
-                    .map(|tx| self.apply_tx_inputs(tx))
-                    .collect::<Result<_, _>>()?;
-
-                Ok(self)
             }
-            Err(error) => Err(error),
+            if !tx.is_well_formed() {
+                return Err(StateError::MalformedTx);
+            }
+            if tx.kind == TxKind::Faucet && self.state.network == NetID::Mainnet {
+                return Err(StateError::UnbalancedInOut);
+            }
+            self.transactions_cache.insert(tx.hash_nosigs(), tx.clone());
+            self.apply_tx_fees(tx)?;
         }
+        // apply specials in parallel
+        txx.par_iter()
+            .filter(|tx| tx.kind != TxKind::Normal && tx.kind != TxKind::Faucet)
+            .map(|tx| self.apply_tx_special(tx))
+            .collect::<Result<_, _>>()?;
+        // apply outputs in parallel
+        txx.par_iter().for_each(|tx| self.apply_tx_outputs(tx));
+        // apply inputs in parallel
+        txx.par_iter()
+            .map(|tx| self.apply_tx_inputs(tx))
+            .collect::<Result<_, _>>()?;
+        Ok(self)
     }
 
     /// Commits all the changes in this handle, at once.
@@ -172,111 +158,69 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
         let last_header = self
             .state
             .history
-            .get(&BlockHeight(self.state.height.0.saturating_sub(1)))
+            .get(&(self.state.height.0.saturating_sub(1).into()))
             .0
             .unwrap_or_else(|| self.state.clone().seal(None).header());
-
         // iterate through the inputs
-        let were_inputs_successful: Result<(), StateError> = tx
-            .inputs
-            .iter()
-            .enumerate()
-            .try_for_each(|(spend_idx, coin_id)| {
-                if self.get_stake(coin_id.txhash).is_some() && coin_id.index == 0 {
-                    // only the first output is locked
-                    Err(StateError::CoinLocked)
-                } else {
-                    let coin_data = self.get_coin(*coin_id);
-
-                    match coin_data {
-                        None => Err(StateError::NonexistentCoin(*coin_id)),
-                        Some(coin_data) => {
-                            log::trace!(
-                                "coin_data {:?} => {:?} for txid {:?}",
-                                coin_id,
-                                coin_data,
-                                tx.hash_nosigs()
-                            );
-                            let script = scripts.get(&coin_data.coin_data.covhash).ok_or(
-                                StateError::NonexistentScript(coin_data.coin_data.covhash),
-                            )?;
-
-                            let was_check_an_error: bool = !script.check(
-                                tx,
-                                CovenantEnv {
-                                    parent_coinid: coin_id,
-                                    parent_cdh: &coin_data,
-                                    spender_index: spend_idx as u8,
-                                    last_header: &last_header,
-                                },
-                            );
-
-                            if was_check_an_error {
-                                Err(StateError::ViolatesScript(coin_data.coin_data.covhash))
-                            } else {
-                                self.del_coin(*coin_id);
-
-                                in_coins.insert(
-                                    coin_data.coin_data.denom,
-                                    in_coins
-                                        .get(&coin_data.coin_data.denom)
-                                        .cloned()
-                                        .unwrap_or_else(|| 0u128.into())
-                                        + coin_data.coin_data.value,
-                                );
-
-                                Ok(())
-                            }
-                        }
+        for (spend_idx, coin_id) in tx.inputs.iter().enumerate() {
+            if self.get_stake(coin_id.txhash).is_some() {
+                return Err(StateError::CoinLocked);
+            }
+            let coin_data = self.get_coin(*coin_id);
+            match coin_data {
+                None => return Err(StateError::NonexistentCoin(*coin_id)),
+                Some(coin_data) => {
+                    log::trace!(
+                        "coin_data {:?} => {:?} for txid {:?}",
+                        coin_id,
+                        coin_data,
+                        tx.hash_nosigs()
+                    );
+                    let script = scripts
+                        .get(&coin_data.coin_data.covhash)
+                        .ok_or(StateError::NonexistentScript(coin_data.coin_data.covhash))?;
+                    if !script.check(
+                        tx,
+                        CovenantEnv {
+                            parent_coinid: coin_id,
+                            parent_cdh: &coin_data,
+                            spender_index: spend_idx as u8,
+                            last_header: &last_header,
+                        },
+                    ) {
+                        return Err(StateError::ViolatesScript(coin_data.coin_data.covhash));
                     }
-                }
-            });
-
-        match were_inputs_successful {
-            Err(error) => Err(error),
-            Ok(()) => {
-                // balance inputs and outputs. ignore outputs with empty cointype (they create a new token kind)
-                let out_coins = tx.total_outputs();
-
-                let is_transaction_not_a_faucet: bool = tx.kind != TxKind::Faucet;
-
-                if is_transaction_not_a_faucet {
-                    out_coins.iter().try_for_each(|(currency, value)| {
-                        // we skip the created doscs for a DoscMint transaction
-                        let is_transaction_a_dosc: bool =
-                            tx.kind == TxKind::DoscMint && *currency == Denom::NomDosc;
-
-                        if !is_transaction_a_dosc {
-                            let in_value = in_coins
-                                .get(currency)
-                                .copied()
-                                .unwrap_or_else(|| u128::MAX.into());
-
-                            let unbalanced_check: bool =
-                                *currency != Denom::NewCoin && *value != in_value;
-
-                            if unbalanced_check {
-                                log::warn!(
-                                    "unbalanced: {} {:?} in, {} {:?} out",
-                                    in_value,
-                                    currency,
-                                    value,
-                                    currency
-                                );
-
-                                Err(StateError::UnbalancedInOut)
-                            } else {
-                                Ok(())
-                            }
-                        } else {
-                            Ok(())
-                        }
-                    })
-                } else {
-                    Ok(())
+                    self.del_coin(*coin_id);
+                    in_coins.insert(
+                        coin_data.coin_data.denom,
+                        in_coins.get(&coin_data.coin_data.denom).unwrap_or(&0)
+                            + coin_data.coin_data.value.0,
+                    );
                 }
             }
         }
+        // balance inputs and outputs. ignore outputs with empty cointype (they create a new token kind)
+        let out_coins = tx.total_outputs();
+        if tx.kind != TxKind::Faucet {
+            for (currency, value) in out_coins.iter() {
+                // we skip the created doscs for a DoscMint transaction
+                if tx.kind == TxKind::DoscMint && *currency == Denom::NomDosc {
+                    continue;
+                }
+                let in_value = *in_coins.get(currency).unwrap_or(&u128::MAX);
+                if *currency != Denom::NewCoin && *value != CoinValue(in_value) {
+                    log::warn!(
+                        "unbalanced: {} {:?} in, {} {:?} out",
+                        in_value,
+                        currency,
+                        value,
+                        currency
+                    );
+                    return Err(StateError::UnbalancedInOut);
+                }
+            }
+        }
+        Ok(())
     }
 
     fn apply_tx_fees(&mut self, tx: &Transaction) -> Result<(), StateError> {
@@ -391,14 +335,6 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
         let first_coin = tx.outputs.get(0).ok_or(StateError::MalformedTx)?;
 
         let is_first_coin_not_a_sym: bool = first_coin.denom != Denom::Sym;
-
-        // Are we operating under OLD BUGGY RULES?
-        if (self.state.network == NetID::Mainnet || self.state.network == NetID::Testnet)
-            && self.state.height.0 < 500000
-        {
-            log::warn!("LETTING THROUGH BAD STAKING TRANSACTION UNDER OLD BUGGY RULES");
-            return Ok(());
-        }
 
         if is_first_coin_not_a_sym {
             Err(StateError::MalformedTx)
