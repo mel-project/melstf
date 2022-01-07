@@ -71,7 +71,7 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
                     let pseudocoin = faucet_dedup_pseudocoin(tx.hash_nosigs());
 
                     if state_copy.coins.get(&pseudocoin).0.is_some() {
-                        Err(StateError::DuplicateTx)
+                        return Err(StateError::DuplicateTx);
                     } else {
                         state_copy.coins.insert(
                             pseudocoin,
@@ -85,18 +85,16 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
                                 height: 0.into(),
                             },
                         );
-
-                        Ok(())
                     }
                 } else if !tx.is_well_formed() {
-                    Err(StateError::MalformedTx)
+                    return Err(StateError::MalformedTx);
                 } else if is_transaction_a_faucet && self.state.network == NetID::Mainnet {
-                    Err(StateError::UnbalancedInOut)
+                    return Err(StateError::UnbalancedInOut);
                 } else {
-                    self.transactions_cache.insert(tx.hash_nosigs(), tx.clone());
-
-                    self.apply_tx_fees(tx)
+                    self.apply_tx_fees(tx)?
                 }
+                self.transactions_cache.insert(tx.hash_nosigs(), tx.clone());
+                Ok(())
             });
         *self.state = state_copy;
 
