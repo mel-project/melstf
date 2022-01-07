@@ -51,6 +51,7 @@ stdcode = "0.1.4"
 tap = "1.0.1"
 thiserror = "1.0.30"
 tmelcrypt = "0.2.3"
+derivative = "2.2.0"
 
 [target.'cfg(fuzzing)'.dependencies]
 honggfuzz = "0.5.54"

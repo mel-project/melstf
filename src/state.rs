@@ -15,9 +15,9 @@ use std::{collections::HashSet, fmt::Debug};
 
 use arbitrary::Arbitrary;
 use defmac::defmac;
+use derivative::Derivative;
 use novasmt::ContentAddrStore;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use thiserror::Error;
@@ -274,7 +274,8 @@ impl<C: ContentAddrStore> State<C> {
 
 /// SealedState represents an immutable state at a finalized block height.
 /// It cannot be constructed except through sealing a State or restoring from persistent storage.
-#[derive(Clone, Debug)]
+#[derive(Derivative, Debug)]
+#[derivative(Clone(bound = ""))]
 pub struct SealedState<C: ContentAddrStore>(State<C>, Option<ProposerAction>);
 
 impl<C: ContentAddrStore> SealedState<C> {
@@ -398,7 +399,7 @@ impl<C: ContentAddrStore> SealedState<C> {
 }
 
 /// ProposerAction describes the standard action that the proposer takes when proposing a block.
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Derivative, Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq)]
 pub struct ProposerAction {
     /// Change in fee. This is scaled to the proper size.
     pub fee_multiplier_delta: i8,
@@ -409,7 +410,8 @@ pub struct ProposerAction {
 pub type ConsensusProof = BTreeMap<Ed25519PK, Vec<u8>>;
 
 /// ConfirmedState represents a fully confirmed state with a consensus proof.
-#[derive(Clone, Debug)]
+#[derive(Derivative, Debug)]
+#[derivative(Clone(bound = ""))]
 pub struct ConfirmedState<C: ContentAddrStore> {
     state: SealedState<C>,
     cproof: ConsensusProof,
