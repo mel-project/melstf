@@ -153,7 +153,7 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
 
         let scripts = tx.script_as_map();
         // build a map of input coins
-        let mut in_coins: FxHashMap<Denom, CoinValue> = FxHashMap::default();
+        let mut in_coins: FxHashMap<Denom, u128> = FxHashMap::default();
         // get last header
         let last_header = self
             .state
