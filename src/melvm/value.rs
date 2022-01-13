@@ -6,7 +6,7 @@ use crate::{CoinData, CoinDataHeight, CoinID, Denom, Header, HexBytes, Transacti
 
 use super::Covenant;
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Value {
     Int(U256),
     Bytes(CatVec<u8, 256>),

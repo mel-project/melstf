@@ -28,6 +28,7 @@ pub(crate) const OPCODE_SUB: u8 = 0x11;
 pub(crate) const OPCODE_MUL: u8 = 0x12;
 pub(crate) const OPCODE_DIV: u8 = 0x13;
 pub(crate) const OPCODE_REM: u8 = 0x14;
+pub(crate) const OPCODE_EXP: u8 = 0x15;
 
 pub(crate) const OPCODE_AND: u8 = 0x20;
 pub(crate) const OPCODE_OR: u8 = 0x21;

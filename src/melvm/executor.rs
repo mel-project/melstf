@@ -206,6 +206,33 @@ impl Executor {
 
                         Some(Value::Int(x.into_int()?.checked_div(y.into_int()?)?))
                     })?,
+                OpCode::Exp(k) => self
+                    .do_binop(|b, e| {
+                        log::trace!("Exponentiation, Base: {:?}", &b);
+                        log::trace!("Exponentiation, Exponent: {:?}", &e);
+
+                        let mut e = e.into_int()?;
+                        let mut b = b.into_int()?;
+
+                        let mut res: U256 = U256::ONE;
+                        let mut k: u16 = (k as u16)+1;
+
+                        // Exponentiate by squaring
+                        while e > U256::ZERO {
+                            // If k runs out then exponent has more bits than claimed in the
+                            // bytecode, this is a failure in the vm.
+                            k = k.checked_sub(1)?;
+
+                            if e & U256::ONE == U256::ONE {
+                                res = res.overflowing_mul(b).0;
+                            }
+                            b = b.overflowing_mul(b).0;
+
+                            e >>= 1;
+                        }
+
+                        Some(Value::Int(res))
+                    })?,
                 OpCode::Rem => self
                     .do_binop(|x, y| {
                         log::trace!("Remainder, First: {:?}", &x);
