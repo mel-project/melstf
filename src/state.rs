@@ -1,4 +1,5 @@
 mod applytx;
+mod coins;
 pub(crate) mod melmint;
 pub(crate) mod melswap;
 mod poolkey;
@@ -26,6 +27,8 @@ use tmelcrypt::{Ed25519PK, HashVal};
 use crate::state::melswap::PoolMapping;
 
 pub use poolkey::PoolKey;
+
+pub use self::coins::CoinMapping;
 
 #[derive(Error, Debug)]
 /// A error that happens while applying a transaction to a state
@@ -88,7 +91,7 @@ pub struct State<C: ContentAddrStore> {
 
     pub height: BlockHeight,
     pub history: SmtMapping<C, BlockHeight, Header>,
-    pub coins: SmtMapping<C, CoinID, CoinDataHeight>,
+    pub coins: CoinMapping<C>,
     pub transactions: SmtMapping<C, TxHash, Transaction>,
 
     pub fee_pool: CoinValue,
@@ -141,6 +144,12 @@ impl<C: ContentAddrStore> State<C> {
             || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
     }
 
+    /// Returns true iff TIP 906 rule changes apply.
+    pub fn tip_906(&self) -> bool {
+        self.height >= TIP_906_HEIGHT
+            || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
+    }
+
     /// Generates an encoding of the state that, in conjunction with a SMT database, can recover the entire state.
     pub fn partial_encoding(&self) -> Vec<u8> {
         let mut out = Vec::new();
@@ -168,7 +177,7 @@ impl<C: ContentAddrStore> State<C> {
             network: header.network,
             height: header.height,
             history: readtree!(header.history_hash),
-            coins: readtree!(header.coins_hash),
+            coins: CoinMapping::new(db.get_tree(header.coins_hash.0).unwrap()),
             transactions: readtree!(header.transactions_hash),
 
             fee_pool: header.fee_pool,
@@ -196,7 +205,15 @@ impl<C: ContentAddrStore> State<C> {
         let network: NetID = readu8!().try_into().unwrap();
         let height = readu64!();
         let history = readtree!();
-        let coins = readtree!();
+        let coins = db
+            .get_tree(
+                read_bts(&mut encoding, 32)
+                    .unwrap()
+                    .as_slice()
+                    .try_into()
+                    .unwrap(),
+            )
+            .unwrap();
         let transactions = readtree!();
 
         let fee_pool = readu128!();
@@ -211,7 +228,7 @@ impl<C: ContentAddrStore> State<C> {
             network,
             height: height.into(),
             history,
-            coins,
+            coins: CoinMapping::new(coins),
             transactions,
 
             fee_pool: fee_pool.into(),
@@ -231,13 +248,13 @@ impl<C: ContentAddrStore> State<C> {
     }
 
     pub fn apply_tx_batch(&mut self, txx: &[Transaction]) -> Result<(), StateError> {
-        let old_hash = self.coins.root_hash();
+        let old_hash = HashVal(self.coins.inner().root_hash());
         StateHandle::new(self).apply_tx_batch(txx)?.commit();
         log::debug!(
             "applied a batch of {} txx to {:?} => {:?}",
             txx.len(),
             old_hash,
-            self.coins.root_hash()
+            HashVal(self.coins.inner().root_hash())
         );
         Ok(())
     }
@@ -286,7 +303,8 @@ impl<C: ContentAddrStore> State<C> {
                 height: self.height,
             };
             // insert the fake coin
-            self.coins.insert(pseudocoin_id, pseudocoin_data);
+            self.coins
+                .insert_coin(pseudocoin_id, pseudocoin_data, self.tip_906());
         }
         // create the finalized state
         SealedState(self, action)

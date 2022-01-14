@@ -1,6 +1,6 @@
 use crate::{
-    melvm::Covenant, stake::StakeDoc, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue,
-    Denom, NetID, SmtMapping, State, TxHash, MICRO_CONVERTER,
+    melvm::Covenant, stake::StakeDoc, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinMapping,
+    CoinValue, Denom, NetID, SmtMapping, State, TxHash, MICRO_CONVERTER,
 };
 
 use std::{collections::BTreeMap, convert::TryInto};
@@ -99,10 +99,10 @@ impl GenesisConfig {
             network: self.network,
             height: 0.into(),
             history: SmtMapping::new(empty_tree.clone()),
-            coins: SmtMapping::new(empty_tree.clone()),
+            coins: CoinMapping::new(empty_tree.clone()),
             transactions: SmtMapping::new(empty_tree.clone()),
             fee_pool: self.init_fee_pool,
-            fee_multiplier: MICRO_CONVERTER, 
+            fee_multiplier: MICRO_CONVERTER,
             tips: 0.into(),
 
             dosc_speed: MICRO_CONVERTER,
@@ -118,12 +118,13 @@ impl GenesisConfig {
             },
         };
         // init micromels etc
-        new_state.coins.insert(
+        new_state.coins.insert_coin(
             CoinID::zero_zero(),
             CoinDataHeight {
                 height: BlockHeight(0),
                 coin_data: self.init_coindata,
             },
+            new_state.tip_906(),
         );
         new_state
     }

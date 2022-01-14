@@ -119,7 +119,7 @@ fn process_swaps<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
         .val_iter()
         .filter_map(|tx| {
             (!tx.outputs.is_empty()).then(|| ())?; // ensure not empty
-            state.coins.get(&tx.output_coinid(0)).0?; // ensure that first output is unspent
+            state.coins.get_coin(tx.output_coinid(0))?; // ensure that first output is unspent
             let pool_key = PoolKey::from_bytes(&tx.data)?; // ensure that data contains a pool key
             state.pools.get(&pool_key).0?; // ensure that pool key points to a valid pool
             (tx.outputs[0].denom == pool_key.left || tx.outputs[0].denom == pool_key.right)
@@ -191,12 +191,13 @@ fn process_swaps<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
                 ))
                 .min(MAX_COINVAL);
             }
-            state.coins.insert(
+            state.coins.insert_coin(
                 correct_coinid,
                 CoinDataHeight {
                     coin_data: swap.outputs[0].clone(),
                     height: state.height,
                 },
+                state.tip_906(),
             );
         });
 
@@ -215,8 +216,8 @@ fn process_deposits<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
         .filter_map(|tx| {
             (tx.kind == TxKind::LiqDeposit
                 && tx.outputs.len() >= 2
-                && state.coins.get(&tx.output_coinid(0)).0.is_some()
-                && state.coins.get(&tx.output_coinid(1)).0.is_some())
+                && state.coins.get_coin(tx.output_coinid(0)).is_some()
+                && state.coins.get_coin(tx.output_coinid(1)).is_some())
             .then(|| ())?;
             let pool_key = PoolKey::from_bytes(&tx.data)?;
             (tx.outputs[0].denom == pool_key.left && tx.outputs[1].denom == pool_key.right)
@@ -275,14 +276,17 @@ fn process_deposits<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
             deposit.outputs[0].denom = pool.liq_token_denom();
             deposit.outputs[0].value =
                 multiply_frac(total_liqs, Ratio::new(my_mtsqrt, total_mtsqrt)).into();
-            state.coins.insert(
+            state.coins.insert_coin(
                 correct_coinid,
                 CoinDataHeight {
                     coin_data: deposit.outputs[0].clone(),
                     height: state.height,
                 },
+                state.tip_906(),
             );
-            state.coins.delete(&deposit.output_coinid(1));
+            state
+                .coins
+                .remove_coin(deposit.output_coinid(1), state.tip_906());
         });
     });
 
@@ -298,7 +302,7 @@ fn process_withdrawals<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
         .filter_map(|tx| {
             (tx.kind == TxKind::LiqWithdraw
                 && tx.outputs.len() == 1
-                && state.coins.get(&tx.output_coinid(0)).0.is_some())
+                && state.coins.get_coin(tx.output_coinid(0)).is_some())
             .then(|| ())?;
             let pool_key = PoolKey::from_bytes(&tx.data)?;
             state.pools.get(&pool_key).0?;
@@ -347,19 +351,21 @@ fn process_withdrawals<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
                 additional_data: deposit.outputs[0].additional_data.clone(),
             };
 
-            state.coins.insert(
+            state.coins.insert_coin(
                 coinid_0,
                 CoinDataHeight {
                     coin_data: deposit.outputs[0].clone(),
                     height: state.height,
                 },
+                state.tip_906(),
             );
-            state.coins.insert(
+            state.coins.insert_coin(
                 coinid_1,
                 CoinDataHeight {
                     coin_data: synth,
                     height: state.height,
                 },
+                state.tip_906(),
             );
         });
     });

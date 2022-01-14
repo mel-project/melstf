@@ -54,7 +54,7 @@ pub fn create_state(
     // Insert a mel coin into state so we can transact
     let start_micromels: CoinValue = CoinValue(10000);
     let start_conshash: Address = Covenant::always_true().hash();
-    state.coins.insert(
+    state.coins.insert_coin(
         CoinID {
             txhash: tmelcrypt::HashVal([0; 32]).into(),
             index: 0,
@@ -68,6 +68,7 @@ pub fn create_state(
             },
             height: 0.into(),
         },
+        state.tip_906(),
     );
 
     // Insert data need for staking proofs
@@ -103,9 +104,11 @@ pub fn genesis_state(
     let mut state = GenesisConfig::std_testnet().realize(&DB);
 
     // insert initial mel coin supply
-    state
-        .coins
-        .insert(genesis_mel_coin_id, genesis_mel_coin_data_height);
+    state.coins.insert_coin(
+        genesis_mel_coin_id,
+        genesis_mel_coin_data_height,
+        state.tip_906(),
+    );
 
     // Insert stake holders
     for (i, (&keypair, &syms_staked)) in genesis_stakeholders.iter().enumerate() {
