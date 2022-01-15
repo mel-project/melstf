@@ -17,7 +17,7 @@ use derivative::Derivative;
 use novasmt::ContentAddrStore;
 use themelio_structs::{
     Address, Block, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, Header, NetID,
-    ProposerAction, Transaction, TxHash, STAKE_EPOCH, TIP_901_HEIGHT,
+    ProposerAction, Transaction, TxHash, STAKE_EPOCH, TIP_901_HEIGHT, TIP_902_HEIGHT,
 };
 use thiserror::Error;
 use tmelcrypt::{Ed25519PK, HashVal};
@@ -111,14 +111,15 @@ impl<C: ContentAddrStore> State<C> {
 
     /// Returns true iff TIP 902 rule changes apply.
     pub fn tip_902(&self) -> bool {
-        self.height >= TIP_901_HEIGHT
+        self.height >= TIP_902_HEIGHT
             || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
     }
 
     /// Returns true iff TIP 906 rule changes apply.
     pub fn tip_906(&self) -> bool {
-        self.height >= TIP_901_HEIGHT
-            || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
+        false
+        // self.height >= TIP_901_HEIGHT
+        //     || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
     }
 
     /// Generates an encoding of the state that, in conjunction with a SMT database, can recover the entire state.
