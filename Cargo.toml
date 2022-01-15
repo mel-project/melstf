@@ -52,6 +52,7 @@ tap = "1.0.1"
 thiserror = "1.0.30"
 tmelcrypt = "0.2.4"
 derivative = "2.2.0"
+themelio-structs="0.1.1"
 
 [target.'cfg(fuzzing)'.dependencies]
 honggfuzz = "0.5.54"

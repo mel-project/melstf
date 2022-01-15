@@ -1,7 +1,7 @@
-use crate::{melvm::Address, CoinDataHeight, CoinID};
 use derivative::Derivative;
 use novasmt::ContentAddrStore;
 use stdcode::StdcodeSerializeExt;
+use themelio_structs::{Address, CoinDataHeight, CoinID};
 use tmelcrypt::{HashVal, Hashable};
 
 /// A mapping that contains the coins, exposing a safeish API for the rest of the crate.

@@ -1,5 +1,8 @@
-use crate::testing::constants::{DB, GENESIS_EPOCH_POST_END, GENESIS_EPOCH_START};
-use crate::testing::utils::random_valid_txx;
+use crate::{
+    testing::constants::{DB, GENESIS_EPOCH_POST_END, GENESIS_EPOCH_START},
+    State,
+};
+use crate::{testing::utils::random_valid_txx, GenesisConfig};
 
 // const GENESIS_MEL_SUPPLY: u128 = 21_000_000;
 // const GENESIS_NUM_STAKERS: u64 = 10;
@@ -8,15 +11,15 @@ use crate::testing::utils::random_valid_txx;
 // const GENESIS_STAKER_WEIGHT: u128 = 100;
 // pub const SEND_MEL_AMOUNT: u128 = 30_000_000_000;
 
-use crate::melvm::{Address, Covenant};
-use crate::{
-    CoinData, CoinDataHeight, CoinID, CoinValue, Denom, GenesisConfig, StakeDoc, State,
-    Transaction, MICRO_CONVERTER,
-};
+use crate::melvm::Covenant;
 
 use std::collections::HashMap;
 
 use novasmt::{Database, InMemoryCas};
+use themelio_structs::{
+    Address, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, StakeDoc, Transaction,
+    MICRO_CONVERTER,
+};
 use tmelcrypt::{Ed25519PK, Ed25519SK};
 
 pub fn valid_txx(keypair: (Ed25519PK, Ed25519SK)) -> Vec<Transaction> {

@@ -4,23 +4,21 @@ pub(crate) mod melmint;
 pub(crate) mod melswap;
 mod poolkey;
 
+use crate::smtmapping::*;
 pub use crate::stake::*;
 use crate::state::applytx::StateHandle;
-use crate::{constants::*, melvm::Address, preseal_melmint, CoinDataHeight, Denom, TxHash};
-use crate::{smtmapping::*, BlockHeight, CoinData, CoinValue};
-use crate::{transaction::Transaction, CoinID};
 
+use std::io::Read;
 use std::{collections::BTreeMap, convert::TryInto};
-use std::{collections::BTreeSet, io::Read};
 use std::{collections::HashSet, fmt::Debug};
 
-use arbitrary::Arbitrary;
 use defmac::defmac;
 use derivative::Derivative;
 use novasmt::ContentAddrStore;
-use num_enum::{IntoPrimitive, TryFromPrimitive};
-use serde::{Deserialize, Serialize};
-use serde_repr::{Deserialize_repr, Serialize_repr};
+use themelio_structs::{
+    Address, Block, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, Header, NetID,
+    ProposerAction, Transaction, TxHash, STAKE_EPOCH, TIP_901_HEIGHT,
+};
 use thiserror::Error;
 use tmelcrypt::{Ed25519PK, HashVal};
 
@@ -55,33 +53,6 @@ pub enum StateError {
     CoinLocked,
     #[error("duplicate transaction")]
     DuplicateTx,
-}
-
-/// Identifies a network.
-#[derive(
-    Clone,
-    Copy,
-    IntoPrimitive,
-    TryFromPrimitive,
-    Eq,
-    PartialEq,
-    Debug,
-    Serialize_repr,
-    Deserialize_repr,
-    Hash,
-    Arbitrary,
-)]
-#[repr(u8)]
-pub enum NetID {
-    Testnet = 0x01,
-    Custom02 = 0x02,
-    Custom03 = 0x03,
-    Custom04 = 0x04,
-    Custom05 = 0x05,
-    Custom06 = 0x06,
-    Custom07 = 0x07,
-    Custom08 = 0x08,
-    Mainnet = 0xff,
 }
 
 /// World state of the Themelio blockchain
@@ -140,13 +111,13 @@ impl<C: ContentAddrStore> State<C> {
 
     /// Returns true iff TIP 902 rule changes apply.
     pub fn tip_902(&self) -> bool {
-        self.height >= TIP_902_HEIGHT
+        self.height >= TIP_901_HEIGHT
             || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
     }
 
     /// Returns true iff TIP 906 rule changes apply.
     pub fn tip_906(&self) -> bool {
-        self.height >= TIP_906_HEIGHT
+        self.height >= TIP_901_HEIGHT
             || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
     }
 
@@ -262,7 +233,7 @@ impl<C: ContentAddrStore> State<C> {
     /// Finalizes a state into a block. This consumes the state.
     pub fn seal(mut self, action: Option<ProposerAction>) -> SealedState<C> {
         // first apply melmint
-        self = preseal_melmint(self);
+        self = crate::melmint::preseal_melmint(self);
         assert!(self.pools.val_iter().count() >= 2);
 
         let after_tip_901 = self.tip_901();
@@ -437,15 +408,6 @@ impl<C: ContentAddrStore> SealedState<C> {
     }
 }
 
-/// ProposerAction describes the standard action that the proposer takes when proposing a block.
-#[derive(Derivative, Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq)]
-pub struct ProposerAction {
-    /// Change in fee. This is scaled to the proper size.
-    pub fee_multiplier_delta: i8,
-    /// Where to sweep fees.
-    pub reward_dest: Address,
-}
-
 pub type ConsensusProof = BTreeMap<Ed25519PK, Vec<u8>>;
 
 /// ConfirmedState represents a fully confirmed state with a consensus proof.
@@ -466,54 +428,4 @@ impl<C: ContentAddrStore> ConfirmedState<C> {
     pub fn cproof(&self) -> &ConsensusProof {
         &self.cproof
     }
-}
-
-// impl Deref<Target =
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash, Arbitrary)]
-/// A block header, which commits to a particular SealedState.
-pub struct Header {
-    pub network: NetID,
-    pub previous: HashVal,
-    pub height: BlockHeight,
-    pub history_hash: HashVal,
-    pub coins_hash: HashVal,
-    pub transactions_hash: HashVal,
-    pub fee_pool: CoinValue,
-    pub fee_multiplier: u128,
-    pub dosc_speed: u128,
-    pub pools_hash: HashVal,
-    pub stakes_hash: HashVal,
-}
-
-impl Header {
-    pub fn hash(&self) -> tmelcrypt::HashVal {
-        tmelcrypt::hash_single(&stdcode::serialize(self).unwrap())
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-/// A (serialized) block.
-pub struct Block {
-    pub header: Header,
-    pub transactions: HashSet<Transaction>,
-    pub proposer_action: Option<ProposerAction>,
-}
-
-impl Block {
-    /// Abbreviate a block
-    pub fn abbreviate(&self) -> AbbrBlock {
-        AbbrBlock {
-            header: self.header,
-            txhashes: self.transactions.iter().map(|v| v.hash_nosigs()).collect(),
-            proposer_action: self.proposer_action,
-        }
-    }
-}
-
-/// An abbreviated block
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct AbbrBlock {
-    pub header: Header,
-    pub txhashes: BTreeSet<TxHash>,
-    pub proposer_action: Option<ProposerAction>,
 }

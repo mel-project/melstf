@@ -1,8 +1,7 @@
 use catvec::CatVec;
 use ethnum::U256;
+use themelio_structs::{CoinData, CoinDataHeight, CoinID, Denom, Header, Transaction};
 use tmelcrypt::HashVal;
-
-use crate::{CoinData, CoinDataHeight, CoinID, Denom, Header, HexBytes, Transaction};
 
 use super::Covenant;
 
@@ -153,12 +152,6 @@ impl From<Denom> for Value {
 impl From<Vec<u8>> for Value {
     fn from(v: Vec<u8>) -> Self {
         Value::Bytes(v.into())
-    }
-}
-
-impl From<HexBytes> for Value {
-    fn from(v: HexBytes) -> Self {
-        Value::Bytes(v.0.into())
     }
 }
 

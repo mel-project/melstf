@@ -1,8 +1,7 @@
-use crate::{Denom, ParseDenomError};
-
 use std::{fmt::Display, str::FromStr};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use themelio_structs::{Denom, ParseDenomError};
 
 /// A key identifying a pool.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -103,7 +102,7 @@ impl PoolKey {
                     left: Denom::Mel,
                     right: Denom::from_bytes(vec)?,
                 }
-                    .to_canonical()?,
+                .to_canonical()?,
             )
         }
     }

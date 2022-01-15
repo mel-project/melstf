@@ -1,22 +1,9 @@
 #![allow(clippy::float_cmp)]
 
-use crate::{CoinValue, SmtMapping, TxHash};
+use crate::SmtMapping;
 use novasmt::ContentAddrStore;
-use serde::{Deserialize, Serialize};
+use themelio_structs::{StakeDoc, TxHash};
 use tmelcrypt::Ed25519PK;
-
-/// StakeDoc is a stake document. It encapsulates all the information needed to verify consensus proofs.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub struct StakeDoc {
-    /// Public key.
-    pub pubkey: Ed25519PK,
-    /// Starting epoch.
-    pub e_start: u64,
-    /// Ending epoch. This is the epoch *after* the last epoch in which the syms are effective.
-    pub e_post_end: u64,
-    /// Number of syms staked.
-    pub syms_staked: CoinValue,
-}
 
 /// A stake mapping
 pub type StakeMapping<C> = SmtMapping<C, TxHash, StakeDoc>;
@@ -62,8 +49,9 @@ impl<C: ContentAddrStore> StakeMapping<C> {
 
 #[cfg(test)]
 mod tests {
+    use themelio_structs::CoinValue;
+
     use crate::testing::functions::create_state;
-    use crate::CoinValue;
 
     use std::collections::HashMap;
 

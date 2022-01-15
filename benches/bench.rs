@@ -1,11 +1,9 @@
 use novasmt::InMemoryCas;
-use themelio_stf::{
-    melvm::{Address, Covenant},
-    CoinData, Denom, GenesisConfig, State, Transaction,
-};
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use once_cell::sync::Lazy;
+use themelio_stf::{melvm::Covenant, GenesisConfig, State};
+use themelio_structs::{Address, CoinData, Denom, NetID, Transaction, TxKind};
 
 fn generate_txx(n: usize) -> Vec<Transaction> {
     let fixed_output = CoinData {
@@ -15,7 +13,7 @@ fn generate_txx(n: usize) -> Vec<Transaction> {
         additional_data: vec![],
     };
     let init = Transaction {
-        kind: themelio_stf::TxKind::Faucet,
+        kind: TxKind::Faucet,
         inputs: vec![],
         outputs: vec![fixed_output.clone()],
         fee: 0.into(),
@@ -27,12 +25,12 @@ fn generate_txx(n: usize) -> Vec<Transaction> {
     let mut toret = vec![init];
     while toret.len() < n {
         let novyy = Transaction {
-            kind: themelio_stf::TxKind::Normal,
+            kind: TxKind::Normal,
             inputs: vec![prev],
             outputs: vec![fixed_output.clone()],
             fee: 0.into(),
             data: vec![],
-            scripts: vec![Covenant::always_true()],
+            scripts: vec![Covenant::always_true().0],
             sigs: vec![],
         };
         prev = novyy.output_coinid(0);
@@ -43,7 +41,7 @@ fn generate_txx(n: usize) -> Vec<Transaction> {
 
 fn zerofee_state() -> State<InMemoryCas> {
     let cfg = GenesisConfig {
-        network: themelio_stf::NetID::Testnet,
+        network: NetID::Testnet,
         init_coindata: CoinData {
             covhash: Address::coin_destroy(),
             value: 0.into(),

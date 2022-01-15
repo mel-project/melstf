@@ -1,12 +1,3 @@
-use crate::{
-    melpow,
-    melvm::{Address, CovenantEnv},
-    stake::StakeDoc,
-    state::melmint,
-    BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, State, StateError,
-    Transaction, TxHash, TxKind,
-};
-
 use std::convert::TryInto;
 
 use dashmap::DashMap;
@@ -14,7 +5,17 @@ use novasmt::ContentAddrStore;
 use parking_lot::Mutex;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rustc_hash::FxHashMap;
+use themelio_structs::{
+    Address, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc,
+    Transaction, TxHash, TxKind,
+};
 use tmelcrypt::HashVal;
+
+use crate::{
+    melmint, melpow,
+    melvm::{Covenant, CovenantEnv},
+    State, StateError,
+};
 
 /// A mutable "handle" to a particular State. Can be "committed" like a database transaction.
 pub(crate) struct StateHandle<'a, C: ContentAddrStore> {
@@ -181,9 +182,12 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
                         coin_data,
                         tx.hash_nosigs()
                     );
-                    let script = scripts
-                        .get(&coin_data.coin_data.covhash)
-                        .ok_or(StateError::NonexistentScript(coin_data.coin_data.covhash))?;
+                    let script = Covenant(
+                        scripts
+                            .get(&coin_data.coin_data.covhash)
+                            .ok_or(StateError::NonexistentScript(coin_data.coin_data.covhash))?
+                            .clone(),
+                    );
                     if !script.check(
                         tx,
                         CovenantEnv {
@@ -230,7 +234,9 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
 
     fn apply_tx_fees(&mut self, tx: &Transaction) -> Result<(), StateError> {
         // fees
-        let min_fee = tx.base_fee(self.state.fee_multiplier, 0);
+        let min_fee = tx.base_fee(self.state.fee_multiplier, 0, |c| {
+            Covenant(c.to_vec()).weight().unwrap_or(0)
+        });
         if tx.fee < min_fee {
             Err(StateError::InsufficientFees(min_fee))
         } else {

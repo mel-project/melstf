@@ -1,13 +1,14 @@
-use crate::{
-    melvm::Covenant, stake::StakeDoc, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinMapping,
-    CoinValue, Denom, NetID, SmtMapping, State, TxHash, MICRO_CONVERTER,
-};
-
 use std::{collections::BTreeMap, convert::TryInto};
 
 use novasmt::ContentAddrStore;
 use serde::{Deserialize, Serialize};
+use themelio_structs::{
+    BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc, TxHash,
+    MICRO_CONVERTER,
+};
 use tmelcrypt::{Ed25519PK, HashVal};
+
+use crate::{melvm::Covenant, CoinMapping, SmtMapping, State};
 
 /// Configuration of a genesis state. Serializable via serde.
 #[derive(Clone, Debug, Serialize, Deserialize)]
