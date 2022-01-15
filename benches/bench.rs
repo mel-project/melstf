@@ -18,7 +18,7 @@ fn generate_txx(n: usize) -> Vec<Transaction> {
         outputs: vec![fixed_output.clone()],
         fee: 0.into(),
         data: vec![],
-        scripts: vec![],
+        covenants: vec![],
         sigs: vec![],
     };
     let mut prev = init.output_coinid(0);
@@ -30,7 +30,7 @@ fn generate_txx(n: usize) -> Vec<Transaction> {
             outputs: vec![fixed_output.clone()],
             fee: 0.into(),
             data: vec![],
-            scripts: vec![Covenant::always_true().0],
+            covenants: vec![Covenant::always_true().0],
             sigs: vec![],
         };
         prev = novyy.output_coinid(0);

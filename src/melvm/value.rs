@@ -174,7 +174,7 @@ impl From<Transaction> for Value {
                 tx.inputs.into(),
                 tx.outputs.into(),
                 tx.fee.0.into(),
-                tx.scripts.into(),
+                tx.covenants.into(),
                 tx.data.into(),
                 tx.sigs.into(),
             ]

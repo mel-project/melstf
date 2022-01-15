@@ -501,7 +501,7 @@ mod tests {
                 },
             ],
             fee: 2000000.into(),
-            scripts: vec![Covenant::std_ed25519_pk_legacy(my_pk).0],
+            covenants: vec![Covenant::std_ed25519_pk_legacy(my_pk).0],
             data: vec![],
             sigs: vec![],
         }
@@ -526,7 +526,7 @@ mod tests {
                 },
             ],
             fee: 2000000.into(),
-            scripts: vec![Covenant::std_ed25519_pk_legacy(my_pk).0],
+            covenants: vec![Covenant::std_ed25519_pk_legacy(my_pk).0],
             data: pool_key.to_bytes(), // this is important, since it "points" to the pool
             sigs: vec![],
         }

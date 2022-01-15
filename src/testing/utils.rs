@@ -41,7 +41,7 @@ pub fn random_valid_txx_count(
                 additional_data: vec![],
             }],
             fee,
-            scripts: vec![covenant.clone().0],
+            covenants: vec![covenant.clone().0],
             data: vec![],
             sigs: vec![],
         };

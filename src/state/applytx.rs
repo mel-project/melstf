@@ -157,7 +157,7 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
         //     Err(error) => Err(error),
         // }
 
-        let scripts = tx.script_as_map();
+        let scripts = tx.covenants_as_map();
         // build a map of input coins
         let mut in_coins: FxHashMap<Denom, u128> = FxHashMap::default();
         // get last header

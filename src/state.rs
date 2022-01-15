@@ -16,8 +16,9 @@ use defmac::defmac;
 use derivative::Derivative;
 use novasmt::ContentAddrStore;
 use themelio_structs::{
-    Address, Block, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, Header, NetID,
-    ProposerAction, Transaction, TxHash, STAKE_EPOCH, TIP_901_HEIGHT, TIP_902_HEIGHT,
+    Address, Block, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, ConsensusProof,
+    Denom, Header, NetID, ProposerAction, Transaction, TxHash, STAKE_EPOCH, TIP_901_HEIGHT,
+    TIP_902_HEIGHT,
 };
 use thiserror::Error;
 use tmelcrypt::{Ed25519PK, HashVal};
@@ -408,8 +409,6 @@ impl<C: ContentAddrStore> SealedState<C> {
         })
     }
 }
-
-pub type ConsensusProof = BTreeMap<Ed25519PK, Vec<u8>>;
 
 /// ConfirmedState represents a fully confirmed state with a consensus proof.
 #[derive(Derivative, Debug)]
