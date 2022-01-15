@@ -1,14 +1,14 @@
-use crate::state::melswap::PoolState;
-use crate::{
-    BlockHeight, CoinData, CoinDataHeight, CoinValue, Denom, PoolKey, State, Transaction, TxKind,
-    MAX_COINVAL, MICRO_CONVERTER,
-};
+use crate::{PoolKey, State};
 
 use std::{cell::RefCell, convert::TryInto};
 
 use novasmt::ContentAddrStore;
 use num::{integer::Roots, rational::Ratio, BigInt, BigRational};
 use tap::Pipe;
+use themelio_structs::{
+    BlockHeight, CoinData, CoinDataHeight, CoinValue, Denom, PoolState, Transaction, TxKind,
+    MAX_COINVAL, MICRO_CONVERTER,
+};
 
 thread_local! {
     static INFLATOR_TABLE: RefCell<Vec<u128>> = Default::default();
@@ -119,7 +119,7 @@ fn process_swaps<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
         .val_iter()
         .filter_map(|tx| {
             (!tx.outputs.is_empty()).then(|| ())?; // ensure not empty
-            state.coins.get(&tx.output_coinid(0)).0?; // ensure that first output is unspent
+            state.coins.get_coin(tx.output_coinid(0))?; // ensure that first output is unspent
             let pool_key = PoolKey::from_bytes(&tx.data)?; // ensure that data contains a pool key
             state.pools.get(&pool_key).0?; // ensure that pool key points to a valid pool
             (tx.outputs[0].denom == pool_key.left || tx.outputs[0].denom == pool_key.right)
@@ -191,12 +191,13 @@ fn process_swaps<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
                 ))
                 .min(MAX_COINVAL);
             }
-            state.coins.insert(
+            state.coins.insert_coin(
                 correct_coinid,
                 CoinDataHeight {
                     coin_data: swap.outputs[0].clone(),
                     height: state.height,
                 },
+                state.tip_906(),
             );
         });
 
@@ -215,8 +216,8 @@ fn process_deposits<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
         .filter_map(|tx| {
             (tx.kind == TxKind::LiqDeposit
                 && tx.outputs.len() >= 2
-                && state.coins.get(&tx.output_coinid(0)).0.is_some()
-                && state.coins.get(&tx.output_coinid(1)).0.is_some())
+                && state.coins.get_coin(tx.output_coinid(0)).is_some()
+                && state.coins.get_coin(tx.output_coinid(1)).is_some())
             .then(|| ())?;
             let pool_key = PoolKey::from_bytes(&tx.data)?;
             (tx.outputs[0].denom == pool_key.left && tx.outputs[1].denom == pool_key.right)
@@ -275,14 +276,17 @@ fn process_deposits<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
             deposit.outputs[0].denom = pool.liq_token_denom();
             deposit.outputs[0].value =
                 multiply_frac(total_liqs, Ratio::new(my_mtsqrt, total_mtsqrt)).into();
-            state.coins.insert(
+            state.coins.insert_coin(
                 correct_coinid,
                 CoinDataHeight {
                     coin_data: deposit.outputs[0].clone(),
                     height: state.height,
                 },
+                state.tip_906(),
             );
-            state.coins.delete(&deposit.output_coinid(1));
+            state
+                .coins
+                .remove_coin(deposit.output_coinid(1), state.tip_906());
         });
     });
 
@@ -298,7 +302,7 @@ fn process_withdrawals<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
         .filter_map(|tx| {
             (tx.kind == TxKind::LiqWithdraw
                 && tx.outputs.len() == 1
-                && state.coins.get(&tx.output_coinid(0)).0.is_some())
+                && state.coins.get_coin(tx.output_coinid(0)).is_some())
             .then(|| ())?;
             let pool_key = PoolKey::from_bytes(&tx.data)?;
             state.pools.get(&pool_key).0?;
@@ -347,19 +351,21 @@ fn process_withdrawals<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
                 additional_data: deposit.outputs[0].additional_data.clone(),
             };
 
-            state.coins.insert(
+            state.coins.insert_coin(
                 coinid_0,
                 CoinDataHeight {
                     coin_data: deposit.outputs[0].clone(),
                     height: state.height,
                 },
+                state.tip_906(),
             );
-            state.coins.insert(
+            state.coins.insert_coin(
                 coinid_1,
                 CoinDataHeight {
                     coin_data: synth,
                     height: state.height,
                 },
+                state.tip_906(),
             );
         });
     });
@@ -442,15 +448,14 @@ fn multiply_frac(x: u128, frac: Ratio<u128>) -> u128 {
 
 #[cfg(test)]
 mod tests {
+    use themelio_structs::CoinID;
+
     use crate::{
-        melvm,
+        melvm::Covenant,
         testing::functions::{genesis_mel_coin_id, genesis_state},
-        CoinID, Denom,
     };
 
-    use crate::melmint::multiply_frac;
-    use crate::melmint::Ratio;
-    use crate::*;
+    use super::*;
 
     #[test]
     fn math() {
@@ -461,7 +466,7 @@ mod tests {
     // test a simple deposit flow
     fn simple_deposit() {
         let (my_pk, my_sk) = tmelcrypt::ed25519_keygen();
-        let my_covhash = melvm::Covenant::std_ed25519_pk_legacy(my_pk).hash();
+        let my_covhash = Covenant::std_ed25519_pk_legacy(my_pk).hash();
         let start_state = genesis_state(
             CoinID::zero_zero(),
             CoinDataHeight {
@@ -496,7 +501,7 @@ mod tests {
                 },
             ],
             fee: 2000000.into(),
-            scripts: vec![melvm::Covenant::std_ed25519_pk_legacy(my_pk)],
+            scripts: vec![Covenant::std_ed25519_pk_legacy(my_pk).0],
             data: vec![],
             sigs: vec![],
         }
@@ -521,7 +526,7 @@ mod tests {
                 },
             ],
             fee: 2000000.into(),
-            scripts: vec![melvm::Covenant::std_ed25519_pk_legacy(my_pk)],
+            scripts: vec![Covenant::std_ed25519_pk_legacy(my_pk).0],
             data: pool_key.to_bytes(), // this is important, since it "points" to the pool
             sigs: vec![],
         }

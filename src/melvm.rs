@@ -2,22 +2,15 @@ mod consts;
 mod executor;
 pub mod opcode;
 mod value;
-
-pub use crate::{CoinData, CoinID, Transaction};
-use crate::{CoinDataHeight, Header};
-
-use std::fmt::Display;
-use std::{collections::HashMap, str::FromStr};
+use std::collections::HashMap;
 
 use arbitrary::Arbitrary;
-
-use derive_more::{From, Into};
 
 pub use executor::*;
 use serde::{Deserialize, Serialize};
 
+use themelio_structs::{Address, CoinDataHeight, CoinID, Header, Transaction};
 use thiserror::Error;
-use tmelcrypt::HashVal;
 pub use value::*;
 
 use crate::melvm::{
@@ -28,46 +21,6 @@ use crate::melvm::{
 #[derive(Clone, Eq, PartialEq, Debug, Arbitrary, Serialize, Deserialize, Hash)]
 /// A MelVM covenant. Essentially, given a transaction that attempts to spend it, it either allows the transaction through or doesn't.
 pub struct Covenant(#[serde(with = "stdcode::hex")] pub Vec<u8>);
-
-/// An address is the hash of a MelVM covenant. In Bitcoin terminology, all Themelio addresses are "pay-to-script-hash".
-#[derive(
-    Copy,
-    Clone,
-    Debug,
-    Eq,
-    PartialEq,
-    Hash,
-    PartialOrd,
-    Ord,
-    From,
-    Into,
-    Serialize,
-    Deserialize,
-    Arbitrary,
-)]
-pub struct Address(pub HashVal);
-
-impl Address {
-    /// Returns the address that represents destruction of a coin.
-    pub fn coin_destroy() -> Self {
-        Address(Default::default())
-    }
-}
-
-impl Display for Address {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.to_addr().fmt(f)
-    }
-}
-
-impl FromStr for Address {
-    type Err = AddrParseError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        HashVal::from_addr(s)
-            .ok_or(AddrParseError::CannotParse)
-            .map(|v| v.into())
-    }
-}
 
 #[derive(Error, Debug)]
 pub enum AddrParseError {

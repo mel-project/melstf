@@ -1,12 +1,3 @@
-use crate::{
-    melpow,
-    melvm::{Address, CovenantEnv},
-    stake::StakeDoc,
-    state::melmint,
-    BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, State, StateError,
-    Transaction, TxHash, TxKind,
-};
-
 use std::convert::TryInto;
 
 use dashmap::DashMap;
@@ -14,7 +5,17 @@ use novasmt::ContentAddrStore;
 use parking_lot::Mutex;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rustc_hash::FxHashMap;
+use themelio_structs::{
+    Address, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc,
+    Transaction, TxHash, TxKind,
+};
 use tmelcrypt::HashVal;
+
+use crate::{
+    melmint, melpow,
+    melvm::{Covenant, CovenantEnv},
+    State, StateError,
+};
 
 /// A mutable "handle" to a particular State. Can be "committed" like a database transaction.
 pub(crate) struct StateHandle<'a, C: ContentAddrStore> {
@@ -64,21 +65,8 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
         for tx in txx.iter() {
             if tx.kind == TxKind::Faucet {
                 let pseudocoin = faucet_dedup_pseudocoin(tx.hash_nosigs());
-                if self.state.coins.get(&pseudocoin).0.is_some() {
+                if self.state.coins.get_coin(pseudocoin).is_some() {
                     return Err(StateError::DuplicateTx);
-                } else {
-                    self.state.coins.insert(
-                        pseudocoin,
-                        CoinDataHeight {
-                            coin_data: CoinData {
-                                denom: Denom::Mel,
-                                value: 0.into(),
-                                additional_data: vec![],
-                                covhash: HashVal::default().into(),
-                            },
-                            height: 0.into(),
-                        },
-                    );
                 }
             }
             if !tx.is_well_formed() {
@@ -109,9 +97,11 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
         // commit coins
         self.coin_cache.into_iter().for_each(|(key, value)| {
             if let Some(value) = value {
-                self.state.coins.insert(key, value);
+                self.state
+                    .coins
+                    .insert_coin(key, value, self.state.tip_906());
             } else {
-                self.state.coins.delete(&key);
+                self.state.coins.remove_coin(key, self.state.tip_906());
             }
         });
 
@@ -119,6 +109,22 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
         self.transactions_cache
             .into_iter()
             .for_each(|(key, value)| {
+                if value.kind == TxKind::Faucet {
+                    let pseudocoin = faucet_dedup_pseudocoin(value.hash_nosigs());
+                    self.state.coins.insert_coin(
+                        pseudocoin,
+                        CoinDataHeight {
+                            coin_data: CoinData {
+                                denom: Denom::Mel,
+                                value: 0.into(),
+                                additional_data: vec![],
+                                covhash: HashVal::default().into(),
+                            },
+                            height: 0.into(),
+                        },
+                        self.state.tip_906(),
+                    );
+                }
                 self.state.transactions.insert(key, value);
             });
 
@@ -176,9 +182,12 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
                         coin_data,
                         tx.hash_nosigs()
                     );
-                    let script = scripts
-                        .get(&coin_data.coin_data.covhash)
-                        .ok_or(StateError::NonexistentScript(coin_data.coin_data.covhash))?;
+                    let script = Covenant(
+                        scripts
+                            .get(&coin_data.coin_data.covhash)
+                            .ok_or(StateError::NonexistentScript(coin_data.coin_data.covhash))?
+                            .clone(),
+                    );
                     if !script.check(
                         tx,
                         CovenantEnv {
@@ -225,7 +234,9 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
 
     fn apply_tx_fees(&mut self, tx: &Transaction) -> Result<(), StateError> {
         // fees
-        let min_fee = tx.base_fee(self.state.fee_multiplier, 0);
+        let min_fee = tx.base_fee(self.state.fee_multiplier, 0, |c| {
+            Covenant(c.to_vec()).weight().unwrap_or(0)
+        });
         if tx.fee < min_fee {
             Err(StateError::InsufficientFees(min_fee))
         } else {
@@ -363,7 +374,7 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
     fn get_coin(&self, coin_id: CoinID) -> Option<CoinDataHeight> {
         self.coin_cache
             .entry(coin_id)
-            .or_insert_with(|| self.state.coins.get(&coin_id).0)
+            .or_insert_with(|| self.state.coins.get_coin(coin_id))
             .value()
             .clone()
     }

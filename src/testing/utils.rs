@@ -1,8 +1,8 @@
 use std::collections::BinaryHeap;
 
-// use crate::testing::factory::TransactionFactory;
-// use crate::testing::fixtures::SEND_MEL_AMOUNT;
-use crate::{CoinData, CoinID, CoinValue, Denom, melvm, Transaction, TxKind};
+use themelio_structs::{CoinData, CoinID, CoinValue, Denom, Transaction, TxKind};
+
+use crate::melvm;
 
 pub fn random_valid_txx(
     rng: &mut impl rand::Rng,
@@ -41,7 +41,7 @@ pub fn random_valid_txx_count(
                 additional_data: vec![],
             }],
             fee,
-            scripts: vec![covenant.clone()],
+            scripts: vec![covenant.clone().0],
             data: vec![],
             sigs: vec![],
         };

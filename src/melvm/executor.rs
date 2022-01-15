@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use catvec::CatVec;
 use ethnum::U256;
 use tap::Tap;
-
-use crate::{CoinData, CoinDataHeight, CoinID, Transaction};
+use themelio_structs::{CoinData, CoinDataHeight, CoinID, Transaction};
 
 use super::{
     consts::{
