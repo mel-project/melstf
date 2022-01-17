@@ -291,6 +291,11 @@ impl<C: ContentAddrStore> State<C> {
 pub struct SealedState<C: ContentAddrStore>(State<C>, Option<ProposerAction>);
 
 impl<C: ContentAddrStore> SealedState<C> {
+    /// From raw parts
+    pub fn from_parts(state: State<C>, prop_action: Option<ProposerAction>) -> Self {
+        Self(state, prop_action)
+    }
+
     /// Returns a reference to the State finalized within.
     pub fn inner_ref(&self) -> &State<C> {
         &self.0
