@@ -65,9 +65,21 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
         for tx in txx.iter() {
             if tx.kind == TxKind::Faucet {
                 let pseudocoin = faucet_dedup_pseudocoin(tx.hash_nosigs());
-                if self.state.coins.get_coin(pseudocoin).is_some() {
+                if self.get_coin(pseudocoin).is_some() {
                     return Err(StateError::DuplicateTx);
                 }
+                self.set_coin(
+                    pseudocoin,
+                    CoinDataHeight {
+                        coin_data: CoinData {
+                            denom: Denom::Mel,
+                            value: 0.into(),
+                            additional_data: vec![],
+                            covhash: HashVal::default().into(),
+                        },
+                        height: 0.into(),
+                    },
+                );
             }
             if !tx.is_well_formed() {
                 return Err(StateError::MalformedTx);
@@ -109,22 +121,6 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
         self.transactions_cache
             .into_iter()
             .for_each(|(key, value)| {
-                if value.kind == TxKind::Faucet {
-                    let pseudocoin = faucet_dedup_pseudocoin(value.hash_nosigs());
-                    self.state.coins.insert_coin(
-                        pseudocoin,
-                        CoinDataHeight {
-                            coin_data: CoinData {
-                                denom: Denom::Mel,
-                                value: 0.into(),
-                                additional_data: vec![],
-                                covhash: HashVal::default().into(),
-                            },
-                            height: 0.into(),
-                        },
-                        self.state.tip_906(),
-                    );
-                }
                 self.state.transactions.insert(key, value);
             });
 
