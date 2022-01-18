@@ -30,9 +30,10 @@ impl<C: ContentAddrStore> CoinMapping<C> {
     /// Inserts a coin into the coin mapping.
     pub fn insert_coin(&mut self, id: CoinID, data: CoinDataHeight, tip_906: bool) {
         let id = id.stdcode();
+        let preexist = !self.inner.get(tmelcrypt::hash_single(&id).0).is_empty();
         self.inner
             .insert(tmelcrypt::hash_single(&id).0, &data.stdcode());
-        if tip_906 {
+        if tip_906 && !preexist {
             let count_key = tmelcrypt::hash_keyed(b"coin_count", data.coin_data.covhash.0);
             let previous_count: u64 = self.coin_count(data.coin_data.covhash);
             self.inner
@@ -75,7 +76,7 @@ impl<C: ContentAddrStore> CoinMapping<C> {
         }
     }
 
-    fn insert_coin_count(&mut self, covhash: Address, count: u64) {
+    pub fn insert_coin_count(&mut self, covhash: Address, count: u64) {
         let count_key = tmelcrypt::hash_keyed(b"coin_count", covhash.0);
         if count == 0 {
             self.inner.insert(count_key.0, b"");

@@ -4,12 +4,15 @@ pub(crate) mod melmint;
 pub(crate) mod melswap;
 mod poolkey;
 
-use crate::smtmapping::*;
 pub use crate::stake::*;
-use crate::state::applytx::StateHandle;
+use crate::{
+    smtmapping::*,
+    tip_heights::{TIP_901_HEIGHT, TIP_906_HEIGHT},
+};
+use crate::{state::applytx::StateHandle, tip_heights::TIP_902_HEIGHT};
 
+use std::convert::TryInto;
 use std::io::Read;
-use std::{collections::BTreeMap, convert::TryInto};
 use std::{collections::HashSet, fmt::Debug};
 
 use defmac::defmac;
@@ -17,11 +20,10 @@ use derivative::Derivative;
 use novasmt::ContentAddrStore;
 use themelio_structs::{
     Address, Block, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, ConsensusProof,
-    Denom, Header, NetID, ProposerAction, Transaction, TxHash, STAKE_EPOCH, TIP_901_HEIGHT,
-    TIP_902_HEIGHT,
+    Denom, Header, NetID, ProposerAction, Transaction, TxHash, STAKE_EPOCH,
 };
 use thiserror::Error;
-use tmelcrypt::{Ed25519PK, HashVal};
+use tmelcrypt::HashVal;
 
 use crate::state::melswap::PoolMapping;
 
@@ -118,9 +120,8 @@ impl<C: ContentAddrStore> State<C> {
 
     /// Returns true iff TIP 906 rule changes apply.
     pub fn tip_906(&self) -> bool {
-        false
-        // self.height >= TIP_901_HEIGHT
-        //     || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
+        self.height >= TIP_906_HEIGHT
+            || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
     }
 
     /// Generates an encoding of the state that, in conjunction with a SMT database, can recover the entire state.
@@ -370,6 +371,18 @@ impl<C: ContentAddrStore> SealedState<C> {
         new.height += BlockHeight(1);
         new.stakes.remove_stale((new.height / STAKE_EPOCH).0);
         new.transactions.clear();
+        // TIP-906 transition
+        if new.tip_906() && !self.inner_ref().tip_906() {
+            log::warn!("DOING TIP-906 TRANSITION NOW!");
+            let old_tree = new.coins.inner().clone();
+            for (_, v) in old_tree.iter() {
+                let cdh: CoinDataHeight =
+                    stdcode::deserialize(&v).expect("pre-tip906 coin tree has non-cdh elements?!");
+                let old_count = new.coins.coin_count(cdh.coin_data.covhash);
+                new.coins
+                    .insert_coin_count(cdh.coin_data.covhash, old_count + 1);
+            }
+        }
         new
     }
 
