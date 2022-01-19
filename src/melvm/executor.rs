@@ -193,7 +193,6 @@ impl Executor {
                     log::trace!("Addition, Second: {:?}", &y);
 
                     let (val, oflo) = x.into_int()?.overflowing_add(y.into_int()?);
-                    //Some(Value::Int(x.into_int()?.overflowing_add(y.into_int()?).0))
                     Some((Value::Int(val), oflo))
                 })?,
                 OpCode::Sub => self.do_binop(|x, y| {
