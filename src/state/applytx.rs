@@ -209,7 +209,7 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
         if tx.kind != TxKind::Faucet {
             for (currency, value) in out_coins.iter() {
                 // we skip the created doscs for a DoscMint transaction
-                if tx.kind == TxKind::DoscMint && *currency == Denom::NomDosc {
+                if tx.kind == TxKind::DoscMint && *currency == Denom::Erg {
                     continue;
                 }
                 let in_value = *in_coins.get(currency).unwrap_or(&u128::MAX);
@@ -321,11 +321,11 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
             let mut dosc_speed = self.dosc_speed_cache.lock();
             *dosc_speed = dosc_speed.max(my_speed);
         }
-        let reward_nom = CoinValue(melmint::dosc_inflate_r2n(self.state.height, reward_real));
+        let reward_nom = CoinValue(melmint::dosc_to_erg(self.state.height, reward_real));
         // ensure that the total output of DOSCs is correct
         let total_dosc_output = tx
             .total_outputs()
-            .get(&Denom::NomDosc)
+            .get(&Denom::Erg)
             .cloned()
             .unwrap_or_default();
         if total_dosc_output > reward_nom {

@@ -15,7 +15,7 @@ thread_local! {
 }
 
 /// Internal DOSC inflator. Returns how many µNomDOSC is 1 DOSC.
-fn micronomdosc_per_dosc(height: BlockHeight) -> u128 {
+fn microergs_per_dosc(height: BlockHeight) -> u128 {
     // fn inner(height: u64) -> u128 {
     //     if height == 0 {
     //         MICRO_CONVERTER
@@ -42,13 +42,13 @@ fn micronomdosc_per_dosc(height: BlockHeight) -> u128 {
 /// DOSC inflation ratio.
 pub fn dosc_inflator(height: BlockHeight) -> BigRational {
     BigRational::from((
-        BigInt::from(micronomdosc_per_dosc(height)),
+        BigInt::from(microergs_per_dosc(height)),
         BigInt::from(MICRO_CONVERTER),
     ))
 }
 
 /// DOSC inflation calculator.
-pub fn dosc_inflate_r2n(height: BlockHeight, real: u128) -> u128 {
+pub fn dosc_to_erg(height: BlockHeight, real: u128) -> u128 {
     let ratio = dosc_inflator(height);
     let result = ratio * BigRational::from(BigInt::from(real));
     result
@@ -89,24 +89,19 @@ fn create_builtins<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
     if state.pools.get(&PoolKey::mel_and(Denom::Sym)).0.is_none() {
         state.pools.insert(PoolKey::mel_and(Denom::Sym), def)
     }
-    if state
-        .pools
-        .get(&PoolKey::mel_and(Denom::NomDosc))
-        .0
-        .is_none()
-    {
-        state.pools.insert(PoolKey::mel_and(Denom::NomDosc), def)
+    if state.pools.get(&PoolKey::mel_and(Denom::Erg)).0.is_none() {
+        state.pools.insert(PoolKey::mel_and(Denom::Erg), def)
     }
     if state.tip_902()
         && state
             .pools
-            .get(&PoolKey::new(Denom::NomDosc, Denom::Sym))
+            .get(&PoolKey::new(Denom::Erg, Denom::Sym))
             .0
             .is_none()
     {
         state
             .pools
-            .insert(PoolKey::new(Denom::NomDosc, Denom::Sym), def)
+            .insert(PoolKey::new(Denom::Erg, Denom::Sym), def)
     }
     state
 }
@@ -375,11 +370,11 @@ fn process_withdrawals<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
 
 /// Process pegging.
 fn process_pegging<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
-    // first calculate the implied sym/nomDOSC exchange rate
+    // first calculate the implied sym/Erg exchange rate
     let x_sd = if state.tip_902() {
         state
             .pools
-            .get(&PoolKey::new(Denom::Sym, Denom::NomDosc))
+            .get(&PoolKey::new(Denom::Sym, Denom::Erg))
             .0
             .unwrap()
             .implied_price() // doscs per sym
@@ -394,7 +389,7 @@ fn process_pegging<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
             .recip();
         let x_d = state
             .pools
-            .get(&PoolKey::mel_and(Denom::NomDosc))
+            .get(&PoolKey::mel_and(Denom::Erg))
             .0
             .unwrap()
             .implied_price()
