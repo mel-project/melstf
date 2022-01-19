@@ -723,3 +723,39 @@ impl Executor {
         res
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::time::{Duration, Instant};
+
+    use ethnum::U256;
+
+    #[test]
+    fn instant_overhead() {
+        let start = Instant::now();
+        let mut elapsed = Duration::from_secs(0);
+        for _ in 0..10000 {
+            let begin = Instant::now();
+            elapsed += begin.elapsed(); // prevents optimizing away
+        }
+        eprintln!(
+            "10000 iterations is {:?} (dummy {:?})",
+            start.elapsed(),
+            elapsed
+        )
+    }
+
+    #[test]
+    fn add_speed() {
+        let start = Instant::now();
+        let mut sum = U256::from(0u64);
+        for _ in 0..10000 {
+            sum += sum; // prevents optimizing away
+        }
+        eprintln!(
+            "10000 iterations is {:?} (dummy {:?})",
+            start.elapsed(),
+            sum
+        )
+    }
+}
