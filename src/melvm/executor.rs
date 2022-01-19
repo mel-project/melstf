@@ -731,6 +731,9 @@ impl Executor {
                     self.stack.push(value.clone());
                     self.stack.push(value);
                 }
+                OpCode::Oflo => {
+                    self.stack.push(Value::Int(U256::from(self.overflow)));
+                }
             }
             Some(())
         };
