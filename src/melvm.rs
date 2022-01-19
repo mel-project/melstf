@@ -18,6 +18,11 @@ use crate::melvm::{
     opcode::{opcodes_weight, DecodeError, EncodeError, OpCode},
 };
 
+/// Weight calculator from bytes, to use in Transaction::weight etc.
+pub fn covenant_weight_from_bytes(b: &[u8]) -> u128 {
+    Covenant(b.to_vec()).weight().unwrap_or(0)
+}
+
 #[derive(Clone, Eq, PartialEq, Debug, Arbitrary, Serialize, Deserialize, Hash)]
 /// A MelVM covenant. Essentially, given a transaction that attempts to spend it, it either allows the transaction through or doesn't.
 pub struct Covenant(#[serde(with = "stdcode::hex")] pub Vec<u8>);
