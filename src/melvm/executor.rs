@@ -103,7 +103,7 @@ impl Executor {
         let y = stack.pop()?;
         let (val, oflo) = op(x, y)?;
         stack.push(val);
-        self.overflow = oflo;
+        self.overflow |= oflo;
 
         //stack.push(op(x, y)?);
         // eprintln!("stack at {}", stack.len());
@@ -732,6 +732,10 @@ impl Executor {
                 }
                 OpCode::Oflo => {
                     self.stack.push(Value::Int(U256::from(self.overflow)));
+                    self.overflow = false;
+                }
+                OpCode::Cloflo => {
+                    self.overflow = false;
                 }
             }
             Some(())

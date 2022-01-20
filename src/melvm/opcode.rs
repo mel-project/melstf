@@ -6,7 +6,7 @@ use crate::melvm::consts::{
     OPCODE_NOT, OPCODE_OR, OPCODE_PUSHB, OPCODE_PUSHI, OPCODE_PUSHIC, OPCODE_REM, OPCODE_SHL,
     OPCODE_SHR, OPCODE_SIGEOK, OPCODE_STORE, OPCODE_STOREIMM, OPCODE_SUB, OPCODE_TYPEQ,
     OPCODE_VAPPEND, OPCODE_VCONS, OPCODE_VEMPTY, OPCODE_VLENGTH, OPCODE_VPUSH, OPCODE_VREF,
-    OPCODE_VSET, OPCODE_VSLICE, OPCODE_XOR, OPCODE_OFLO,
+    OPCODE_VSET, OPCODE_VSLICE, OPCODE_XOR, OPCODE_OFLO, OPCODE_CLOFLO,
 };
 
 use std::{fmt::Display, io::Write};
@@ -84,6 +84,7 @@ pub enum OpCode {
 
     // Overflow
     Oflo,
+    Cloflo,
 
     // duplication
     Dup,
@@ -148,6 +149,7 @@ impl Display for OpCode {
             OpCode::PushIC(i) => format!("pushic {}", i).fmt(f),
             OpCode::Dup => "dup".fmt(f),
             OpCode::Oflo => "oflo".fmt(f),
+            OpCode::Cloflo => "cloflo".fmt(f),
         }
     }
 }
@@ -290,6 +292,7 @@ impl OpCode {
             }
             OpCode::Dup => output.write_all(&[OPCODE_DUP]).unwrap(),
             OpCode::Oflo => output.write_all(&[OPCODE_OFLO]).unwrap(),
+            OpCode::Cloflo => output.write_all(&[OPCODE_CLOFLO]).unwrap(),
         };
         Ok(output)
     }
@@ -398,6 +401,7 @@ impl OpCode {
             }
             OPCODE_DUP => Ok(OpCode::Dup),
             OPCODE_OFLO => Ok(OpCode::Oflo),
+            OPCODE_CLOFLO => Ok(OpCode::Cloflo),
             b => Err(DecodeError::InvalidOpcode(b)),
         }
     }
@@ -498,6 +502,7 @@ fn opcodes_car_weight(opcodes: &[OpCode]) -> (u128, &[OpCode]) {
 
         OpCode::Dup => (4, rest),
         OpCode::Oflo => (1, rest),
+        OpCode::Cloflo => (1, rest),
     }
 }
 
@@ -1894,6 +1899,24 @@ mod tests {
                 OpCode::PushI(U256::ONE),
                 OpCode::Add,
                 OpCode::Oflo])
+                .expect("Failed to create an oflo covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_cloflo() {
+        let covenant: Covenant =
+            Covenant::from_ops(&[
+                OpCode::PushI(U256::MAX),
+                OpCode::PushI(U256::ONE),
+                OpCode::Add,
+                OpCode::PushI(U256::ONE),
+                OpCode::Add,
+                OpCode::Cloflo,
+                OpCode::Oflo,
+            ])
                 .expect("Failed to create an oflo covenant.");
         let output: bool = covenant.debug_run_without_transaction(&[]);
 
