@@ -96,7 +96,6 @@ impl Executor {
         stack.push(op(x, y, z)?);
         Some(())
     }
-    //fn do_binop(&mut self, op: impl Fn(Value, Value) -> Option<Value>) -> Option<()> {
     fn do_binop(&mut self, op: impl Fn(Value, Value) -> Option<(Value, bool)>) -> Option<()> {
         let stack = &mut self.stack;
         let x = stack.pop()?;
@@ -105,7 +104,6 @@ impl Executor {
         stack.push(val);
         self.overflow |= oflo;
 
-        //stack.push(op(x, y)?);
         // eprintln!("stack at {}", stack.len());
         Some(())
     }
