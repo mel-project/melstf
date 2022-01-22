@@ -16,7 +16,7 @@ mod smtmapping;
 mod stake;
 mod state;
 mod testing;
-mod tip_heights;
+pub mod tip_heights;
 
 pub use crate::genesis::*;
 pub use crate::smtmapping::*;
