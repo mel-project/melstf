@@ -11,11 +11,12 @@ use crate::{
 };
 use crate::{state::applytx::StateHandle, tip_heights::TIP_902_HEIGHT};
 
-use std::convert::TryInto;
 use std::io::Read;
 use std::{collections::HashSet, fmt::Debug};
+use std::{convert::TryInto, sync::Arc};
 
 use crate::state::melswap::PoolMapping;
+use dashmap::lock::RwLock;
 use defmac::defmac;
 use derivative::Derivative;
 use novasmt::{dense::DenseMerkleTree, ContentAddrStore};
@@ -287,7 +288,7 @@ impl<C: ContentAddrStore> State<C> {
                 .insert_coin(pseudocoin_id, pseudocoin_data, self.tip_906());
         }
         // create the finalized state
-        SealedState(self, action)
+        SealedState(self, action, Default::default())
     }
 }
 
@@ -295,12 +296,16 @@ impl<C: ContentAddrStore> State<C> {
 /// It cannot be constructed except through sealing a State or restoring from persistent storage.
 #[derive(Derivative, Debug)]
 #[derivative(Clone(bound = ""))]
-pub struct SealedState<C: ContentAddrStore>(State<C>, Option<ProposerAction>);
+pub struct SealedState<C: ContentAddrStore>(
+    State<C>,
+    Option<ProposerAction>,
+    Arc<RwLock<Option<State<C>>>>,
+);
 
 impl<C: ContentAddrStore> SealedState<C> {
     /// From raw parts
     pub fn from_parts(state: State<C>, prop_action: Option<ProposerAction>) -> Self {
-        Self(state, prop_action)
+        Self(state, prop_action, Default::default())
     }
 
     /// Returns a reference to the State finalized within.
@@ -322,7 +327,11 @@ impl<C: ContentAddrStore> SealedState<C> {
     /// Decodes from the partial encoding.
     pub fn from_partial_encoding_infallible(bts: &[u8], db: &novasmt::Database<C>) -> Self {
         let tmp: (Vec<u8>, Option<ProposerAction>) = stdcode::deserialize(bts).unwrap();
-        SealedState(State::from_partial_encoding_infallible(&tmp.0, db), tmp.1)
+        SealedState(
+            State::from_partial_encoding_infallible(&tmp.0, db),
+            tmp.1,
+            Default::default(),
+        )
     }
 
     /// Returns the block header represented by the finalized state.
@@ -371,6 +380,11 @@ impl<C: ContentAddrStore> SealedState<C> {
     }
     /// Creates a new unfinalized state representing the next block.
     pub fn next_state(&self) -> State<C> {
+        let next = self.2.read();
+        if let Some(next) = next.clone() {
+            return next;
+        }
+        drop(next);
         let mut new = State::clone(self.inner_ref());
         // fee variables
         new.history.insert(self.0.height, self.header());
@@ -394,6 +408,7 @@ impl<C: ContentAddrStore> SealedState<C> {
                 count -= 1;
             }
         }
+        *self.2.write() = Some(new.clone());
         new
     }
 
