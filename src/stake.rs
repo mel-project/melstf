@@ -66,7 +66,7 @@ mod tests {
             // Generate genesis block for stakers
             // let staked_syms =vec![100 as u64; 3];
             let stakers = staked_syms
-                .into_iter()
+                .iter()
                 .map(|e| (tmelcrypt::ed25519_keygen().1, CoinValue(*e)))
                 .collect();
             let genesis = create_state(&stakers, 0);
@@ -91,7 +91,7 @@ mod tests {
             // Generate state for stakers
             let total_staked_syms: u128 = staked_syms.iter().sum();
             let stakers = staked_syms
-                .into_iter()
+                .iter()
                 .map(|e| (tmelcrypt::ed25519_keygen().1, CoinValue(*e)))
                 .collect();
             let state = create_state(&stakers, 0);
@@ -180,7 +180,7 @@ mod tests {
         staked_sym_group.iter().for_each(|staked_syms| {
             // Generate state for stakers
             let stakers = staked_syms
-                .into_iter()
+                .iter()
                 .map(|e| (tmelcrypt::ed25519_keygen().1, CoinValue(*e)))
                 .collect();
             let state = create_state(&stakers, 0);

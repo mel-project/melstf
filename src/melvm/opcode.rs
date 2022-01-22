@@ -379,8 +379,8 @@ impl OpCode {
                 if nonzero_len > 32 {
                     return Err(DecodeError::InvalidVarint);
                 }
-                let mut blit = &mut buf[..nonzero_len as usize];
-                input.read_exact(&mut blit)?;
+                let blit = &mut buf[..nonzero_len as usize];
+                input.read_exact(blit)?;
                 if blit.len() > 32 {
                     return Err(DecodeError::InvalidVarint);
                 }
@@ -581,7 +581,7 @@ mod tests {
     fn test_addition_with_overflow() {
         let covenant: Covenant = Covenant::from_ops(&[
             OpCode::PushI(1_u8.into()),
-            OpCode::PushI(u256::MAX.into()),
+            OpCode::PushI(u256::MAX),
             OpCode::Add,
             OpCode::PushI(0_u8.into()),
             OpCode::Eql,
@@ -667,7 +667,7 @@ mod tests {
         let maximum_plus_two: u256 = half_maximum + 2;
 
         let covenant: Covenant = Covenant::from_ops(&[
-            OpCode::PushI(maximum_plus_two.into()),
+            OpCode::PushI(maximum_plus_two),
             OpCode::PushI(2_u128.into()),
             OpCode::Mul,
             OpCode::PushI(2_u8.into()),
@@ -900,7 +900,7 @@ mod tests {
         let covenant: Covenant = Covenant::from_ops(&[
             OpCode::PushI(0_u8.into()),
             OpCode::Not,
-            OpCode::PushI(u256::MAX.into()),
+            OpCode::PushI(u256::MAX),
             OpCode::Eql,
         ])
         .expect("Failed to create a Not covenant.");
@@ -1025,9 +1025,9 @@ mod tests {
         let half_max: u256 = u256::MAX / 2;
         let covenant: Covenant = Covenant::from_ops(&[
             OpCode::PushI(1_u8.into()),
-            OpCode::PushI(half_max.into()),
+            OpCode::PushI(half_max),
             OpCode::Shl,
-            OpCode::PushI((u256::MAX - 1).into()),
+            OpCode::PushI(u256::MAX - 1),
             OpCode::Eql,
         ])
         .expect("Failed to create a Shl covenant.");
@@ -1038,9 +1038,9 @@ mod tests {
         let half_max: u256 = u256::MAX / 2;
         let covenant: Covenant = Covenant::from_ops(&[
             OpCode::PushI(3_u8.into()),
-            OpCode::PushI(half_max.into()),
+            OpCode::PushI(half_max),
             OpCode::Shl,
-            OpCode::PushI((u256::MAX - 1).into()),
+            OpCode::PushI(u256::MAX - 1),
             OpCode::Eql,
         ])
         .expect("Failed to create a Shl covenant.");
@@ -1747,7 +1747,7 @@ mod tests {
         let covenant: Covenant = Covenant::from_ops(&[
             OpCode::PushB(array.to_vec()),
             OpCode::BtoI,
-            OpCode::PushI(number.into()),
+            OpCode::PushI(number),
             OpCode::Eql,
         ])
         .expect("Failed to create a BtoI covenant.");
@@ -1778,7 +1778,7 @@ mod tests {
         )
         .expect("could not create a U256 from a str.");
 
-        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(number.into()), OpCode::ItoB])
+        let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(number), OpCode::ItoB])
             .expect("Failed to create a ItoB covenant.");
         let (stack, _heap): (Vec<Value>, HashMap<u16, Value>) = covenant
             .debug_run_outputting_stack_and_heap(&[])

@@ -7,7 +7,7 @@ mod poolkey;
 pub use crate::stake::*;
 use crate::{
     smtmapping::*,
-    tip_heights::{TIP_901_HEIGHT, TIP_906_HEIGHT},
+    tip_heights::{TIP_901_HEIGHT, TIP_906_HEIGHT, TIP_908_HEIGHT},
 };
 use crate::{state::applytx::StateHandle, tip_heights::TIP_902_HEIGHT};
 
@@ -15,17 +15,18 @@ use std::convert::TryInto;
 use std::io::Read;
 use std::{collections::HashSet, fmt::Debug};
 
+use crate::state::melswap::PoolMapping;
 use defmac::defmac;
 use derivative::Derivative;
-use novasmt::ContentAddrStore;
+use novasmt::{dense::DenseMerkleTree, ContentAddrStore};
+use stdcode::StdcodeSerializeExt;
+use tap::Pipe;
 use themelio_structs::{
     Address, Block, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, ConsensusProof,
     Denom, Header, NetID, ProposerAction, Transaction, TxHash, STAKE_EPOCH,
 };
 use thiserror::Error;
-use tmelcrypt::HashVal;
-
-use crate::state::melswap::PoolMapping;
+use tmelcrypt::{HashVal, Hashable};
 
 pub use poolkey::PoolKey;
 
@@ -83,7 +84,7 @@ impl<C: ContentAddrStore> Clone for State<C> {
         Self {
             network: self.network,
 
-            height: self.height.clone(),
+            height: self.height,
             history: self.history.clone(),
             coins: self.coins.clone(),
             transactions: self.transactions.clone(),
@@ -124,6 +125,12 @@ impl<C: ContentAddrStore> State<C> {
             || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
     }
 
+    /// Returns true iff TIP 908 rule changes apply.
+    pub fn tip_908(&self) -> bool {
+        self.height >= TIP_908_HEIGHT
+            || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
+    }
+
     /// Generates an encoding of the state that, in conjunction with a SMT database, can recover the entire state.
     pub fn partial_encoding(&self) -> Vec<u8> {
         let mut out = Vec::new();
@@ -142,27 +149,6 @@ impl<C: ContentAddrStore> State<C> {
 
         out.extend_from_slice(&self.stakes.root_hash());
         out
-    }
-
-    /// Restores a state from a header, in conjunction with a database. **Does not validate data and will panic; do not use on untrusted data**
-    pub fn from_header_infallible(header: Header, db: &novasmt::Database<C>) -> Self {
-        defmac!(readtree hash => SmtMapping::new(db.get_tree(hash.0).unwrap()));
-        State {
-            network: header.network,
-            height: header.height,
-            history: readtree!(header.history_hash),
-            coins: CoinMapping::new(db.get_tree(header.coins_hash.0).unwrap()),
-            transactions: readtree!(header.transactions_hash),
-
-            fee_pool: header.fee_pool,
-            fee_multiplier: header.fee_multiplier,
-            tips: 0.into(),
-
-            dosc_speed: header.dosc_speed,
-            pools: readtree!(header.pools_hash),
-
-            stakes: readtree!(header.stakes_hash),
-        }
     }
 
     /// Restores a state from its partial encoding in conjunction with a database. **Does not validate data and will panic; do not use on untrusted data**
@@ -221,6 +207,7 @@ impl<C: ContentAddrStore> State<C> {
         self.apply_tx_batch(std::slice::from_ref(tx))
     }
 
+    /// Applies a whole lot of transactions.
     pub fn apply_tx_batch(&mut self, txx: &[Transaction]) -> Result<(), StateError> {
         let old_hash = HashVal(self.coins.inner().root_hash());
         StateHandle::new(self).apply_tx_batch(txx)?.commit();
@@ -231,6 +218,25 @@ impl<C: ContentAddrStore> State<C> {
             HashVal(self.coins.inner().root_hash())
         );
         Ok(())
+    }
+
+    /// Calculates the "transactions" root hash. Note that this is different depending on whether the block is pre-tip908 or post-tip908.
+    pub fn transactions_root_hash(&self) -> HashVal {
+        if self.tip_908() {
+            let mut vv = Vec::new();
+            for tx in self.transactions.val_iter() {
+                let complex = tx.hash_nosigs().pipe(|nosigs_hash| {
+                    let mut v = nosigs_hash.0.to_vec();
+                    v.extend_from_slice(&tx.stdcode().hash().0);
+                    v
+                });
+                vv.push(complex);
+            }
+            vv.sort_unstable();
+            HashVal(DenseMerkleTree::new(&vv).root_hash())
+        } else {
+            self.transactions.root_hash()
+        }
     }
 
     /// Finalizes a state into a block. This consumes the state.
@@ -331,7 +337,7 @@ impl<C: ContentAddrStore> SealedState<C> {
             height: inner.height,
             history_hash: inner.history.root_hash(),
             coins_hash: inner.coins.root_hash(),
-            transactions_hash: inner.transactions.root_hash(),
+            transactions_hash: inner.transactions_root_hash(),
             fee_pool: inner.fee_pool,
             fee_multiplier: inner.fee_multiplier,
             dosc_speed: inner.dosc_speed,
@@ -375,12 +381,17 @@ impl<C: ContentAddrStore> SealedState<C> {
         if new.tip_906() && !self.inner_ref().tip_906() {
             log::warn!("DOING TIP-906 TRANSITION NOW!");
             let old_tree = new.coins.inner().clone();
+            let mut count = old_tree.count();
             for (_, v) in old_tree.iter() {
                 let cdh: CoinDataHeight =
                     stdcode::deserialize(&v).expect("pre-tip906 coin tree has non-cdh elements?!");
                 let old_count = new.coins.coin_count(cdh.coin_data.covhash);
                 new.coins
                     .insert_coin_count(cdh.coin_data.covhash, old_count + 1);
+                if count % 100 == 0 {
+                    log::warn!("{} left", count);
+                }
+                count -= 1;
             }
         }
         new

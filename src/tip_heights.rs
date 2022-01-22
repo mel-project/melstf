@@ -8,3 +8,6 @@ pub const TIP_902_HEIGHT: BlockHeight = BlockHeight(180000);
 
 /// TIP 906: coin count commitments
 pub const TIP_906_HEIGHT: BlockHeight = BlockHeight(830000);
+
+/// TIP 908: dense merkle trees for transactions
+pub const TIP_908_HEIGHT: BlockHeight = BlockHeight(u64::MAX);
