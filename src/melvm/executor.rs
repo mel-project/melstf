@@ -182,6 +182,12 @@ impl Executor {
             self.pc += 1;
             // eprintln!("running {:?}", op);
             match op {
+                #[cfg(feature = "print")]
+                OpCode::Print => self.do_monop(|x| {
+                    println!("{x:?}");
+                    Some(x)
+                    //Some(Value::Int(1u64.into()))
+                })?,
                 OpCode::Noop => {
                     log::trace!("NoOp");
                 }

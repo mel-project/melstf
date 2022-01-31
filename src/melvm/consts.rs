@@ -21,6 +21,7 @@ pub const HADDR_SPENDER_INDEX: u16 = 9;
 /// Heap address where the header of the last block is put. If the covenant is being evaluated for a transaction in block N, this is the header of block N-1.
 pub const HADDR_LAST_HEADER: u16 = 10;
 
+pub(crate) const OPCODE_PRINT: u8 = 0x08;
 pub(crate) const OPCODE_NOOP: u8 = 0x09;
 
 pub(crate) const OPCODE_ADD: u8 = 0x10;
