@@ -1877,14 +1877,4 @@ mod tests {
 
         assert_eq!(output, true);
     }
-
-    #[test]
-    fn test_print() {
-        let covenant: Covenant =
-            Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::Print])
-                .expect("Failed to create a Dup covenant.");
-        let output: bool = covenant.debug_run_without_transaction(&[]);
-
-        assert_eq!(output, true);
-    }
 }
