@@ -148,15 +148,20 @@ impl Executor {
 
     /// Execute to the end, without popping.
     pub fn run_to_end_preserve_stack(&mut self) -> bool {
+        self.run_discerning_to_end_preserve_stack().unwrap_or(false)
+    }
+
+    /// Execute to the end, without popping.
+    pub fn run_discerning_to_end_preserve_stack(&mut self) -> Option<bool> {
         while self.pc < self.instrs.len() {
             if self.step().is_none() {
-                return false;
+                return None;
             }
         }
-        self.stack
+        Some(self.stack
             .last()
             .map(|f| f.clone().into_bool())
-            .unwrap_or_default()
+            .unwrap_or_default())
     }
 
     /// Checks whether or not the execution has come to an end.
@@ -168,6 +173,7 @@ impl Executor {
     pub fn step(&mut self) -> Option<()> {
         let mut inner = || {
             let op = self.instrs.get(self.pc)?.clone();
+            log::trace!("Getting next instruction {op:?}");
             // eprintln!("OPS: {:?}", self.instrs);
             // eprintln!("PC:  {}", self.pc);
             // eprintln!("OP:  {:?}", op);
