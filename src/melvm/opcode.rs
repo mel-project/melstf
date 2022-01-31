@@ -6,7 +6,7 @@ use crate::melvm::consts::{
     OPCODE_NOT, OPCODE_OR, OPCODE_PUSHB, OPCODE_PUSHI, OPCODE_PUSHIC, OPCODE_REM, OPCODE_SHL,
     OPCODE_SHR, OPCODE_SIGEOK, OPCODE_STORE, OPCODE_STOREIMM, OPCODE_SUB, OPCODE_TYPEQ,
     OPCODE_VAPPEND, OPCODE_VCONS, OPCODE_VEMPTY, OPCODE_VLENGTH, OPCODE_VPUSH, OPCODE_VREF,
-    OPCODE_VSET, OPCODE_VSLICE, OPCODE_XOR,
+    OPCODE_VSET, OPCODE_VSLICE, OPCODE_XOR, OPCODE_PRINT,
 };
 
 use std::{fmt::Display, io::Write};
@@ -16,6 +16,9 @@ use thiserror::Error;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum OpCode {
+    #[cfg(feature = "print")]
+    Print,
+
     Noop,
     // arithmetic
     Add,
@@ -95,6 +98,8 @@ pub enum ParseOpCodeError {
 impl Display for OpCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            #[cfg(feature = "print")]
+            OpCode::Print => "print".fmt(f),
             OpCode::Noop => "noop".fmt(f),
             OpCode::Add => "add".fmt(f),
             OpCode::Sub => "sub".fmt(f),
@@ -180,6 +185,8 @@ impl OpCode {
         let mut output = Vec::new();
 
         match self {
+            #[cfg(feature = "print")]
+            OpCode::Print => output.write_all(&[OPCODE_PRINT]).unwrap(),
             OpCode::Noop => output.write_all(&[OPCODE_NOOP]).unwrap(),
 
             OpCode::Add => output.write_all(&[OPCODE_ADD]).unwrap(),
@@ -304,6 +311,8 @@ impl OpCode {
         };
 
         match read_byte(input)? {
+            #[cfg(feature = "print")]
+            OPCODE_PRINT => Ok(OpCode::Print),
             OPCODE_NOOP => Ok(OpCode::Noop),
             // arithmetic
             OPCODE_ADD => Ok(OpCode::Add),
@@ -415,6 +424,8 @@ fn opcodes_car_weight(opcodes: &[OpCode]) -> (u128, &[OpCode]) {
     }
     let (first, rest) = opcodes.split_first().unwrap();
     match first {
+        #[cfg(feature = "print")]
+        OpCode::Print => (0, rest),
         OpCode::Noop => (1, rest),
         // handle loops specially
         OpCode::Loop(iters, body_len) => {
