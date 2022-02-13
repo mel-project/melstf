@@ -6,7 +6,8 @@ use std::fmt;
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 
-pub type SVec<T> = SmallVec<[T; 32]>;
+pub type SVec<T> = SmallVec<[T; 40]>;
+
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct Node {
     pub bv: u64,
@@ -122,9 +123,9 @@ fn calc_labels_helper(
         lab_gen.add(&nd.to_bytes());
         let parents = nd.get_parents(n);
 
-        parents.iter().for_each(|parent| {
-            lab_gen.add(&ell[parent]);
-        });
+        for parent in parents {
+            lab_gen.add(&ell[&parent]);
+        }
 
         let lab = lab_gen.hash();
         f(nd, &lab);

@@ -8,28 +8,26 @@ pub fn bts_key(bts: &[u8], key: &[u8]) -> SVec<u8> {
 
 #[derive(Default)]
 pub struct Accumulator {
-    buff: SmallVec<[u8; 512]>,
-    key: Vec<u8>,
+    b3h: blake3::Hasher,
 }
 
 impl Accumulator {
     pub fn new(key: &[u8]) -> Self {
         Accumulator {
-            buff: SmallVec::new(),
-            key: key.to_vec(),
+            b3h: blake3::Hasher::new_keyed(blake3::hash(key).as_bytes()),
         }
     }
 
     #[inline]
     pub fn add(&mut self, bts: &[u8]) -> &mut Self {
         let blen = (bts.len() as u64).to_be_bytes();
-        self.buff.extend_from_slice(&blen);
-        self.buff.extend_from_slice(bts);
+        self.b3h.update(&blen);
+        self.b3h.update(bts);
         self
     }
 
     #[inline]
     pub fn hash(&self) -> SVec<u8> {
-        bts_key(&self.buff, &self.key)
+        SVec::from_slice(self.b3h.finalize().as_bytes())
     }
 }
