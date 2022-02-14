@@ -55,8 +55,8 @@ impl Proof {
             let mut temp_map = self.0.clone();
             let temp_map = Arc::make_mut(&mut temp_map);
 
-            gammas.iter().for_each(|gamma| {
-                match self.0.get(gamma) {
+            for gamma in gammas {
+                match self.0.get(&gamma) {
                     None => {
                         output = false;
                     }
@@ -64,22 +64,14 @@ impl Proof {
                         // verify that the label is correctly calculated from parents
                         let mut hasher = hash::Accumulator::new(&chi);
                         hasher.add(&gamma.to_bytes());
-
-                        gamma.get_parents(difficulty).iter().try_for_each(|parent| {
-                            match self.0.get(parent) {
-                                None => {
-                                    output = false;
-
-                                    None
-                                }
+                        for parent in gamma.get_parents(difficulty) {
+                            match self.0.get(&parent) {
+                                None => return false,
                                 Some(parlab) => {
-                                    hasher.add(parlab);
-
-                                    Some(())
+                                    hasher.add(&parlab);
                                 }
                             }
-                        });
-
+                        }
                         if hasher.hash() != *label {
                             output = false;
                         }
@@ -100,7 +92,7 @@ impl Proof {
                         }
                     }
                 }
-            });
+            }
         }
 
         output

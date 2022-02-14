@@ -41,22 +41,23 @@ impl Node {
         self.bv >> n & 1
     }
 
-    pub fn get_parents(self, n: usize) -> SVec<Node> {
-        let mut parents = SVec::new();
+    pub fn get_parents(&self, n: usize) -> Vec<Node> {
+        let mut v = vec![];
+        self.foreach_parent(n, |p| v.push(p));
+        v
+    }
+
+    pub fn foreach_parent(self, n: usize, mut f: impl FnMut(Node)) {
         if self.len == n {
-            let range = 0..n;
-
-            range.into_iter().for_each(|index| {
+            for index in 0..n {
                 if (self.bv >> index) & 1 != 0 {
-                    parents.push(self.take(index).append(0))
+                    f(self.take(index).append(0))
                 }
-            });
+            }
         } else {
-            parents.push(self.append(0));
-            parents.push(self.append(1));
+            f(self.append(0));
+            f(self.append(1));
         }
-
-        parents
     }
 
     pub fn uniqid(self) -> u64 {
@@ -108,9 +109,44 @@ impl fmt::Debug for Node {
 }
 
 pub fn calc_labels(chi: &[u8], n: usize, f: &mut impl FnMut(Node, &[u8])) {
-    calc_labels_helper(chi, n, Node::new_zero(), f, &mut FxHashMap::default());
+    // let mut correct_result =
+    //     || calc_labels_helper(chi, n, Node::new_zero(), f, &mut FxHashMap::default());
+
+    // iterative implementation
+    let mut memoizer: FxHashMap<Node, SVec<u8>> = FxHashMap::default();
+    let mut stack = vec![(false, Node::new_zero())];
+    while let Some((revisit, nd)) = stack.pop() {
+        // eprintln!("visiting {} at stack size {}", nd, stack.len());
+        if nd.len == n {
+            let mut lab_gen = hash::Accumulator::new(chi);
+            lab_gen.add(&nd.to_bytes());
+            nd.foreach_parent(n, |parent| {
+                lab_gen.add(&memoizer[&parent]);
+            });
+
+            let lab = lab_gen.hash();
+            f(nd, &lab);
+            memoizer.insert(nd, lab);
+        } else if !revisit {
+            stack.push((true, nd));
+            stack.push((false, nd.append(1)));
+            stack.push((false, nd.append(0)));
+        } else {
+            let l0 = memoizer[&nd.append(0)].clone();
+            let l1 = memoizer[&nd.append(1)].clone();
+            memoizer.remove(&nd.append(0));
+            let lab = hash::Accumulator::new(chi)
+                .add(&nd.to_bytes())
+                .add(&l0)
+                .add(&l1)
+                .hash();
+            f(nd, &lab);
+            memoizer.insert(nd, lab);
+        }
+    }
 }
 
+#[inline]
 fn calc_labels_helper(
     chi: &[u8],
     n: usize,
@@ -121,11 +157,9 @@ fn calc_labels_helper(
     if nd.len == n {
         let mut lab_gen = hash::Accumulator::new(chi);
         lab_gen.add(&nd.to_bytes());
-        let parents = nd.get_parents(n);
-
-        for parent in parents {
+        nd.foreach_parent(n, |parent| {
             lab_gen.add(&ell[&parent]);
-        }
+        });
 
         let lab = lab_gen.hash();
         f(nd, &lab);

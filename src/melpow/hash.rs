@@ -1,7 +1,5 @@
 use crate::melpow::node::SVec;
 
-use smallvec::SmallVec;
-
 pub fn bts_key(bts: &[u8], key: &[u8]) -> SVec<u8> {
     SVec::from_slice(&tmelcrypt::hash_keyed(key, bts))
 }
