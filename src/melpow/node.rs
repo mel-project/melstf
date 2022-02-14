@@ -135,6 +135,7 @@ pub fn calc_labels(chi: &[u8], n: usize, f: &mut impl FnMut(Node, &[u8])) {
             let l0 = memoizer[&nd.append(0)].clone();
             let l1 = memoizer[&nd.append(1)].clone();
             memoizer.remove(&nd.append(0));
+            memoizer.remove(&nd.append(1));
             let lab = hash::Accumulator::new(chi)
                 .add(&nd.to_bytes())
                 .add(&l0)
