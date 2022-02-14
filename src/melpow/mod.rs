@@ -68,7 +68,7 @@ impl Proof {
                             match self.0.get(&parent) {
                                 None => return false,
                                 Some(parlab) => {
-                                    hasher.add(&parlab);
+                                    hasher.add(parlab);
                                 }
                             }
                         }
