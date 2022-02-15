@@ -280,7 +280,7 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
         let coin_id = *tx.inputs.get(0).ok_or(StateError::MalformedTx).unwrap();
         let coin_data = self.get_coin(coin_id).ok_or(StateError::MalformedTx)?;
         // make sure the time is long enough that we can easily measure it
-        if (self.state.height - coin_data.height).0 < 100 {
+        if (self.state.height - coin_data.height).0 < 100 && self.state.network == NetID::Mainnet {
             log::warn!("too recent");
             return Err(StateError::InvalidMelPoW);
         }

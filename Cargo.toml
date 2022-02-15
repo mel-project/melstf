@@ -55,6 +55,7 @@ derivative = "2.2.0"
 themelio-structs="0.2"
 once_cell="1"
 blake3 = "1.0.0"
+assoc = "0.1.2"
 
 [target.'cfg(fuzzing)'.dependencies]
 honggfuzz = "0.5.54"

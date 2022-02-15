@@ -1,10 +1,12 @@
 use crate::melpow::hash;
 
+use rustc_hash::FxHashMap;
+use smallvec::SmallVec;
+use std::collections::HashMap;
 use std::convert::TryInto;
 use std::fmt;
 
-use rustc_hash::FxHashMap;
-use smallvec::SmallVec;
+use assoc::AssocExt;
 
 pub type SVec<T> = SmallVec<[T; 40]>;
 
@@ -109,42 +111,47 @@ impl fmt::Debug for Node {
 }
 
 pub fn calc_labels(chi: &[u8], n: usize, f: &mut impl FnMut(Node, &[u8])) {
-    // let mut correct_result =
-    //     || calc_labels_helper(chi, n, Node::new_zero(), f, &mut FxHashMap::default());
+    calc_labels_helper(chi, n, Node::new_zero(), f, &mut FxHashMap::default());
+    // // iterative implementation
+    // let mut memoizer: FxHashMap<Node, SVec<u8>> = FxHashMap::default();
+    // // let mut memoizer: Vec<(Node, SVec<u8>)> = Default::default();
+    // let mut stack = Vec::with_capacity(32);
+    // stack.push((false, Node::new_zero()));
+    // while let Some((revisit, nd)) = stack.pop() {
+    //     // eprintln!(
+    //     //     "visiting {} at stack size {} and memoizer size {} ",
+    //     //     nd,
+    //     //     stack.len(),
+    //     //     memoizer.len()
+    //     // );
+    //     if nd.len == n {
+    //         let mut lab_gen = hash::Accumulator::new(chi);
+    //         lab_gen.add(&nd.to_bytes());
+    //         nd.foreach_parent(n, |parent| {
+    //             lab_gen.add(memoizer.get(&parent).unwrap());
+    //         });
 
-    // iterative implementation
-    let mut memoizer: FxHashMap<Node, SVec<u8>> = FxHashMap::default();
-    let mut stack = vec![(false, Node::new_zero())];
-    while let Some((revisit, nd)) = stack.pop() {
-        // eprintln!("visiting {} at stack size {}", nd, stack.len());
-        if nd.len == n {
-            let mut lab_gen = hash::Accumulator::new(chi);
-            lab_gen.add(&nd.to_bytes());
-            nd.foreach_parent(n, |parent| {
-                lab_gen.add(&memoizer[&parent]);
-            });
-
-            let lab = lab_gen.hash();
-            f(nd, &lab);
-            memoizer.insert(nd, lab);
-        } else if !revisit {
-            stack.push((true, nd));
-            stack.push((false, nd.append(1)));
-            stack.push((false, nd.append(0)));
-        } else {
-            let l0 = memoizer[&nd.append(0)].clone();
-            let l1 = memoizer[&nd.append(1)].clone();
-            memoizer.remove(&nd.append(0));
-            memoizer.remove(&nd.append(1));
-            let lab = hash::Accumulator::new(chi)
-                .add(&nd.to_bytes())
-                .add(&l0)
-                .add(&l1)
-                .hash();
-            f(nd, &lab);
-            memoizer.insert(nd, lab);
-        }
-    }
+    //         let lab = lab_gen.hash();
+    //         f(nd, &lab);
+    //         memoizer.insert(nd, lab);
+    //     } else if !revisit {
+    //         stack.push((true, nd));
+    //         stack.push((false, nd.append(1)));
+    //         stack.push((false, nd.append(0)));
+    //     } else {
+    //         let l0 = memoizer.get(&nd.append(0)).unwrap().clone();
+    //         let l1 = memoizer.get(&nd.append(1)).unwrap().clone();
+    //         memoizer.remove(&nd.append(0));
+    //         memoizer.remove(&nd.append(1));
+    //         let lab = hash::Accumulator::new(chi)
+    //             .add(&nd.to_bytes())
+    //             .add(&l0)
+    //             .add(&l1)
+    //             .hash();
+    //         f(nd, &lab);
+    //         memoizer.insert(nd, lab);
+    //     }
+    // }
 }
 
 #[inline]
