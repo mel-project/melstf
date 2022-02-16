@@ -2,7 +2,7 @@ cargo-features=["edition2021"]
 
 [package]
 name = "themelio-stf"
-version = "0.9.7"
+version = "0.9.8"
 authors = ["Themelio Labs"]
 edition = "2021"
 
