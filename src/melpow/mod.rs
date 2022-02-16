@@ -20,6 +20,15 @@ pub struct Proof(Arc<FxHashMap<node::Node, SVec<u8>>>);
 impl Proof {
     /// Generates a MelPoW proof with respect to the given starting puzzle and a difficulty.
     pub fn generate(puzzle: &[u8], difficulty: usize) -> Self {
+        Self::generate_with_progress(puzzle, difficulty, |_| ())
+    }
+
+    /// Generate with progress. The callback is called every time progress is made with a floating point number from 0 to 1.
+    pub fn generate_with_progress(
+        puzzle: &[u8],
+        difficulty: usize,
+        on_progress: impl Fn(f64),
+    ) -> Self {
         let mut proof_map = FxHashMap::default();
         let chi = hash::bts_key(puzzle, b"chi");
         let gammas = gen_gammas(puzzle, difficulty);
@@ -32,7 +41,13 @@ impl Proof {
             proof_map.insert(gamma, SVec::new());
         });
 
+        let total_count = 2.0f64.powi(difficulty as _);
+        let mut current_count = 0.0;
         node::calc_labels(&chi, difficulty, &mut |nd, lab| {
+            if nd.len == difficulty {
+                current_count += 1.0;
+                on_progress(current_count / total_count);
+            }
             if proof_map.get(&nd).is_some() || nd.len == 0 {
                 proof_map.insert(nd, SVec::from_slice(lab));
             }
