@@ -158,10 +158,12 @@ impl Executor {
                 return None;
             }
         }
-        Some(self.stack
-            .last()
-            .map(|f| f.clone().into_bool())
-            .unwrap_or_default())
+        Some(
+            self.stack
+                .last()
+                .map(|f| f.clone().into_bool())
+                .unwrap_or_default(),
+        )
     }
 
     /// Checks whether or not the execution has come to an end.
@@ -334,7 +336,7 @@ impl Executor {
                     Some(Value::from_bytes(&hash.0))
                 })?,
                 OpCode::SigEOk(n) => self.do_triop(|message, public_key, signature| {
-                    //println!("SIGEOK({:?}, {:?}, {:?})", message, public_key, signature);
+                    log::trace!("SIGEOK({:?}, {:?}, {:?})", message, public_key, signature);
                     let public_key_bytes: CatVec<u8, 256> = public_key.into_bytes()?;
 
                     if public_key_bytes.len() > 32 {
