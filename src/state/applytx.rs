@@ -1,10 +1,10 @@
-use std::convert::TryInto;
+use std::{convert::TryInto, time::Instant};
 
 use dashmap::DashMap;
 use novasmt::ContentAddrStore;
 use parking_lot::Mutex;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use themelio_structs::{
     Address, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc,
     Transaction, TxHash, TxKind,
@@ -137,22 +137,9 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
     }
 
     fn apply_tx_inputs(&self, tx: &Transaction) -> Result<(), StateError> {
-        // let mut output: Vec<u8> = Vec::new();
-        // // go through output
-        // let was_encoding_successful: Result<(), EncodeError> = ops.iter().try_for_each(|op| {
-        //     match op.encode() {
-        //         Ok(data) => {
-        //             Ok(output.extend_from_slice(&data))
-        //         },
-        //         Err(error) => Err(error),
-        //     }
-        // });
-        //
-        // match was_encoding_successful {
-        //     Ok(()) => Ok(Covenant(output)),
-        //     Err(error) => Err(error),
-        // }
-
+        let txhash = tx.hash_nosigs();
+        log::debug!("{}: apply inputs start", txhash);
+        let start = Instant::now();
         let scripts = tx.covenants_as_map();
         // build a map of input coins
         let mut in_coins: FxHashMap<Denom, u128> = FxHashMap::default();
@@ -163,7 +150,9 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
             .get(&(self.state.height.0.saturating_sub(1).into()))
             .0
             .unwrap_or_else(|| self.state.clone().seal(None).header());
+        log::debug!("{}: got header for inputs {:?}", txhash, start.elapsed());
         // iterate through the inputs
+        let mut good_scripts: FxHashSet<Address> = FxHashSet::default();
         for (spend_idx, coin_id) in tx.inputs.iter().enumerate() {
             if self.get_stake(coin_id.txhash).is_some() {
                 return Err(StateError::CoinLocked);
@@ -178,22 +167,25 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
                         coin_data,
                         tx.hash_nosigs()
                     );
-                    let script = Covenant(
-                        scripts
-                            .get(&coin_data.coin_data.covhash)
-                            .ok_or(StateError::NonexistentScript(coin_data.coin_data.covhash))?
-                            .clone(),
-                    );
-                    if !script.check(
-                        tx,
-                        CovenantEnv {
-                            parent_coinid: coin_id,
-                            parent_cdh: &coin_data,
-                            spender_index: spend_idx as u8,
-                            last_header: &last_header,
-                        },
-                    ) {
-                        return Err(StateError::ViolatesScript(coin_data.coin_data.covhash));
+                    if !good_scripts.contains(&coin_data.coin_data.covhash) {
+                        let script = Covenant(
+                            scripts
+                                .get(&coin_data.coin_data.covhash)
+                                .ok_or(StateError::NonexistentScript(coin_data.coin_data.covhash))?
+                                .clone(),
+                        );
+                        if !script.check(
+                            tx,
+                            CovenantEnv {
+                                parent_coinid: coin_id,
+                                parent_cdh: &coin_data,
+                                spender_index: spend_idx as u8,
+                                last_header: &last_header,
+                            },
+                        ) {
+                            return Err(StateError::ViolatesScript(coin_data.coin_data.covhash));
+                        }
+                        good_scripts.insert(coin_data.coin_data.covhash);
                     }
                     self.del_coin(*coin_id);
                     in_coins.insert(
@@ -204,6 +196,7 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
                 }
             }
         }
+        log::debug!("{}: processed all inputs {:?}", txhash, start.elapsed());
         // balance inputs and outputs. ignore outputs with empty cointype (they create a new token kind)
         let out_coins = tx.total_outputs();
         if tx.kind != TxKind::Faucet {

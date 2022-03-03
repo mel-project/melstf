@@ -338,28 +338,30 @@ impl Executor {
                 OpCode::SigEOk(n) => self.do_triop(|message, public_key, signature| {
                     log::trace!("SIGEOK({:?}, {:?}, {:?})", message, public_key, signature);
                     let public_key_bytes: CatVec<u8, 256> = public_key.into_bytes()?;
-
+                    log::trace!("GOT PK");
                     if public_key_bytes.len() > 32 {
                         return Some(Value::from_bool(false));
                     }
 
                     let public_key_byte_vector: Vec<u8> = public_key_bytes.into();
                     let public_key: tmelcrypt::Ed25519PK = tmelcrypt::Ed25519PK::from_bytes(&public_key_byte_vector)?;
+                    log::trace!("CONV PK");
                     let message_bytes: CatVec<u8, 256> = message.into_bytes()?;
-
+                    log::trace!("GOT TO MSG BYTES {}", message_bytes.len());
                     if message_bytes.len() > n as usize {
                         return None;
                     }
 
                     let message_byte_vector: Vec<u8> = message_bytes.into();
                     let signature_bytes: CatVec<u8, 256> = signature.into_bytes()?;
+                    log::trace!("GOT TO SIG BYTES");
 
                     if signature_bytes.len() > 64 {
                         return Some(Value::from_bool(false));
                     }
 
                     let signature_byte_vector: Vec<u8> = signature_bytes.into();
-
+                    log::trace!("GOT TO END");
                     Some(Value::from_bool(public_key.verify(&message_byte_vector, &signature_byte_vector)))
                 })?,
                 // storage access
