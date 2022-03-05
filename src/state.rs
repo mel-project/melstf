@@ -7,7 +7,7 @@ mod poolkey;
 pub use crate::stake::*;
 use crate::{
     smtmapping::*,
-    tip_heights::{TIP_901_HEIGHT, TIP_906_HEIGHT, TIP_908_HEIGHT},
+    tip_heights::{TIP_901_HEIGHT, TIP_906_HEIGHT, TIP_908_HEIGHT, TIP_909_HEIGHT},
 };
 use crate::{state::applytx::StateHandle, tip_heights::TIP_902_HEIGHT};
 
@@ -133,6 +133,12 @@ impl<C: ContentAddrStore> State<C> {
             || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
     }
 
+    /// Returns true iff TIP 909 rule changes apply.
+    pub fn tip_909(&self) -> bool {
+        self.height >= TIP_909_HEIGHT
+            || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
+    }
+
     /// Generates an encoding of the state that, in conjunction with a SMT database, can recover the entire state.
     pub fn partial_encoding(&self) -> Vec<u8> {
         let mut out = Vec::new();
@@ -246,6 +252,33 @@ impl<C: ContentAddrStore> State<C> {
         // first apply melmint
         self = crate::melmint::preseal_melmint(self);
         assert!(self.pools.val_iter().count() >= 2);
+
+        // then apply tip 909
+        if self.tip_909() {
+            let divider = self.height.0.saturating_sub(TIP_909_HEIGHT.0) / 1_000_000;
+            let reward = (1u128 << 20) >> divider;
+            // fee subsidy
+            let fee_subsidy = reward / 2;
+            let mut smpool = self
+                .pools
+                .get(&PoolKey::new(Denom::Mel, Denom::Sym))
+                .0
+                .unwrap();
+            let (mel, _) = smpool.swap_many(0, fee_subsidy);
+            self.pools
+                .insert(PoolKey::new(Denom::Mel, Denom::Sym), smpool);
+            self.fee_pool += CoinValue(mel);
+            // erg subsidy
+            let erg_subsidy = reward - fee_subsidy;
+            let mut espool = self
+                .pools
+                .get(&PoolKey::new(Denom::Erg, Denom::Sym))
+                .0
+                .unwrap();
+            let _ = espool.swap_many(0, erg_subsidy);
+            self.pools
+                .insert(PoolKey::new(Denom::Erg, Denom::Sym), espool);
+        }
 
         let after_tip_901 = self.tip_901();
 
