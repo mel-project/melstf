@@ -270,24 +270,25 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
     }
 
     fn apply_tx_special_doscmint(&self, tx: &Transaction) -> Result<(), StateError> {
-        let coin_id = *tx.inputs.get(0).ok_or(StateError::MalformedTx).unwrap();
+        let coin_id = *tx.inputs.get(0).unwrap();
         let coin_data = self.get_coin(coin_id).ok_or(StateError::MalformedTx)?;
         // make sure the time is long enough that we can easily measure it
         if (self.state.height - coin_data.height).0 < 100 && self.state.network == NetID::Mainnet {
-            log::warn!("too recent");
+            log::warn!("rejecting doscmint due to too recent");
             return Err(StateError::InvalidMelPoW);
         }
         // construct puzzle seed
         let chi = tmelcrypt::hash_keyed(
             &self.state.history.get(&coin_data.height).0.unwrap().hash(),
-            &stdcode::serialize(tx.inputs.get(0).ok_or(StateError::MalformedTx).unwrap()).unwrap(),
+            &stdcode::serialize(tx.inputs.get(0).unwrap()).unwrap(),
         );
         // get difficulty and proof
         let (difficulty, proof_bytes): (u32, Vec<u8>) =
-            stdcode::deserialize(&tx.data).map_err(|_| StateError::MalformedTx)?;
-        let proof = melpow::Proof::from_bytes(&proof_bytes)
-            .ok_or(StateError::MalformedTx)
-            .unwrap();
+            stdcode::deserialize(&tx.data).map_err(|e| {
+                log::warn!("rejecting doscmint due to malformed proof: {:?}", e);
+                StateError::MalformedTx
+            })?;
+        let proof = melpow::Proof::from_bytes(&proof_bytes).unwrap();
         if !proof.verify(&chi, difficulty as _) {
             log::warn!("chi = {}", chi);
             log::warn!(
@@ -322,6 +323,7 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
             .cloned()
             .unwrap_or_default();
         if total_dosc_output > reward_nom {
+            log::warn!("tried to get too much reward");
             return Err(StateError::InvalidMelPoW);
         }
         Ok(())
