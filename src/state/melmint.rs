@@ -271,6 +271,7 @@ fn process_deposits<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
             deposit.outputs[0].denom = pool.liq_token_denom();
             deposit.outputs[0].value =
                 multiply_frac(total_liqs, Ratio::new(my_mtsqrt, total_mtsqrt)).into();
+            log::trace!("added {} total liquidity!", deposit.outputs[0].value);
             state.coins.insert_coin(
                 correct_coinid,
                 CoinDataHeight {
