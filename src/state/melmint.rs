@@ -6,7 +6,7 @@ use novasmt::ContentAddrStore;
 use num::{integer::Roots, rational::Ratio, BigInt, BigRational};
 use tap::Pipe;
 use themelio_structs::{
-    BlockHeight, CoinData, CoinDataHeight, CoinValue, Denom, PoolState, Transaction, TxKind,
+    BlockHeight, CoinData, CoinDataHeight, CoinValue, Denom, NetID, PoolState, Transaction, TxKind,
     MAX_COINVAL, MICRO_CONVERTER,
 };
 
@@ -262,7 +262,7 @@ fn process_deposits<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
         };
         // divvy up the liqs
         relevant_txx.iter_mut().for_each(|deposit| {
-            let correct_coinid = deposit.output_coinid(0);
+            let original_tx = deposit.clone();
             let my_mtsqrt = deposit.outputs[0]
                 .value
                 .0
@@ -271,18 +271,31 @@ fn process_deposits<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
             deposit.outputs[0].denom = pool.liq_token_denom();
             deposit.outputs[0].value =
                 multiply_frac(total_liqs, Ratio::new(my_mtsqrt, total_mtsqrt)).into();
-            log::trace!("added {} total liquidity!", deposit.outputs[0].value);
+            log::debug!(
+                "added {} total liquidity out of {}!",
+                deposit.outputs[0].value,
+                total_liqs
+            );
             state.coins.insert_coin(
-                correct_coinid,
+                original_tx.output_coinid(0),
                 CoinDataHeight {
                     coin_data: deposit.outputs[0].clone(),
                     height: state.height,
                 },
                 state.tip_906(),
             );
-            state
-                .coins
-                .remove_coin(deposit.output_coinid(1), state.tip_906());
+            if (state.network == NetID::Mainnet || state.network == NetID::Testnet)
+                && state.height.0 < 978392
+            {
+                log::warn!("APPLYING OLD RULES THAT LEAD TO INFLATION BUG!!!!!");
+                state
+                    .coins
+                    .remove_coin(deposit.output_coinid(1), state.tip_906());
+            } else {
+                state
+                    .coins
+                    .remove_coin(original_tx.output_coinid(1), state.tip_906());
+            }
         });
     });
 
