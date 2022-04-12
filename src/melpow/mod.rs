@@ -173,7 +173,7 @@ mod tests {
 
     #[test]
     fn test_simple() {
-        let difficulty = 8;
+        let difficulty = 16;
         let puzzle = vec![];
         let proof = Proof::generate(&puzzle, difficulty);
         assert!(proof.verify(&puzzle, difficulty));

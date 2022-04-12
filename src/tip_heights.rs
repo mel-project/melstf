@@ -14,3 +14,6 @@ pub const TIP_908_HEIGHT: BlockHeight = BlockHeight(u64::MAX);
 
 /// TIP 909: tokenomics
 pub const TIP_909_HEIGHT: BlockHeight = BlockHeight(950000);
+
+/// TIP 909a: tokenomics bugfix
+pub const TIP_909A_HEIGHT: BlockHeight = BlockHeight(1048000);

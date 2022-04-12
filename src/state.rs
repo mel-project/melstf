@@ -7,7 +7,9 @@ mod poolkey;
 pub use crate::stake::*;
 use crate::{
     smtmapping::*,
-    tip_heights::{TIP_901_HEIGHT, TIP_906_HEIGHT, TIP_908_HEIGHT, TIP_909_HEIGHT},
+    tip_heights::{
+        TIP_901_HEIGHT, TIP_906_HEIGHT, TIP_908_HEIGHT, TIP_909A_HEIGHT, TIP_909_HEIGHT,
+    },
 };
 use crate::{state::applytx::StateHandle, tip_heights::TIP_902_HEIGHT};
 
@@ -139,6 +141,12 @@ impl<C: ContentAddrStore> State<C> {
             || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
     }
 
+    /// Returns true iff TIP 909a rule changes apply.
+    pub fn tip_909a(&self) -> bool {
+        self.height >= TIP_909A_HEIGHT
+            || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
+    }
+
     /// Generates an encoding of the state that, in conjunction with a SMT database, can recover the entire state.
     pub fn partial_encoding(&self) -> Vec<u8> {
         let mut out = Vec::new();
@@ -257,8 +265,13 @@ impl<C: ContentAddrStore> State<C> {
         if self.tip_909() {
             let divider = self.height.0.saturating_sub(TIP_909_HEIGHT.0) / 1_000_000;
             let reward = (1u128 << 20) >> divider;
+            let tip909a_erg_subsidy = reward >> 8;
             // fee subsidy
-            let fee_subsidy = reward / 2;
+            let fee_subsidy = if self.tip_909a() {
+                reward - tip909a_erg_subsidy
+            } else {
+                reward / 2
+            };
             let mut smpool = self
                 .pools
                 .get(&PoolKey::new(Denom::Mel, Denom::Sym))
@@ -269,7 +282,11 @@ impl<C: ContentAddrStore> State<C> {
                 .insert(PoolKey::new(Denom::Mel, Denom::Sym), smpool);
             self.fee_pool += CoinValue(mel);
             // erg subsidy
-            let erg_subsidy = reward - fee_subsidy;
+            let erg_subsidy = if self.tip_909a() {
+                tip909a_erg_subsidy
+            } else {
+                reward - fee_subsidy
+            };
             let mut espool = self
                 .pools
                 .get(&PoolKey::new(Denom::Erg, Denom::Sym))
