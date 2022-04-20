@@ -13,9 +13,12 @@ use themelio_structs::{Address, CoinDataHeight, CoinID, Header, Transaction};
 use thiserror::Error;
 pub use value::*;
 
-use crate::melvm::{
-    consts::{HADDR_SPENDER_INDEX, HADDR_SPENDER_TX},
-    opcode::{opcodes_weight, DecodeError, EncodeError, OpCode},
+use crate::{
+    melvm::{
+        consts::{HADDR_SPENDER_INDEX, HADDR_SPENDER_TX},
+        opcode::{opcodes_weight, DecodeError, EncodeError, OpCode},
+    },
+    stats::STAT_MELVM_RUNTIME_SECS,
 };
 
 /// Weight calculator from bytes, to use in Transaction::weight etc.
@@ -85,6 +88,7 @@ impl Covenant {
 
     /// Execute a transaction in a [CovenantEnv] to completion and return whether the covenant succeeded.
     pub fn check_opt_env(&self, tx: &Transaction, env: Option<CovenantEnv>) -> bool {
+        let _timer = STAT_MELVM_RUNTIME_SECS.timer_secs();
         if let Ok(instrs) = self.to_ops() {
             Executor::new_from_env(instrs, tx.clone(), env).run_to_end()
         } else {

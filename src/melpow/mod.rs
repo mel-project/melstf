@@ -5,7 +5,7 @@
 mod hash;
 mod node;
 
-use crate::melpow::node::SVec;
+use crate::{melpow::node::SVec, stats::STAT_MELPOW_SECS};
 
 use std::{convert::TryInto, sync::Arc};
 
@@ -59,6 +59,7 @@ impl Proof {
     /// Verifies a MelPoW proof.
     #[must_use]
     pub fn verify(&self, puzzle: &[u8], difficulty: usize) -> bool {
+        let _timer = STAT_MELPOW_SECS.timer_secs();
         let mut output: bool = true;
 
         if difficulty > 100 {

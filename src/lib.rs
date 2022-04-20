@@ -15,6 +15,7 @@ pub mod melvm;
 mod smtmapping;
 mod stake;
 mod state;
+pub mod stats;
 mod testing;
 pub mod tip_heights;
 

@@ -4,6 +4,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use tmelcrypt::HashVal;
 
+use crate::stats::{STAT_SMT_GET_SECS, STAT_SMT_INSERT_SECS};
+
 /// SmtMapping is a type-safe, constant-time cloneable, imperative-style interface to a sparse Merkle tree.
 pub struct SmtMapping<C: ContentAddrStore, K: Serialize, V: Serialize + DeserializeOwned> {
     pub mapping: novasmt::Tree<C>,
@@ -47,6 +49,8 @@ impl<C: ContentAddrStore, K: Serialize, V: Serialize + DeserializeOwned> SmtMapp
     }
     /// get obtains a mapping
     pub fn get(&self, key: &K) -> (Option<V>, FullProof) {
+        let _timer = STAT_SMT_GET_SECS.timer_secs();
+
         let key = tmelcrypt::hash_single(&stdcode::serialize(key).unwrap());
         let (v_bytes, proof) = self.mapping.get_with_proof(key.0);
         match v_bytes.len() {
@@ -59,12 +63,16 @@ impl<C: ContentAddrStore, K: Serialize, V: Serialize + DeserializeOwned> SmtMapp
     }
     /// insert inserts a mapping, replacing any existing mapping
     pub fn insert(&mut self, key: K, val: V) {
+        let _timer = STAT_SMT_INSERT_SECS.timer_secs();
+
         let key = tmelcrypt::hash_single(&stdcode::serialize(&key).unwrap());
         self.mapping
             .insert(key.0, &stdcode::serialize(&val).unwrap());
     }
     /// delete deletes a mapping, replacing the mapping with a mapping to the empty bytestring
     pub fn delete(&mut self, key: &K) {
+        let _timer = STAT_SMT_INSERT_SECS.timer_secs();
+
         let key = tmelcrypt::hash_single(&stdcode::serialize(key).unwrap());
         self.mapping.insert(key.0, Default::default());
     }
