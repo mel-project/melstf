@@ -71,28 +71,6 @@ fn main() {
 use ethnum::U256;
 use novasmt::ContentAddrStore;
 
-/// A boringdb-backed autosmt backend
-pub struct BoringCas {
-    inner: boringdb::Dict,
-}
-
-impl ContentAddrStore for BoringCas {
-    fn get<'a>(&'a self, key: &[u8]) -> Option<std::borrow::Cow<'a, [u8]>> {
-        Some(Cow::Owned(
-            self.inner
-                .get(&tmelcrypt::hash_single(key).0)
-                .unwrap()?
-                .to_vec(),
-        ))
-    }
-
-    fn insert(&self, key: &[u8], value: &[u8]) {
-        self.inner
-            .insert(tmelcrypt::hash_single(key).0.to_vec(), value.to_vec())
-            .unwrap();
-    }
-}
-
 /// A meshanina-backed autosmt backend
 pub struct MeshaCas {
     inner: meshanina::Mapping,

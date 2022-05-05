@@ -334,7 +334,8 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
         };
 
         // compute speeds
-        let my_speed = 2u128.pow(difficulty) / (self.state.height - coin_data.height).0 as u128;
+        let my_speed = if is_tip910 { 100 } else { 1 } * 2u128.pow(difficulty)
+            / (self.state.height - coin_data.height).0 as u128;
         let reward_real = melmint::calculate_reward(
             my_speed,
             self.state
