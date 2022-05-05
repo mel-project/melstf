@@ -13,16 +13,14 @@ use crate::{
 };
 use crate::{state::applytx::StateHandle, tip_heights::TIP_902_HEIGHT};
 
-use std::io::Read;
-use std::{collections::HashSet, fmt::Debug};
-use std::{convert::TryInto, sync::Arc};
+use std::convert::TryInto;
+use std::fmt::Debug;
+use std::{collections::BTreeMap, io::Read};
 
 use crate::state::melswap::PoolMapping;
-use dashmap::{lock::RwLock, DashMap};
 use defmac::defmac;
 use derivative::Derivative;
-use novasmt::{dense::DenseMerkleTree, ContentAddrStore};
-use once_cell::sync::Lazy;
+use novasmt::{dense::DenseMerkleTree, ContentAddrStore, Database, InMemoryCas};
 use stdcode::StdcodeSerializeExt;
 use tap::Pipe;
 use themelio_structs::{
@@ -71,7 +69,7 @@ pub struct State<C: ContentAddrStore> {
     pub height: BlockHeight,
     pub history: SmtMapping<C, BlockHeight, Header>,
     pub coins: CoinMapping<C>,
-    pub transactions: SmtMapping<C, TxHash, Transaction>,
+    pub transactions: BTreeMap<TxHash, Transaction>,
 
     pub fee_pool: CoinValue,
     pub fee_multiplier: u128,
@@ -147,76 +145,60 @@ impl<C: ContentAddrStore> State<C> {
             || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
     }
 
-    /// Generates an encoding of the state that, in conjunction with a SMT database, can recover the entire state.
-    pub fn partial_encoding(&self) -> Vec<u8> {
-        let mut out = Vec::new();
-        out.extend_from_slice(&[self.network.into()]);
-        out.extend_from_slice(&self.height.0.to_be_bytes());
-        out.extend_from_slice(&self.history.root_hash());
-        out.extend_from_slice(&self.coins.root_hash());
-        out.extend_from_slice(&self.transactions.root_hash());
+    // /// Restores a state from its partial encoding in conjunction with a database. **Does not validate data and will panic; do not use on untrusted data**
+    // pub fn from_partial_encoding_infallible(
+    //     mut encoding: &[u8],
+    //     db: &novasmt::Database<C>,
+    // ) -> Self {
+    //     defmac!(readu8 => u8::from_be_bytes(read_bts(&mut encoding, 1).unwrap().as_slice().try_into().unwrap()));
+    //     defmac!(readu64 => u64::from_be_bytes(read_bts(&mut encoding, 8).unwrap().as_slice().try_into().unwrap()));
+    //     defmac!(readu128 => u128::from_be_bytes(read_bts(&mut encoding, 16).unwrap().as_slice().try_into().unwrap()));
+    //     defmac!(readtree => SmtMapping::new(db.get_tree(
+    //         read_bts(&mut encoding, 32).unwrap().as_slice().try_into().unwrap(),
+    //     ).unwrap()));
+    //     let network: NetID = readu8!().try_into().unwrap();
+    //     let height = readu64!();
+    //     let history = readtree!();
+    //     let coins = db
+    //         .get_tree(
+    //             read_bts(&mut encoding, 32)
+    //                 .unwrap()
+    //                 .as_slice()
+    //                 .try_into()
+    //                 .unwrap(),
+    //         )
+    //         .unwrap();
 
-        out.extend_from_slice(&self.fee_pool.0.to_be_bytes());
-        out.extend_from_slice(&self.fee_multiplier.to_be_bytes());
-        out.extend_from_slice(&self.tips.0.to_be_bytes());
+    //     let transactions: SmtMapping<C, TxHash, Transaction> = readtree!();
 
-        out.extend_from_slice(&self.dosc_speed.to_be_bytes());
-        out.extend_from_slice(&self.pools.root_hash());
+    //     let fee_pool = readu128!();
+    //     let fee_multiplier = readu128!();
+    //     let tips = readu128!();
 
-        out.extend_from_slice(&self.stakes.root_hash());
-        out
-    }
+    //     let dosc_multiplier = readu128!();
+    //     let pools = readtree!();
 
-    /// Restores a state from its partial encoding in conjunction with a database. **Does not validate data and will panic; do not use on untrusted data**
-    pub fn from_partial_encoding_infallible(
-        mut encoding: &[u8],
-        db: &novasmt::Database<C>,
-    ) -> Self {
-        defmac!(readu8 => u8::from_be_bytes(read_bts(&mut encoding, 1).unwrap().as_slice().try_into().unwrap()));
-        defmac!(readu64 => u64::from_be_bytes(read_bts(&mut encoding, 8).unwrap().as_slice().try_into().unwrap()));
-        defmac!(readu128 => u128::from_be_bytes(read_bts(&mut encoding, 16).unwrap().as_slice().try_into().unwrap()));
-        defmac!(readtree => SmtMapping::new(db.get_tree(
-            read_bts(&mut encoding, 32).unwrap().as_slice().try_into().unwrap(),
-        ).unwrap()));
-        let network: NetID = readu8!().try_into().unwrap();
-        let height = readu64!();
-        let history = readtree!();
-        let coins = db
-            .get_tree(
-                read_bts(&mut encoding, 32)
-                    .unwrap()
-                    .as_slice()
-                    .try_into()
-                    .unwrap(),
-            )
-            .unwrap();
-        let transactions = readtree!();
+    //     let stakes = readtree!();
+    //     State {
+    //         network,
+    //         height: height.into(),
+    //         history,
+    //         coins: CoinMapping::new(coins),
+    //         transactions: transactions
+    //             .val_iter()
+    //             .map(|t| (t.hash_nosigs(), t))
+    //             .collect(),
 
-        let fee_pool = readu128!();
-        let fee_multiplier = readu128!();
-        let tips = readu128!();
+    //         fee_pool: fee_pool.into(),
+    //         fee_multiplier,
+    //         tips: tips.into(),
 
-        let dosc_multiplier = readu128!();
-        let pools = readtree!();
+    //         dosc_speed: dosc_multiplier,
+    //         pools,
 
-        let stakes = readtree!();
-        State {
-            network,
-            height: height.into(),
-            history,
-            coins: CoinMapping::new(coins),
-            transactions,
-
-            fee_pool: fee_pool.into(),
-            fee_multiplier,
-            tips: tips.into(),
-
-            dosc_speed: dosc_multiplier,
-            pools,
-
-            stakes,
-        }
-    }
+    //         stakes,
+    //     }
+    // }
 
     /// Applies a single transaction.
     pub fn apply_tx(&mut self, tx: &Transaction) -> Result<(), StateError> {
@@ -240,7 +222,7 @@ impl<C: ContentAddrStore> State<C> {
     pub fn transactions_root_hash(&self) -> HashVal {
         if self.tip_908() {
             let mut vv = Vec::new();
-            for tx in self.transactions.val_iter() {
+            for tx in self.transactions.values() {
                 let complex = tx.hash_nosigs().pipe(|nosigs_hash| {
                     let mut v = nosigs_hash.0.to_vec();
                     v.extend_from_slice(&tx.stdcode().hash().0);
@@ -251,7 +233,12 @@ impl<C: ContentAddrStore> State<C> {
             vv.sort_unstable();
             HashVal(DenseMerkleTree::new(&vv).root_hash())
         } else {
-            self.transactions.root_hash()
+            let db = Database::new(InMemoryCas::default());
+            let mut smt = SmtMapping::new(db.get_tree(Default::default()).unwrap());
+            for (k, v) in self.transactions.iter() {
+                smt.insert(*k, v.clone());
+            }
+            smt.root_hash()
         }
     }
 
@@ -350,6 +337,32 @@ impl<C: ContentAddrStore> State<C> {
 pub struct SealedState<C: ContentAddrStore>(State<C>, Option<ProposerAction>);
 
 impl<C: ContentAddrStore> SealedState<C> {
+    /// Regenerate from a block, given a database to get the SMTs out of.
+    pub fn from_block(blk: &Block, db: &Database<C>) -> Self {
+        let coins = CoinMapping::new(db.get_tree(blk.header.coins_hash.0).unwrap());
+        let history = SmtMapping::new(db.get_tree(blk.header.history_hash.0).unwrap());
+        let stakes = SmtMapping::new(db.get_tree(blk.header.stakes_hash.0).unwrap());
+        let pools = SmtMapping::new(db.get_tree(blk.header.pools_hash.0).unwrap());
+        let state = State {
+            network: blk.header.network,
+            height: blk.header.height,
+            history,
+            coins,
+            transactions: blk
+                .transactions
+                .iter()
+                .map(|tx| (tx.hash_nosigs(), tx.clone()))
+                .collect(),
+            fee_pool: blk.header.fee_pool,
+            fee_multiplier: blk.header.fee_multiplier,
+            tips: CoinValue(0),
+            dosc_speed: blk.header.dosc_speed,
+            pools,
+            stakes,
+        };
+        Self(state, blk.proposer_action)
+    }
+
     /// From raw parts
     pub fn from_parts(state: State<C>, prop_action: Option<ProposerAction>) -> Self {
         Self(state, prop_action)
@@ -362,19 +375,7 @@ impl<C: ContentAddrStore> SealedState<C> {
 
     /// Returns whether or not it's empty.
     pub fn is_empty(&self) -> bool {
-        self.1.is_none() && self.inner_ref().transactions.root_hash() == Default::default()
-    }
-
-    /// Returns the **partial** encoding, which must be combined with a SMT database to reconstruct the actual state.
-    pub fn partial_encoding(&self) -> Vec<u8> {
-        let tmp = (self.0.partial_encoding(), &self.1);
-        stdcode::serialize(&tmp).unwrap()
-    }
-
-    /// Decodes from the partial encoding.
-    pub fn from_partial_encoding_infallible(bts: &[u8], db: &novasmt::Database<C>) -> Self {
-        let tmp: (Vec<u8>, Option<ProposerAction>) = stdcode::deserialize(bts).unwrap();
-        SealedState(State::from_partial_encoding_infallible(&tmp.0, db), tmp.1)
+        self.1.is_none() && self.inner_ref().transactions.is_empty()
     }
 
     /// Returns the block header represented by the finalized state.
@@ -405,57 +406,46 @@ impl<C: ContentAddrStore> SealedState<C> {
 
     /// Returns the final state represented as a "block" (header + transactions).
     pub fn to_block(&self) -> Block {
-        let mut txx = HashSet::default();
-        self.0.transactions.val_iter().for_each(|tx| {
-            txx.insert(tx);
-        });
-
-        // self check since imbl sometimes is buggy
-        self.0.transactions.val_iter().for_each(|tx| {
-            assert!(txx.contains(&tx));
-        });
-
         Block {
             header: self.header(),
-            transactions: txx,
+            transactions: self.inner_ref().transactions.values().cloned().collect(),
             proposer_action: self.1,
         }
     }
     /// Creates a new unfinalized state representing the next block.
     pub fn next_state(&self) -> State<C> {
-        static CACHE: Lazy<DashMap<HashVal, Vec<u8>>> = Lazy::new(Default::default);
-        if let Some(v) = CACHE.get(&self.header().hash()) {
-            State::from_partial_encoding_infallible(
-                v.value(),
-                &self.inner_ref().coins.inner().database(),
-            )
-        } else {
-            let mut new = State::clone(self.inner_ref());
-            // fee variables
-            new.history.insert(self.0.height, self.header());
-            new.height += BlockHeight(1);
-            new.stakes.remove_stale((new.height / STAKE_EPOCH).0);
-            new.transactions.clear();
-            // TIP-906 transition
-            if new.tip_906() && !self.inner_ref().tip_906() {
-                log::warn!("DOING TIP-906 TRANSITION NOW!");
-                let old_tree = new.coins.inner().clone();
-                let mut count = old_tree.count();
-                for (_, v) in old_tree.iter() {
-                    let cdh: CoinDataHeight = stdcode::deserialize(&v)
-                        .expect("pre-tip906 coin tree has non-cdh elements?!");
-                    let old_count = new.coins.coin_count(cdh.coin_data.covhash);
-                    new.coins
-                        .insert_coin_count(cdh.coin_data.covhash, old_count + 1);
-                    if count % 100 == 0 {
-                        log::warn!("{} left", count);
-                    }
-                    count -= 1;
+        // static CACHE: Lazy<DashMap<HashVal, Vec<u8>>> = Lazy::new(Default::default);
+        // if let Some(v) = CACHE.get(&self.header().hash()) {
+        //     State::from_partial_encoding_infallible(
+        //         v.value(),
+        //         &self.inner_ref().coins.inner().database(),
+        //     )
+        // } else {
+        let mut new = State::clone(self.inner_ref());
+        // fee variables
+        new.history.insert(self.0.height, self.header());
+        new.height += BlockHeight(1);
+        new.stakes.remove_stale((new.height / STAKE_EPOCH).0);
+        new.transactions.clear();
+        // TIP-906 transition
+        if new.tip_906() && !self.inner_ref().tip_906() {
+            log::warn!("DOING TIP-906 TRANSITION NOW!");
+            let old_tree = new.coins.inner().clone();
+            let mut count = old_tree.count();
+            for (_, v) in old_tree.iter() {
+                let cdh: CoinDataHeight =
+                    stdcode::deserialize(&v).expect("pre-tip906 coin tree has non-cdh elements?!");
+                let old_count = new.coins.coin_count(cdh.coin_data.covhash);
+                new.coins
+                    .insert_coin_count(cdh.coin_data.covhash, old_count + 1);
+                if count % 100 == 0 {
+                    log::warn!("{} left", count);
                 }
-                CACHE.insert(self.header().hash(), new.partial_encoding());
+                count -= 1;
             }
-            new
         }
+        new
+        // }
     }
 
     /// Applies a block to this state.

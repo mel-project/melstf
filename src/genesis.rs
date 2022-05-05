@@ -101,7 +101,7 @@ impl GenesisConfig {
             height: 0.into(),
             history: SmtMapping::new(empty_tree.clone()),
             coins: CoinMapping::new(empty_tree.clone()),
-            transactions: SmtMapping::new(empty_tree.clone()),
+            transactions: Default::default(),
             fee_pool: self.init_fee_pool,
             fee_multiplier: MICRO_CONVERTER,
             tips: 0.into(),

@@ -12,9 +12,9 @@ use themelio_structs::{
 use tmelcrypt::HashVal;
 
 use crate::{
-    melmint, melpow,
+    melmint,
     melvm::{Covenant, CovenantEnv},
-    State, StateError,
+    LegacyMelPowHash, State, StateError, Tip910MelPowHash,
 };
 
 /// A mutable "handle" to a particular State. Can be "committed" like a database transaction.
@@ -62,6 +62,7 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
 
     /// Applies a batch of transactions, returning an error if any of them fail. Consumes and re-returns the handle; if any fail the handle is gone.
     pub fn apply_tx_batch(mut self, txx: &[Transaction]) -> Result<Self, StateError> {
+        let start = Instant::now();
         for tx in txx.iter() {
             if tx.kind == TxKind::Faucet {
                 let pseudocoin = faucet_dedup_pseudocoin(tx.hash_nosigs());
@@ -101,21 +102,43 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
         txx.par_iter()
             .map(|tx| self.apply_tx_inputs(tx))
             .collect::<Result<_, _>>()?;
+        log::debug!(
+            "[{}] applied batch of {} in {:.2}ms",
+            self.state.height,
+            txx.len(),
+            start.elapsed().as_secs_f64() * 1000.0
+        );
         Ok(self)
     }
 
     /// Commits all the changes in this handle, at once.
     pub fn commit(self) {
+        let start = Instant::now();
         // commit coins
+        let coin_count = self.coin_cache.len();
         self.coin_cache.into_iter().for_each(|(key, value)| {
-            if let Some(value) = value {
+            let start = Instant::now();
+            if let Some(value) = value.clone() {
                 self.state
                     .coins
                     .insert_coin(key, value, self.state.tip_906());
             } else {
                 self.state.coins.remove_coin(key, self.state.tip_906());
             }
+            if start.elapsed().as_millis() > 10 {
+                log::warn!(
+                    "insertion cost {:?}, trying to insert {:?}",
+                    start.elapsed(),
+                    (key, value)
+                )
+            }
         });
+        log::debug!(
+            "[{}] committed {} coins in {:.2}ms",
+            self.state.height,
+            coin_count,
+            start.elapsed().as_secs_f64() * 1000.0
+        );
 
         // commit txx
         self.transactions_cache
@@ -123,6 +146,12 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
             .for_each(|(key, value)| {
                 self.state.transactions.insert(key, value);
             });
+
+        log::debug!(
+            "[{}] committed transactions in {:.2}ms",
+            self.state.height,
+            start.elapsed().as_secs_f64() * 1000.0
+        );
 
         // commit fees
         self.state.fee_pool = self.fee_pool_cache;
@@ -133,12 +162,16 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
             self.state.stakes.insert(key, value);
         });
 
-        self.state.dosc_speed = *self.dosc_speed_cache.lock()
+        self.state.dosc_speed = *self.dosc_speed_cache.lock();
+        log::debug!(
+            "[{}] committed rest in {:.2}ms",
+            self.state.height,
+            start.elapsed().as_secs_f64() * 1000.0
+        );
     }
 
     fn apply_tx_inputs(&self, tx: &Transaction) -> Result<(), StateError> {
         let txhash = tx.hash_nosigs();
-        log::debug!("{}: apply inputs start", txhash);
         let start = Instant::now();
         let scripts = tx.covenants_as_map();
         // build a map of input coins
@@ -150,7 +183,6 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
             .get(&(self.state.height.0.saturating_sub(1).into()))
             .0
             .unwrap_or_else(|| self.state.clone().seal(None).header());
-        log::debug!("{}: got header for inputs {:?}", txhash, start.elapsed());
         // iterate through the inputs
         let mut good_scripts: FxHashSet<Address> = FxHashSet::default();
         for (spend_idx, coin_id) in tx.inputs.iter().enumerate() {
@@ -196,7 +228,7 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
                 }
             }
         }
-        log::debug!("{}: processed all inputs {:?}", txhash, start.elapsed());
+        log::trace!("{}: processed all inputs {:?}", txhash, start.elapsed());
         // balance inputs and outputs. ignore outputs with empty cointype (they create a new token kind)
         let out_coins = tx.total_outputs();
         if tx.kind != TxKind::Faucet {
@@ -289,16 +321,18 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
                 StateError::MalformedTx
             })?;
         let proof = melpow::Proof::from_bytes(&proof_bytes).unwrap();
-        if !proof.verify(&chi, difficulty as _) {
-            log::warn!("chi = {}", chi);
-            log::warn!(
-                "proof = {} ({:?})",
-                tmelcrypt::hash_single(&proof_bytes),
-                difficulty
-            );
-            log::warn!("proof verification failed");
-            return Err(StateError::InvalidMelPoW);
-        }
+
+        // try verifying the proof under the old and the new system
+        let is_tip910 = {
+            if proof.verify(&chi, difficulty as _, LegacyMelPowHash) {
+                false
+            } else if proof.verify(&chi, difficulty as _, Tip910MelPowHash) {
+                true
+            } else {
+                return Err(StateError::InvalidMelPoW);
+            }
+        };
+
         // compute speeds
         let my_speed = 2u128.pow(difficulty) / (self.state.height - coin_data.height).0 as u128;
         let reward_real = melmint::calculate_reward(
@@ -310,6 +344,7 @@ impl<'a, C: ContentAddrStore> StateHandle<'a, C> {
                 .unwrap()
                 .dosc_speed,
             difficulty,
+            is_tip910,
         );
         {
             let mut dosc_speed = self.dosc_speed_cache.lock();

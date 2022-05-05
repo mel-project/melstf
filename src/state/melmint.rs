@@ -2,6 +2,7 @@ use crate::{PoolKey, State};
 
 use std::{cell::RefCell, convert::TryInto};
 
+use melpow::HashFunction;
 use novasmt::ContentAddrStore;
 use num::{integer::Roots, rational::Ratio, BigInt, BigRational};
 use tap::Pipe;
@@ -39,6 +40,28 @@ fn microergs_per_dosc(height: BlockHeight) -> u128 {
     })
 }
 
+/// Legacy MelPoW hasher
+pub struct LegacyMelPowHash;
+
+impl HashFunction for LegacyMelPowHash {
+    fn hash(&self, b: &[u8], k: &[u8]) -> melpow::SVec<u8> {
+        melpow::SVec::from_slice(blake3::keyed_hash(blake3::hash(k).as_bytes(), b).as_bytes())
+    }
+}
+
+/// New (TIP-910) MelPoW hasher
+pub struct Tip910MelPowHash;
+
+impl HashFunction for Tip910MelPowHash {
+    fn hash(&self, b: &[u8], k: &[u8]) -> melpow::SVec<u8> {
+        let mut res = blake3::keyed_hash(blake3::hash(k).as_bytes(), b);
+        for _ in 0..99 {
+            res = blake3::hash(res.as_bytes());
+        }
+        melpow::SVec::from_slice(res.as_bytes())
+    }
+}
+
 /// DOSC inflation ratio.
 pub fn dosc_inflator(height: BlockHeight) -> BigRational {
     BigRational::from((
@@ -61,8 +84,13 @@ pub fn dosc_to_erg(height: BlockHeight, real: u128) -> u128 {
 }
 
 /// Reward calculator. Returns the value in real DOSC.
-pub fn calculate_reward(my_speed: u128, dosc_speed: u128, difficulty: u32) -> u128 {
+pub fn calculate_reward(my_speed: u128, dosc_speed: u128, difficulty: u32, tip910: bool) -> u128 {
     let work_done = 2u128.pow(difficulty as _);
+    let work_done = if tip910 {
+        work_done.saturating_mul(100)
+    } else {
+        work_done
+    };
     // correct calculation with bigints
     let result = (BigInt::from(work_done) * BigInt::from(my_speed) * BigInt::from(MICRO_CONVERTER))
         / (BigInt::from(dosc_speed).pow(2) * BigInt::from(2880));
@@ -111,7 +139,8 @@ fn process_swaps<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
     // find the swap requests
     let swap_reqs: Vec<Transaction> = state
         .transactions
-        .val_iter()
+        .values()
+        .cloned()
         .filter_map(|tx| {
             (!tx.outputs.is_empty()).then(|| ())?; // ensure not empty
             state.coins.get_coin(tx.output_coinid(0))?; // ensure that first output is unspent
@@ -207,7 +236,8 @@ fn process_deposits<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
     // find the deposit requests
     let deposit_reqs = state
         .transactions
-        .val_iter()
+        .values()
+        .cloned()
         .filter_map(|tx| {
             (tx.kind == TxKind::LiqDeposit
                 && tx.outputs.len() >= 2
@@ -307,7 +337,8 @@ fn process_withdrawals<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
     // find the withdrawal requests
     let withdraw_reqs: Vec<Transaction> = state
         .transactions
-        .val_iter()
+        .values()
+        .cloned()
         .filter_map(|tx| {
             (tx.kind == TxKind::LiqWithdraw
                 && tx.outputs.len() == 1

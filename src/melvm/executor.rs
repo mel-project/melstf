@@ -154,9 +154,7 @@ impl Executor {
     /// Execute to the end, without popping.
     pub fn run_discerning_to_end_preserve_stack(&mut self) -> Option<bool> {
         while self.pc < self.instrs.len() {
-            if self.step().is_none() {
-                return None;
-            }
+            self.step()?;
         }
         Some(
             self.stack

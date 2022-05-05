@@ -1,11 +1,15 @@
-use std::path::Path;
+use std::{borrow::Cow, collections::BinaryHeap, path::Path, time::Instant};
 
 use novasmt::Database;
+use rand::{Rng, RngCore};
 use themelio_stf::{melvm::Covenant, GenesisConfig};
-use themelio_structs::{CoinData, CoinValue, Denom, NetID, TransactionBuilder, TxKind};
+use themelio_structs::{CoinData, CoinValue, Denom, NetID, Transaction, TxKind};
 
 fn main() {
-    let test_state = GenesisConfig {
+    env_logger::init();
+    let meshacas =
+        MeshaCas::new(meshanina::Mapping::open(Path::new("/home/miyuruasuka/test.db")).unwrap());
+    let mut test_state = GenesisConfig {
         network: NetID::Custom02,
         init_coindata: CoinData {
             value: CoinValue(10000),
@@ -16,21 +20,78 @@ fn main() {
         stakes: Default::default(),
         init_fee_pool: CoinValue(0),
     }
-    .realize(&Database::new(MeshaCas::new(
-        meshanina::Mapping::open(Path::new("/tmp/test.db")).unwrap(),
-    )));
+    .realize(&Database::new(meshacas))
+    .seal(None)
+    .next_state();
     // test basic transactions
-    loop {
-        let test_tx = TransactionBuilder::new()
-            .kind(TxKind::Faucet)
-            .fee(CoinValue::from_millions(1u64))
-            .build()
-            .unwrap();
+    let mut cue = BinaryHeap::new();
+    for iter in 0.. {
+        if iter % 10000 == 0 {
+            test_state = test_state.seal(None).next_state();
+        }
+        let start = Instant::now();
+        let mut data = vec![0; 1024];
+        rand::thread_rng().fill_bytes(&mut data);
+        let mut test_tx = Transaction {
+            kind: TxKind::Faucet,
+            inputs: vec![],
+            outputs: vec![
+                CoinData {
+                    value: CoinValue(10000),
+                    denom: Denom::Mel,
+                    additional_data: vec![],
+                    covhash: Covenant::always_true().hash(),
+                },
+                CoinData {
+                    value: CoinValue(10000),
+                    denom: Denom::Mel,
+                    additional_data: vec![],
+                    covhash: Covenant::always_true().hash(),
+                },
+            ],
+            fee: CoinValue(100000000),
+            covenants: vec![Covenant::always_true().0],
+            data,
+            sigs: vec![],
+        };
+        if cue.len() > 5000 {
+            test_tx.inputs.push(cue.pop().unwrap());
+            test_tx.inputs.push(cue.pop().unwrap());
+        }
+        cue.push(test_tx.output_coinid(0));
+        cue.push(test_tx.output_coinid(1));
+        test_state.apply_tx(&test_tx).unwrap();
+        test_state.coins.inner().database().storage().flush();
+        eprintln!("iteration {} took {:?}", iter, start.elapsed());
+        println!("iteration,interval");
+        println!("{},{}", iter, start.elapsed().as_secs_f64());
     }
 }
 
 use ethnum::U256;
 use novasmt::ContentAddrStore;
+
+/// A boringdb-backed autosmt backend
+pub struct BoringCas {
+    inner: boringdb::Dict,
+}
+
+impl ContentAddrStore for BoringCas {
+    fn get<'a>(&'a self, key: &[u8]) -> Option<std::borrow::Cow<'a, [u8]>> {
+        Some(Cow::Owned(
+            self.inner
+                .get(&tmelcrypt::hash_single(key).0)
+                .unwrap()?
+                .to_vec(),
+        ))
+    }
+
+    fn insert(&self, key: &[u8], value: &[u8]) {
+        self.inner
+            .insert(tmelcrypt::hash_single(key).0.to_vec(), value.to_vec())
+            .unwrap();
+    }
+}
 
 /// A meshanina-backed autosmt backend
 pub struct MeshaCas {
