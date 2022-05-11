@@ -5,6 +5,8 @@ use std::{cell::RefCell, convert::TryInto};
 use melpow::HashFunction;
 use novasmt::ContentAddrStore;
 use num::{integer::Roots, rational::Ratio, BigInt, BigRational};
+use once_cell::sync::Lazy;
+use parking_lot::RwLock;
 use tap::Pipe;
 use themelio_structs::{
     BlockHeight, CoinData, CoinDataHeight, CoinValue, Denom, NetID, PoolState, Transaction, TxKind,
@@ -17,26 +19,15 @@ thread_local! {
 
 /// Internal DOSC inflator. Returns how many µNomDOSC is 1 DOSC.
 fn microergs_per_dosc(height: BlockHeight) -> u128 {
-    // fn inner(height: u64) -> u128 {
-    //     if height == 0 {
-    //         MICRO_CONVERTER
-    //     } else {
-    //         // HACK: "segmented stacks"
-    //         let last = stacker::maybe_grow(32 * 1024, 1024 * 1024, || inner(height - 1));
-    //         (last + 1).max(last + last / 2_000_000)
-    //     }
-    // }
-    INFLATOR_TABLE.with(|dpt| {
-        let mut dpt = dpt.borrow_mut();
-        if dpt.is_empty() {
-            dpt.push(MICRO_CONVERTER);
+    static INFLATOR_TABLE: Lazy<RwLock<Vec<u128>>> = Lazy::new(Default::default);
+    let lol = INFLATOR_TABLE.read().get(height.0 as usize).copied();
+    lol.unwrap_or_else(|| {
+        let mut tab = INFLATOR_TABLE.write();
+        while tab.len() < (height.0 + 1) as usize {
+            let last = tab.last().copied().unwrap();
+            tab.push((last + 1).max(last + last / 2_000_000));
         }
-        while dpt.len() < (height.0 + 1) as usize {
-            let last = dpt.last().copied().unwrap();
-            dpt.push((last + 1).max(last + last / 2_000_000));
-        }
-
-        dpt[height.0 as usize]
+        tab[height.0 as usize]
     })
 }
 

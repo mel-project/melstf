@@ -509,3 +509,50 @@ impl<C: ContentAddrStore> ConfirmedState<C> {
         &self.cproof
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use novasmt::{Database, InMemoryCas};
+    use themelio_structs::{CoinData, CoinValue, Denom, NetID, Transaction};
+
+    use crate::{melvm::Covenant, GenesisConfig};
+
+    #[test]
+    fn simple_dmt() {
+        // let mut test_state = GenesisConfig {
+        //     network: NetID::Custom02,
+        //     init_coindata: CoinData {
+        //         value: CoinValue(10000),
+        //         denom: Denom::Mel,
+        //         additional_data: vec![],
+        //         covhash: Covenant::always_true().hash(),
+        //     },
+        //     stakes: Default::default(),
+        //     init_fee_pool: CoinValue(0),
+        // }
+        // .realize(&Database::new(InMemoryCas::default()))
+        // .seal(None)
+        // .next_state();
+        // // insert a bunch of transactions, then make sure all of them have valid proofs of inclusion
+        // let txx_to_insert = (0..1000).map(|i| {
+        //     let txn = Transaction{
+        //         kind: TxKind::Faucet,
+        //         inputs: vec![],
+        //         outputs: vec![
+        //             CoinData {
+        //                 value: CoinValue(10000),
+        //                 denom: Denom::Mel,
+        //                 additional_data: vec![],
+        //                 covhash: Covenant::always_true().hash(),
+        //             },
+        //             CoinData {
+        //                 value: CoinValue(10000),
+        //                 denom: Denom::Mel,
+        //                 additional_data: vec![],
+        //                 covhash: Covenant::always_true().hash(),
+        //             },
+        //         ],
+        //     };
+        // }
+    }
+}
