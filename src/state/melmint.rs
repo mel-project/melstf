@@ -23,6 +23,9 @@ fn microergs_per_dosc(height: BlockHeight) -> u128 {
     let lol = INFLATOR_TABLE.read().get(height.0 as usize).copied();
     lol.unwrap_or_else(|| {
         let mut tab = INFLATOR_TABLE.write();
+        if tab.is_empty() {
+            tab.push(MICRO_CONVERTER);
+        }
         while tab.len() < (height.0 + 1) as usize {
             let last = tab.last().copied().unwrap();
             tab.push((last + 1).max(last + last / 2_000_000));
