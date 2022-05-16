@@ -1,7 +1,7 @@
-use std::{borrow::Cow, collections::BinaryHeap, path::Path, time::Instant};
+use std::{collections::BinaryHeap, path::Path, time::Instant};
 
 use novasmt::Database;
-use rand::{Rng, RngCore};
+use rand::RngCore;
 use themelio_stf::{melvm::Covenant, GenesisConfig};
 use themelio_structs::{CoinData, CoinValue, Denom, NetID, Transaction, TxKind};
 
