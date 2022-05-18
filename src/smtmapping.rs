@@ -49,7 +49,7 @@ impl<C: ContentAddrStore, K: Serialize, V: Serialize + DeserializeOwned> SmtMapp
     }
     /// get obtains a mapping
     pub fn get(&self, key: &K) -> (Option<V>, FullProof) {
-        let _timer = STAT_SMT_GET_SECS.timer_secs();
+        let _timer = STAT_SMT_GET_SECS.timer_secs("smt get");
 
         let key = tmelcrypt::hash_single(&stdcode::serialize(key).unwrap());
         let (v_bytes, proof) = self.mapping.get_with_proof(key.0);
@@ -63,7 +63,7 @@ impl<C: ContentAddrStore, K: Serialize, V: Serialize + DeserializeOwned> SmtMapp
     }
     /// insert inserts a mapping, replacing any existing mapping
     pub fn insert(&mut self, key: K, val: V) {
-        let _timer = STAT_SMT_INSERT_SECS.timer_secs();
+        let _timer = STAT_SMT_INSERT_SECS.timer_secs("smt insert");
 
         let key = tmelcrypt::hash_single(&stdcode::serialize(&key).unwrap());
         self.mapping
@@ -71,7 +71,7 @@ impl<C: ContentAddrStore, K: Serialize, V: Serialize + DeserializeOwned> SmtMapp
     }
     /// delete deletes a mapping, replacing the mapping with a mapping to the empty bytestring
     pub fn delete(&mut self, key: &K) {
-        let _timer = STAT_SMT_INSERT_SECS.timer_secs();
+        let _timer = STAT_SMT_INSERT_SECS.timer_secs("smt delete");
 
         let key = tmelcrypt::hash_single(&stdcode::serialize(key).unwrap());
         self.mapping.insert(key.0, Default::default());

@@ -5,20 +5,19 @@ pub(crate) mod melswap;
 mod poolkey;
 
 pub use crate::stake::*;
+use crate::tip_heights::TIP_902_HEIGHT;
 use crate::{
     smtmapping::*,
+    state::applytx::apply_tx_batch_impl,
     tip_heights::{
         TIP_901_HEIGHT, TIP_906_HEIGHT, TIP_908_HEIGHT, TIP_909A_HEIGHT, TIP_909_HEIGHT,
     },
 };
-use crate::{state::applytx::StateHandle, tip_heights::TIP_902_HEIGHT};
 
-use std::convert::TryInto;
+use std::collections::BTreeMap;
 use std::fmt::Debug;
-use std::{collections::BTreeMap, io::Read};
 
 use crate::state::melswap::PoolMapping;
-use defmac::defmac;
 use derivative::Derivative;
 use novasmt::{dense::DenseMerkleTree, ContentAddrStore, Database, InMemoryCas};
 use stdcode::StdcodeSerializeExt;
@@ -102,12 +101,6 @@ impl<C: ContentAddrStore> Clone for State<C> {
     }
 }
 
-fn read_bts(r: &mut impl Read, n: usize) -> Option<Vec<u8>> {
-    let mut buf: Vec<u8> = vec![0; n];
-    r.read_exact(&mut buf).ok()?;
-    Some(buf)
-}
-
 impl<C: ContentAddrStore> State<C> {
     /// Returns true iff TIP 901 rule changes apply.
     pub fn tip_901(&self) -> bool {
@@ -145,61 +138,6 @@ impl<C: ContentAddrStore> State<C> {
             || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
     }
 
-    // /// Restores a state from its partial encoding in conjunction with a database. **Does not validate data and will panic; do not use on untrusted data**
-    // pub fn from_partial_encoding_infallible(
-    //     mut encoding: &[u8],
-    //     db: &novasmt::Database<C>,
-    // ) -> Self {
-    //     defmac!(readu8 => u8::from_be_bytes(read_bts(&mut encoding, 1).unwrap().as_slice().try_into().unwrap()));
-    //     defmac!(readu64 => u64::from_be_bytes(read_bts(&mut encoding, 8).unwrap().as_slice().try_into().unwrap()));
-    //     defmac!(readu128 => u128::from_be_bytes(read_bts(&mut encoding, 16).unwrap().as_slice().try_into().unwrap()));
-    //     defmac!(readtree => SmtMapping::new(db.get_tree(
-    //         read_bts(&mut encoding, 32).unwrap().as_slice().try_into().unwrap(),
-    //     ).unwrap()));
-    //     let network: NetID = readu8!().try_into().unwrap();
-    //     let height = readu64!();
-    //     let history = readtree!();
-    //     let coins = db
-    //         .get_tree(
-    //             read_bts(&mut encoding, 32)
-    //                 .unwrap()
-    //                 .as_slice()
-    //                 .try_into()
-    //                 .unwrap(),
-    //         )
-    //         .unwrap();
-
-    //     let transactions: SmtMapping<C, TxHash, Transaction> = readtree!();
-
-    //     let fee_pool = readu128!();
-    //     let fee_multiplier = readu128!();
-    //     let tips = readu128!();
-
-    //     let dosc_multiplier = readu128!();
-    //     let pools = readtree!();
-
-    //     let stakes = readtree!();
-    //     State {
-    //         network,
-    //         height: height.into(),
-    //         history,
-    //         coins: CoinMapping::new(coins),
-    //         transactions: transactions
-    //             .val_iter()
-    //             .map(|t| (t.hash_nosigs(), t))
-    //             .collect(),
-
-    //         fee_pool: fee_pool.into(),
-    //         fee_multiplier,
-    //         tips: tips.into(),
-
-    //         dosc_speed: dosc_multiplier,
-    //         pools,
-
-    //         stakes,
-    //     }
-    // }
-
     /// Applies a single transaction.
     pub fn apply_tx(&mut self, tx: &Transaction) -> Result<(), StateError> {
         self.apply_tx_batch(std::slice::from_ref(tx))
@@ -208,13 +146,14 @@ impl<C: ContentAddrStore> State<C> {
     /// Applies a whole lot of transactions.
     pub fn apply_tx_batch(&mut self, txx: &[Transaction]) -> Result<(), StateError> {
         let old_hash = HashVal(self.coins.inner().root_hash());
-        StateHandle::new(self).apply_tx_batch(txx)?.commit();
+        let new_state = apply_tx_batch_impl(self, txx)?;
         log::debug!(
             "applied a batch of {} txx to {:?} => {:?}",
             txx.len(),
             old_hash,
-            HashVal(self.coins.inner().root_hash())
+            HashVal(new_state.coins.inner().root_hash())
         );
+        *self = new_state;
         Ok(())
     }
 
@@ -466,7 +405,7 @@ impl<C: ContentAddrStore> SealedState<C> {
                 transactions.len()
             );
             block.transactions.iter().for_each(|tx| {
-                log::warn!("{:?}", tx);
+                log::warn!("{:?}", tx.kind);
             });
 
             Err(StateError::WrongHeader)
@@ -512,47 +451,92 @@ impl<C: ContentAddrStore> ConfirmedState<C> {
 
 #[cfg(test)]
 mod tests {
-    use novasmt::{Database, InMemoryCas};
-    use themelio_structs::{CoinData, CoinValue, Denom, NetID, Transaction};
+    use std::collections::HashMap;
 
-    use crate::{melvm::Covenant, GenesisConfig};
+    use rand::prelude::SliceRandom;
+
+    use crate::testing::functions::{create_state, valid_txx};
+
+    use super::*;
+    #[test]
+    fn apply_batch_normal() {
+        let state = create_state(&HashMap::new(), 0);
+        let txx = valid_txx(tmelcrypt::ed25519_keygen());
+        // all at once
+        state.clone().apply_tx_batch(&txx).unwrap();
+        // not all at once
+        {
+            let mut state = state.clone();
+            for tx in txx.iter() {
+                state.apply_tx(tx).unwrap();
+            }
+        }
+        // now shuffle
+        let mut txx = txx;
+        txx.shuffle(&mut rand::thread_rng());
+        // all at once must also work
+        state.clone().apply_tx_batch(&txx).unwrap();
+        let mut state = state;
+        for tx in txx.iter() {
+            if state.apply_tx(tx).is_err() {
+                return;
+            }
+        }
+        panic!("should not reach here")
+    }
 
     #[test]
-    fn simple_dmt() {
-        // let mut test_state = GenesisConfig {
-        //     network: NetID::Custom02,
-        //     init_coindata: CoinData {
-        //         value: CoinValue(10000),
-        //         denom: Denom::Mel,
-        //         additional_data: vec![],
-        //         covhash: Covenant::always_true().hash(),
-        //     },
-        //     stakes: Default::default(),
-        //     init_fee_pool: CoinValue(0),
-        // }
-        // .realize(&Database::new(InMemoryCas::default()))
-        // .seal(None)
-        // .next_state();
-        // // insert a bunch of transactions, then make sure all of them have valid proofs of inclusion
-        // let txx_to_insert = (0..1000).map(|i| {
-        //     let txn = Transaction{
-        //         kind: TxKind::Faucet,
-        //         inputs: vec![],
-        //         outputs: vec![
-        //             CoinData {
-        //                 value: CoinValue(10000),
-        //                 denom: Denom::Mel,
-        //                 additional_data: vec![],
-        //                 covhash: Covenant::always_true().hash(),
-        //             },
-        //             CoinData {
-        //                 value: CoinValue(10000),
-        //                 denom: Denom::Mel,
-        //                 additional_data: vec![],
-        //                 covhash: Covenant::always_true().hash(),
-        //             },
-        //         ],
-        //     };
-        // }
+    fn fee_pool_increase() {
+        let mut state = create_state(&HashMap::new(), 0);
+        let txx = valid_txx(tmelcrypt::ed25519_keygen());
+        for tx in txx.iter() {
+            let pre_fee = state.fee_pool + state.tips;
+            state.apply_tx(tx).unwrap();
+            assert_eq!(pre_fee + tx.fee, state.fee_pool + state.tips);
+        }
     }
+
+    // use novasmt::{Database, InMemoryCas};
+    // use themelio_structs::{CoinData, CoinValue, Denom, NetID, Transaction};
+
+    // use crate::{melvm::Covenant, GenesisConfig};
+
+    // #[test]
+    // fn simple_dmt() {
+    //     let mut test_state = GenesisConfig {
+    //         network: NetID::Custom02,
+    //         init_coindata: CoinData {
+    //             value: CoinValue(10000),
+    //             denom: Denom::Mel,
+    //             additional_data: vec![],
+    //             covhash: Covenant::always_true().hash(),
+    //         },
+    //         stakes: Default::default(),
+    //         init_fee_pool: CoinValue(0),
+    //     }
+    //     .realize(&Database::new(InMemoryCas::default()))
+    //     .seal(None)
+    //     .next_state();
+    //     // insert a bunch of transactions, then make sure all of them have valid proofs of inclusion
+    //     let txx_to_insert = (0..1000).map(|i| {
+    //         let txn = Transaction{
+    //             kind: TxKind::Faucet,
+    //             inputs: vec![],
+    //             outputs: vec![
+    //                 CoinData {
+    //                     value: CoinValue(10000),
+    //                     denom: Denom::Mel,
+    //                     additional_data: vec![],
+    //                     covhash: Covenant::always_true().hash(),
+    //                 },
+    //                 CoinData {
+    //                     value: CoinValue(10000),
+    //                     denom: Denom::Mel,
+    //                     additional_data: vec![],
+    //                     covhash: Covenant::always_true().hash(),
+    //                 },
+    //             ],
+    //         };
+    //     }
+    // }
 }

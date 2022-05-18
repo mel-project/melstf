@@ -1,8 +1,8 @@
+use crate::GenesisConfig;
 use crate::{
     testing::constants::{DB, GENESIS_EPOCH_POST_END, GENESIS_EPOCH_START},
     State,
 };
-use crate::{testing::utils::random_valid_txx, GenesisConfig};
 
 // const GENESIS_MEL_SUPPLY: u128 = 21_000_000;
 // const GENESIS_NUM_STAKERS: u64 = 10;
@@ -16,17 +16,20 @@ use crate::melvm::Covenant;
 use std::collections::HashMap;
 
 use novasmt::{Database, InMemoryCas};
+use tap::Tap;
 use themelio_structs::{
-    Address, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, StakeDoc, Transaction,
+    Address, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc, Transaction,
     MICRO_CONVERTER,
 };
 use tmelcrypt::{Ed25519PK, Ed25519SK};
+
+use super::utils::random_valid_txx_count;
 
 pub fn valid_txx(keypair: (Ed25519PK, Ed25519SK)) -> Vec<Transaction> {
     let (pk, sk) = keypair;
     let scr = Covenant::std_ed25519_pk_legacy(pk);
     let mut trng = rand::thread_rng();
-    random_valid_txx(
+    random_valid_txx_count(
         &mut trng,
         CoinID {
             txhash: tmelcrypt::HashVal([0; 32]).into(),
@@ -34,13 +37,14 @@ pub fn valid_txx(keypair: (Ed25519PK, Ed25519SK)) -> Vec<Transaction> {
         },
         CoinData {
             covhash: scr.hash(),
-            value: (MICRO_CONVERTER * 1000).into(),
+            value: (MICRO_CONVERTER * 10000).into(),
             denom: Denom::Mel,
             additional_data: vec![],
         },
         sk,
         &scr,
         1577000.into(),
+        100,
     )
 }
 
@@ -51,11 +55,13 @@ pub fn create_state(
 ) -> State<InMemoryCas> {
     // Create emtpy state
     let db = Database::new(InMemoryCas::default());
-    let mut state = GenesisConfig::std_testnet().realize(&db);
+    let mut state = GenesisConfig::std_testnet()
+        .tap_mut(|g| g.network = NetID::Custom02)
+        .realize(&db);
     state.stakes.clear();
 
     // Insert a mel coin into state so we can transact
-    let start_micromels: CoinValue = CoinValue(10000);
+    let start_micromels: CoinValue = CoinValue(MICRO_CONVERTER * 10000);
     let start_conshash: Address = Covenant::always_true().hash();
     state.coins.insert_coin(
         CoinID {

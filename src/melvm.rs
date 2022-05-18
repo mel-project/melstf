@@ -88,7 +88,7 @@ impl Covenant {
 
     /// Execute a transaction in a [CovenantEnv] to completion and return whether the covenant succeeded.
     pub fn check_opt_env(&self, tx: &Transaction, env: Option<CovenantEnv>) -> bool {
-        let _timer = STAT_MELVM_RUNTIME_SECS.timer_secs();
+        let _timer = STAT_MELVM_RUNTIME_SECS.timer_secs("running covenant");
         if let Ok(instrs) = self.to_ops() {
             Executor::new_from_env(instrs, tx.clone(), env).run_to_end()
         } else {
