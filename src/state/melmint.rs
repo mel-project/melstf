@@ -482,6 +482,7 @@ fn multiply_frac(x: u128, frac: Ratio<u128>) -> u128 {
 
 #[cfg(test)]
 mod tests {
+    use log::LevelFilter;
     use themelio_structs::CoinID;
 
     use crate::{
@@ -501,11 +502,11 @@ mod tests {
     fn simple_deposit() {
         let (my_pk, my_sk) = tmelcrypt::ed25519_keygen();
         let my_covhash = Covenant::std_ed25519_pk_legacy(my_pk).hash();
-        let start_state = genesis_state(
+        let mut start_state = genesis_state(
             CoinID::zero_zero(),
             CoinDataHeight {
                 coin_data: CoinData {
-                    value: ((1 << 64) + 4000000).into(),
+                    value: 12000.into(),
                     denom: Denom::Mel,
                     covhash: my_covhash,
                     additional_data: vec![],
@@ -514,6 +515,7 @@ mod tests {
             },
             Default::default(),
         );
+        start_state.fee_multiplier = 1;
         // test sealing
         let mut second_state = start_state.seal(None).next_state();
         // deposit the genesis as a custom-token pool
@@ -523,18 +525,18 @@ mod tests {
             outputs: vec![
                 CoinData {
                     covhash: my_covhash,
-                    value: ((1 << 64) + 2000000).into(),
+                    value: 10000.into(),
                     denom: Denom::Mel,
                     additional_data: vec![],
                 },
                 CoinData {
                     covhash: my_covhash,
-                    value: (1 << 64).into(),
+                    value: 10000.into(),
                     denom: Denom::NewCoin,
                     additional_data: vec![],
                 },
             ],
-            fee: 2000000.into(),
+            fee: 2000.into(),
             covenants: vec![Covenant::std_ed25519_pk_legacy(my_pk).0],
             data: vec![],
             sigs: vec![],
@@ -548,18 +550,18 @@ mod tests {
             outputs: vec![
                 CoinData {
                     covhash: my_covhash,
-                    value: (1 << 64).into(),
+                    value: 8000.into(),
                     denom: pool_key.left,
                     additional_data: vec![],
                 },
                 CoinData {
                     covhash: my_covhash,
-                    value: (1 << 64).into(),
+                    value: 10000.into(),
                     denom: pool_key.right,
                     additional_data: vec![],
                 },
             ],
-            fee: 2000000.into(),
+            fee: 2000.into(),
             covenants: vec![Covenant::std_ed25519_pk_legacy(my_pk).0],
             data: pool_key.to_bytes(), // this is important, since it "points" to the pool
             sigs: vec![],

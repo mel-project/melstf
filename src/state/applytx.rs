@@ -45,12 +45,11 @@ pub fn apply_tx_batch_impl<C: ContentAddrStore>(
     for tx in txx {
         let txhash = tx.hash_nosigs();
         for (i, coin_data) in tx.outputs.iter().enumerate() {
+            let coinid = CoinID::new(txhash, i as u8);
+            dbg!(relevant_coins.get(&coinid).unwrap().clone());
             next_state.coins.insert_coin(
-                CoinID::new(txhash, i as u8),
-                CoinDataHeight {
-                    coin_data: coin_data.clone(),
-                    height,
-                },
+                coinid,
+                relevant_coins.get(&coinid).unwrap().clone(),
                 this.tip_906(),
             );
         }
@@ -256,14 +255,20 @@ fn check_tx_validity<C: ContentAddrStore>(
     if tx.kind != TxKind::Faucet {
         for (currency, value) in out_coins.iter() {
             // we skip the created doscs for a DoscMint transaction, which are left for later.
-            if tx.kind == TxKind::DoscMint && *currency == Denom::Erg {
+            if *currency == Denom::NewCoin
+                || (tx.kind == TxKind::DoscMint && *currency == Denom::Erg)
+            {
                 continue;
             }
-            let in_value = *in_coins.get(currency).unwrap_or(&u128::MAX);
-            if *currency != Denom::NewCoin && *value != CoinValue(in_value) {
+            let in_value = if let Some(in_value) = in_coins.get(currency) {
+                *in_value
+            } else {
+                return Err(StateError::UnbalancedInOut);
+            };
+            if *value != CoinValue(in_value) {
                 log::warn!(
                     "unbalanced: {} {:?} in, {} {:?} out",
-                    in_value,
+                    CoinValue(in_value),
                     currency,
                     value,
                     currency
