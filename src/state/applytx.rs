@@ -41,12 +41,10 @@ pub fn apply_tx_batch_impl<C: ContentAddrStore>(
         .try_reduce(|| this.dosc_speed, |a, b| Ok(a.max(b)))?;
     // great, now we create the new state
     let mut next_state = this.clone();
-    let height = this.height;
     for tx in txx {
         let txhash = tx.hash_nosigs();
-        for (i, coin_data) in tx.outputs.iter().enumerate() {
+        for (i, _) in tx.outputs.iter().enumerate() {
             let coinid = CoinID::new(txhash, i as u8);
-            dbg!(relevant_coins.get(&coinid).unwrap().clone());
             next_state.coins.insert_coin(
                 coinid,
                 relevant_coins.get(&coinid).unwrap().clone(),
@@ -70,7 +68,12 @@ pub fn apply_tx_batch_impl<C: ContentAddrStore>(
         }
         next_state.transactions.insert(txhash, tx.clone());
     }
+    // dosc
     next_state.dosc_speed = new_max_speed;
+    // apply stakes
+    for (k, v) in new_stakes {
+        next_state.stakes.insert(k, v);
+    }
     Ok(next_state)
 }
 
@@ -277,6 +280,7 @@ fn check_tx_validity<C: ContentAddrStore>(
             }
         }
     }
+
     Ok(())
 }
 
