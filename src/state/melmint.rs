@@ -1,4 +1,4 @@
-use crate::{PoolKey, State};
+use crate::State;
 
 use std::{cell::RefCell, convert::TryInto};
 
@@ -9,8 +9,8 @@ use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use tap::Pipe;
 use themelio_structs::{
-    BlockHeight, CoinData, CoinDataHeight, CoinValue, Denom, NetID, PoolState, Transaction, TxKind,
-    MAX_COINVAL, MICRO_CONVERTER,
+    BlockHeight, CoinData, CoinDataHeight, CoinValue, Denom, NetID, PoolKey, PoolState,
+    Transaction, TxKind, MAX_COINVAL, MICRO_CONVERTER,
 };
 
 thread_local! {
@@ -577,3 +577,8 @@ mod tests {
         dbg!(second_sealed.inner_ref().pools.get(&pool_key).0.unwrap());
     }
 }
+
+use crate::SmtMapping;
+
+/// A pool
+pub type PoolMapping<C> = SmtMapping<C, PoolKey, PoolState>;

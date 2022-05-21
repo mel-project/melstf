@@ -1,8 +1,6 @@
 mod applytx;
 mod coins;
 pub(crate) mod melmint;
-pub(crate) mod melswap;
-mod poolkey;
 
 pub use crate::stake::*;
 use crate::tip_heights::TIP_902_HEIGHT;
@@ -17,19 +15,17 @@ use crate::{
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 
-use crate::state::melswap::PoolMapping;
+use crate::state::melmint::PoolMapping;
 use derivative::Derivative;
 use novasmt::{dense::DenseMerkleTree, ContentAddrStore, Database, InMemoryCas};
 use stdcode::StdcodeSerializeExt;
 use tap::Pipe;
 use themelio_structs::{
-    Address, Block, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, ConsensusProof,
-    Denom, Header, NetID, ProposerAction, Transaction, TxHash, STAKE_EPOCH,
+    Address, Block, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, Header, NetID,
+    PoolKey, ProposerAction, Transaction, TxHash, STAKE_EPOCH,
 };
 use thiserror::Error;
 use tmelcrypt::{HashVal, Hashable};
-
-pub use poolkey::PoolKey;
 
 pub use self::coins::CoinMapping;
 
@@ -50,8 +46,6 @@ pub enum StateError {
     ViolatesScript(Address),
     #[error("invalid sequential proof of work")]
     InvalidMelPoW,
-    #[error("auction bid at wrong time")]
-    BidWrongTime,
     #[error("block has wrong header after applying to previous block")]
     WrongHeader,
     #[error("tried to spend locked coin")]
@@ -353,13 +347,6 @@ impl<C: ContentAddrStore> SealedState<C> {
     }
     /// Creates a new unfinalized state representing the next block.
     pub fn next_state(&self) -> State<C> {
-        // static CACHE: Lazy<DashMap<HashVal, Vec<u8>>> = Lazy::new(Default::default);
-        // if let Some(v) = CACHE.get(&self.header().hash()) {
-        //     State::from_partial_encoding_infallible(
-        //         v.value(),
-        //         &self.inner_ref().coins.inner().database(),
-        //     )
-        // } else {
         let mut new = State::clone(self.inner_ref());
         // fee variables
         new.history.insert(self.0.height, self.header());
@@ -412,40 +399,6 @@ impl<C: ContentAddrStore> SealedState<C> {
         } else {
             Ok(basis)
         }
-    }
-
-    /// Confirms a state with a given consensus proof. If called with a second argument, this function is supposed to be called to *verify* the consensus proof.
-    ///
-    /// **TODO**: Right now it DOES NOT check the consensus proof!
-    pub fn confirm(
-        self,
-        cproof: ConsensusProof,
-        _previous_state: Option<&State<C>>,
-    ) -> Option<ConfirmedState<C>> {
-        Some(ConfirmedState {
-            state: self,
-            cproof,
-        })
-    }
-}
-
-/// ConfirmedState represents a fully confirmed state with a consensus proof.
-#[derive(Derivative, Debug)]
-#[derivative(Clone(bound = ""))]
-pub struct ConfirmedState<C: ContentAddrStore> {
-    state: SealedState<C>,
-    cproof: ConsensusProof,
-}
-
-impl<C: ContentAddrStore> ConfirmedState<C> {
-    /// Returns the wrapped finalized state
-    pub fn inner(&self) -> &SealedState<C> {
-        &self.state
-    }
-
-    /// Returns the proof
-    pub fn cproof(&self) -> &ConsensusProof {
-        &self.cproof
     }
 }
 
