@@ -210,7 +210,11 @@ fn check_tx_validity<C: ContentAddrStore>(
     // iterate through the inputs
     let mut good_scripts: FxHashSet<Address> = FxHashSet::default();
     for (spend_idx, coin_id) in tx.inputs.iter().enumerate() {
-        if new_stakes.contains_key(&coin_id.txhash) || this.stakes.get(&coin_id.txhash).0.is_some()
+        if (new_stakes.contains_key(&coin_id.txhash)
+            || this.stakes.get(&coin_id.txhash).0.is_some())
+            && !((this.network == NetID::Mainnet || this.network == NetID::Testnet)
+                && this.height.0 < 900000)
+        // Workaround for BUGGY old code!
         {
             return Err(StateError::CoinLocked);
         }
@@ -269,7 +273,7 @@ fn check_tx_validity<C: ContentAddrStore>(
                 return Err(StateError::UnbalancedInOut);
             };
             if *value != CoinValue(in_value) {
-                log::warn!(
+                eprintln!(
                     "unbalanced: {} {:?} in, {} {:?} out",
                     CoinValue(in_value),
                     currency,

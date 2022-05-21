@@ -482,7 +482,7 @@ fn multiply_frac(x: u128, frac: Ratio<u128>) -> u128 {
 
 #[cfg(test)]
 mod tests {
-    use log::LevelFilter;
+
     use themelio_structs::CoinID;
 
     use crate::{

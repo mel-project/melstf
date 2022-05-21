@@ -33,7 +33,7 @@ pub use poolkey::PoolKey;
 
 pub use self::coins::CoinMapping;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq, Eq)]
 /// A error that happens while applying a transaction to a state
 pub enum StateError {
     #[error("malformed transaction")]
@@ -454,10 +454,17 @@ mod tests {
     use std::collections::HashMap;
 
     use rand::prelude::SliceRandom;
+    use stdcode::StdcodeSerializeExt;
+    use themelio_structs::{
+        CoinData, CoinValue, Denom, StakeDoc, Transaction, TransactionBuilder, TxKind,
+    };
 
-    use crate::testing::functions::{create_state, valid_txx};
+    use crate::{
+        melvm::Covenant,
+        testing::functions::{create_state, valid_txx},
+        StateError,
+    };
 
-    use super::*;
     #[test]
     fn apply_batch_normal() {
         let state = create_state(&HashMap::new(), 0);
@@ -494,6 +501,74 @@ mod tests {
             state.apply_tx(tx).unwrap();
             assert_eq!(pre_fee + tx.fee, state.fee_pool + state.tips);
         }
+    }
+
+    #[test]
+    fn staked_coin_cannot_spend() {
+        let mut state = create_state(&HashMap::new(), 0);
+        state.fee_multiplier = 0;
+        state = state.seal(None).next_state();
+        // create some syms
+        let sym_faucet = Transaction {
+            kind: TxKind::Faucet,
+            inputs: vec![],
+            outputs: vec![
+                CoinData {
+                    denom: Denom::Sym,
+                    value: CoinValue(1000),
+                    covhash: Covenant::always_true().hash(),
+                    additional_data: vec![],
+                },
+                CoinData {
+                    denom: Denom::Mel,
+                    value: CoinValue(1000),
+                    covhash: Covenant::always_true().hash(),
+                    additional_data: vec![],
+                },
+            ],
+            fee: CoinValue(0),
+            covenants: vec![],
+            data: vec![],
+            sigs: vec![],
+        };
+        state.apply_tx(&sym_faucet).unwrap();
+        // stake the syms
+        let sym_stake = TransactionBuilder::new()
+            .kind(TxKind::Stake)
+            .input(sym_faucet.output_coinid(0), sym_faucet.outputs[0].clone())
+            .input(sym_faucet.output_coinid(1), sym_faucet.outputs[1].clone())
+            .output(sym_faucet.outputs[0].clone())
+            .covenant(Covenant::always_true().0)
+            .output(sym_faucet.outputs[1].clone())
+            .data(
+                StakeDoc {
+                    pubkey: tmelcrypt::Ed25519PK(Default::default()),
+                    e_start: 1,
+                    e_post_end: 2,
+                    syms_staked: CoinValue(1000),
+                }
+                .stdcode(),
+            )
+            .build()
+            .unwrap();
+        state.apply_tx(&sym_stake).unwrap();
+        let another = TransactionBuilder::new()
+            .input(sym_stake.output_coinid(0), sym_stake.outputs[0].clone())
+            .input(sym_stake.output_coinid(1), sym_stake.outputs[1].clone())
+            .output(CoinData {
+                denom: Denom::Sym,
+                value: CoinValue(1000),
+                covhash: Covenant::always_true().hash(),
+                additional_data: vec![],
+            })
+            .covenant(Covenant::always_true().0)
+            .fee(CoinValue(1000))
+            .build()
+            .unwrap();
+        assert_eq!(
+            StateError::CoinLocked,
+            state.apply_tx(&another).unwrap_err()
+        );
     }
 
     // use novasmt::{Database, InMemoryCas};
