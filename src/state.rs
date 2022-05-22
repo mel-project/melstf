@@ -21,8 +21,8 @@ use novasmt::{dense::DenseMerkleTree, ContentAddrStore, Database, InMemoryCas};
 use stdcode::StdcodeSerializeExt;
 use tap::Pipe;
 use themelio_structs::{
-    Address, Block, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, Header, NetID,
-    PoolKey, ProposerAction, Transaction, TxHash, STAKE_EPOCH,
+    Address, Block, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, ConsensusProof,
+    Denom, Header, NetID, PoolKey, ProposerAction, Transaction, TxHash, STAKE_EPOCH,
 };
 use thiserror::Error;
 use tmelcrypt::{HashVal, Hashable};
@@ -154,17 +154,7 @@ impl<C: ContentAddrStore> State<C> {
     /// Calculates the "transactions" root hash. Note that this is different depending on whether the block is pre-tip908 or post-tip908.
     pub fn transactions_root_hash(&self) -> HashVal {
         if self.tip_908() {
-            let mut vv = Vec::new();
-            for tx in self.transactions.values() {
-                let complex = tx.hash_nosigs().pipe(|nosigs_hash| {
-                    let mut v = nosigs_hash.0.to_vec();
-                    v.extend_from_slice(&tx.stdcode().hash().0);
-                    v
-                });
-                vv.push(complex);
-            }
-            vv.sort_unstable();
-            HashVal(DenseMerkleTree::new(&vv).root_hash())
+            HashVal(self.tip908_transactions().root_hash())
         } else {
             let db = Database::new(InMemoryCas::default());
             let mut smt = SmtMapping::new(db.get_tree(Default::default()).unwrap());
@@ -173,6 +163,30 @@ impl<C: ContentAddrStore> State<C> {
             }
             smt.root_hash()
         }
+    }
+
+    /// Obtains the dense merkle tree (tip-908)
+    pub fn tip908_transactions(&self) -> DenseMerkleTree {
+        let mut vv = Vec::new();
+        for tx in self.transactions.values() {
+            let complex = tx.hash_nosigs().pipe(|nosigs_hash| {
+                let mut v = nosigs_hash.0.to_vec();
+                v.extend_from_slice(&tx.stdcode().hash().0);
+                v
+            });
+            vv.push(complex);
+        }
+        vv.sort_unstable();
+        DenseMerkleTree::new(&vv)
+    }
+
+    /// Obtains the sorted position of the given transaction within this state.
+    pub fn transaction_sorted_posn(&self, txhash: TxHash) -> Option<usize> {
+        self.transactions
+            .keys()
+            .enumerate()
+            .find(|(_, k)| k == &&txhash)
+            .map(|(i, _)| i)
     }
 
     /// Finalizes a state into a block. This consumes the state.
@@ -400,6 +414,41 @@ impl<C: ContentAddrStore> SealedState<C> {
             Ok(basis)
         }
     }
+
+    /// Confirms a state with a given consensus proof. If called with a second argument, this function is supposed to be called to *verify* the consensus proof.
+    ///
+    /// **TODO**: Right now it DOES NOT check the consensus proof!
+    #[deprecated]
+    pub fn confirm(
+        self,
+        cproof: ConsensusProof,
+        _previous_state: Option<&State<C>>,
+    ) -> Option<ConfirmedState<C>> {
+        Some(ConfirmedState {
+            state: self,
+            cproof,
+        })
+    }
+}
+
+/// ConfirmedState represents a fully confirmed state with a consensus proof.
+#[derive(Derivative, Debug)]
+#[derivative(Clone(bound = ""))]
+pub struct ConfirmedState<C: ContentAddrStore> {
+    state: SealedState<C>,
+    cproof: ConsensusProof,
+}
+
+impl<C: ContentAddrStore> ConfirmedState<C> {
+    /// Returns the wrapped finalized state
+    pub fn inner(&self) -> &SealedState<C> {
+        &self.state
+    }
+
+    /// Returns the proof
+    pub fn cproof(&self) -> &ConsensusProof {
+        &self.cproof
+    }
 }
 
 #[cfg(test)]
@@ -408,9 +457,11 @@ mod tests {
 
     use rand::prelude::SliceRandom;
     use stdcode::StdcodeSerializeExt;
+    use tap::Tap;
     use themelio_structs::{
         CoinData, CoinValue, Denom, StakeDoc, Transaction, TransactionBuilder, TxKind,
     };
+    use tmelcrypt::Hashable;
 
     use crate::{
         melvm::Covenant,
@@ -524,47 +575,34 @@ mod tests {
         );
     }
 
-    // use novasmt::{Database, InMemoryCas};
-    // use themelio_structs::{CoinData, CoinValue, Denom, NetID, Transaction};
-
-    // use crate::{melvm::Covenant, GenesisConfig};
-
-    // #[test]
-    // fn simple_dmt() {
-    //     let mut test_state = GenesisConfig {
-    //         network: NetID::Custom02,
-    //         init_coindata: CoinData {
-    //             value: CoinValue(10000),
-    //             denom: Denom::Mel,
-    //             additional_data: vec![],
-    //             covhash: Covenant::always_true().hash(),
-    //         },
-    //         stakes: Default::default(),
-    //         init_fee_pool: CoinValue(0),
-    //     }
-    //     .realize(&Database::new(InMemoryCas::default()))
-    //     .seal(None)
-    //     .next_state();
-    //     // insert a bunch of transactions, then make sure all of them have valid proofs of inclusion
-    //     let txx_to_insert = (0..1000).map(|i| {
-    //         let txn = Transaction{
-    //             kind: TxKind::Faucet,
-    //             inputs: vec![],
-    //             outputs: vec![
-    //                 CoinData {
-    //                     value: CoinValue(10000),
-    //                     denom: Denom::Mel,
-    //                     additional_data: vec![],
-    //                     covhash: Covenant::always_true().hash(),
-    //                 },
-    //                 CoinData {
-    //                     value: CoinValue(10000),
-    //                     denom: Denom::Mel,
-    //                     additional_data: vec![],
-    //                     covhash: Covenant::always_true().hash(),
-    //                 },
-    //             ],
-    //         };
-    //     }
-    // }
+    #[test]
+    fn simple_dmt() {
+        let mut test_state = create_state(&HashMap::new(), 0);
+        // insert a bunch of transactions, then make sure all of them have valid proofs of inclusion
+        let txx_to_insert = valid_txx(tmelcrypt::ed25519_keygen());
+        for tx in txx_to_insert.iter() {
+            test_state.apply_tx(tx).unwrap();
+        }
+        let sealed = test_state.seal(None);
+        let header = sealed.header();
+        let dmt = sealed.inner_ref().tip908_transactions();
+        for tx in txx_to_insert.iter() {
+            let posn = sealed
+                .inner_ref()
+                .transaction_sorted_posn(tx.hash_nosigs())
+                .unwrap();
+            let proof = dmt.proof(posn);
+            assert!(novasmt::dense::verify_dense(
+                &proof,
+                header.transactions_hash.0,
+                posn,
+                novasmt::hash_data(
+                    &tx.hash_nosigs()
+                        .0
+                        .to_vec()
+                        .tap_mut(|v| v.extend_from_slice(&tx.stdcode().hash().0))
+                ),
+            ));
+        }
+    }
 }

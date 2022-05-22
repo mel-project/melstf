@@ -365,21 +365,6 @@ mod tests {
         assert!(!check_sig_script.check_opt_env(&tx, None));
     }
 
-    // #[quickcheck]
-    // fn loop_once_is_identity(bitcode: Vec<u8>) -> bool {
-    //     let ops = Covenant(bitcode.clone()).to_ops();
-    //     let tx = Transaction::empty_test();
-    //     match ops {
-    //         None => true,
-    //         Some(ops) => {
-    //             let loop_ops = vec![OpCode::Loop(1, ops.clone())];
-    //             let loop_script = Covenant::from_ops(&loop_ops).unwrap();
-    //             let orig_script = Covenant::from_ops(&ops).unwrap();
-    //             loop_script.check_no_env(&tx) == orig_script.check_no_env(&tx)
-    //         }
-    //     }
-    // }
-
     #[quickcheck]
     fn deterministic_execution(bitcode: Vec<u8>) -> bool {
         let ops = Covenant(bitcode).to_ops();
