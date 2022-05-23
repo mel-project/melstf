@@ -57,10 +57,7 @@ mod tests {
 
     #[test]
     fn test_non_staker_has_no_vote_power() {
-        let mut staked_sym_group: Vec<Vec<u128>> = Vec::new();
-        staked_sym_group.push(vec![100]);
-        staked_sym_group.push(vec![100, 10]);
-        staked_sym_group.push(vec![1, 2, 3]);
+        let staked_sym_group: Vec<Vec<u128>> = vec![vec![100], vec![100, 10], vec![1, 2, 3]];
 
         staked_sym_group.iter().for_each(|staked_syms| {
             // Generate genesis block for stakers
@@ -82,10 +79,8 @@ mod tests {
 
     #[test]
     fn test_staker_has_correct_vote_power_in_epoch() {
-        let mut staked_sym_group: Vec<Vec<u128>> = Vec::new();
-        staked_sym_group.push(vec![100, 200, 300]);
-        staked_sym_group.push(vec![100, 10]);
-        staked_sym_group.push(vec![1, 2, 30]);
+        let staked_sym_group: Vec<Vec<u128>> =
+            vec![vec![100, 200, 300], vec![100, 10], vec![1, 2, 30]];
 
         staked_sym_group.iter().for_each(|staked_syms| {
             // Generate state for stakers
@@ -172,10 +167,7 @@ mod tests {
 
     #[test]
     fn test_vote_power_is_zero_when_stakers_are_staking_zero() {
-        let mut staked_sym_group: Vec<Vec<u128>> = Vec::new();
-        staked_sym_group.push(vec![0]);
-        staked_sym_group.push(vec![0; 3]);
-        staked_sym_group.push(vec![0; 100]);
+        let staked_sym_group: Vec<Vec<u128>> = vec![vec![0], vec![0; 3], vec![0; 100]];
 
         staked_sym_group.iter().for_each(|staked_syms| {
             // Generate state for stakers

@@ -1,40 +1,35 @@
 mod applytx;
 mod coins;
 pub(crate) mod melmint;
-pub(crate) mod melswap;
-mod poolkey;
 
 pub use crate::stake::*;
+use crate::tip_heights::TIP_902_HEIGHT;
 use crate::{
     smtmapping::*,
+    state::applytx::apply_tx_batch_impl,
     tip_heights::{
         TIP_901_HEIGHT, TIP_906_HEIGHT, TIP_908_HEIGHT, TIP_909A_HEIGHT, TIP_909_HEIGHT,
     },
 };
-use crate::{state::applytx::StateHandle, tip_heights::TIP_902_HEIGHT};
 
-use std::convert::TryInto;
+use std::collections::BTreeMap;
 use std::fmt::Debug;
-use std::{collections::BTreeMap, io::Read};
 
-use crate::state::melswap::PoolMapping;
-use defmac::defmac;
+use crate::state::melmint::PoolMapping;
 use derivative::Derivative;
 use novasmt::{dense::DenseMerkleTree, ContentAddrStore, Database, InMemoryCas};
 use stdcode::StdcodeSerializeExt;
 use tap::Pipe;
 use themelio_structs::{
     Address, Block, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, ConsensusProof,
-    Denom, Header, NetID, ProposerAction, Transaction, TxHash, STAKE_EPOCH,
+    Denom, Header, NetID, PoolKey, ProposerAction, Transaction, TxHash, STAKE_EPOCH,
 };
 use thiserror::Error;
 use tmelcrypt::{HashVal, Hashable};
 
-pub use poolkey::PoolKey;
-
 pub use self::coins::CoinMapping;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq, Eq)]
 /// A error that happens while applying a transaction to a state
 pub enum StateError {
     #[error("malformed transaction")]
@@ -51,8 +46,6 @@ pub enum StateError {
     ViolatesScript(Address),
     #[error("invalid sequential proof of work")]
     InvalidMelPoW,
-    #[error("auction bid at wrong time")]
-    BidWrongTime,
     #[error("block has wrong header after applying to previous block")]
     WrongHeader,
     #[error("tried to spend locked coin")]
@@ -102,12 +95,6 @@ impl<C: ContentAddrStore> Clone for State<C> {
     }
 }
 
-fn read_bts(r: &mut impl Read, n: usize) -> Option<Vec<u8>> {
-    let mut buf: Vec<u8> = vec![0; n];
-    r.read_exact(&mut buf).ok()?;
-    Some(buf)
-}
-
 impl<C: ContentAddrStore> State<C> {
     /// Returns true iff TIP 901 rule changes apply.
     pub fn tip_901(&self) -> bool {
@@ -145,61 +132,6 @@ impl<C: ContentAddrStore> State<C> {
             || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
     }
 
-    // /// Restores a state from its partial encoding in conjunction with a database. **Does not validate data and will panic; do not use on untrusted data**
-    // pub fn from_partial_encoding_infallible(
-    //     mut encoding: &[u8],
-    //     db: &novasmt::Database<C>,
-    // ) -> Self {
-    //     defmac!(readu8 => u8::from_be_bytes(read_bts(&mut encoding, 1).unwrap().as_slice().try_into().unwrap()));
-    //     defmac!(readu64 => u64::from_be_bytes(read_bts(&mut encoding, 8).unwrap().as_slice().try_into().unwrap()));
-    //     defmac!(readu128 => u128::from_be_bytes(read_bts(&mut encoding, 16).unwrap().as_slice().try_into().unwrap()));
-    //     defmac!(readtree => SmtMapping::new(db.get_tree(
-    //         read_bts(&mut encoding, 32).unwrap().as_slice().try_into().unwrap(),
-    //     ).unwrap()));
-    //     let network: NetID = readu8!().try_into().unwrap();
-    //     let height = readu64!();
-    //     let history = readtree!();
-    //     let coins = db
-    //         .get_tree(
-    //             read_bts(&mut encoding, 32)
-    //                 .unwrap()
-    //                 .as_slice()
-    //                 .try_into()
-    //                 .unwrap(),
-    //         )
-    //         .unwrap();
-
-    //     let transactions: SmtMapping<C, TxHash, Transaction> = readtree!();
-
-    //     let fee_pool = readu128!();
-    //     let fee_multiplier = readu128!();
-    //     let tips = readu128!();
-
-    //     let dosc_multiplier = readu128!();
-    //     let pools = readtree!();
-
-    //     let stakes = readtree!();
-    //     State {
-    //         network,
-    //         height: height.into(),
-    //         history,
-    //         coins: CoinMapping::new(coins),
-    //         transactions: transactions
-    //             .val_iter()
-    //             .map(|t| (t.hash_nosigs(), t))
-    //             .collect(),
-
-    //         fee_pool: fee_pool.into(),
-    //         fee_multiplier,
-    //         tips: tips.into(),
-
-    //         dosc_speed: dosc_multiplier,
-    //         pools,
-
-    //         stakes,
-    //     }
-    // }
-
     /// Applies a single transaction.
     pub fn apply_tx(&mut self, tx: &Transaction) -> Result<(), StateError> {
         self.apply_tx_batch(std::slice::from_ref(tx))
@@ -208,30 +140,21 @@ impl<C: ContentAddrStore> State<C> {
     /// Applies a whole lot of transactions.
     pub fn apply_tx_batch(&mut self, txx: &[Transaction]) -> Result<(), StateError> {
         let old_hash = HashVal(self.coins.inner().root_hash());
-        StateHandle::new(self).apply_tx_batch(txx)?.commit();
+        let new_state = apply_tx_batch_impl(self, txx)?;
         log::debug!(
             "applied a batch of {} txx to {:?} => {:?}",
             txx.len(),
             old_hash,
-            HashVal(self.coins.inner().root_hash())
+            HashVal(new_state.coins.inner().root_hash())
         );
+        *self = new_state;
         Ok(())
     }
 
     /// Calculates the "transactions" root hash. Note that this is different depending on whether the block is pre-tip908 or post-tip908.
     pub fn transactions_root_hash(&self) -> HashVal {
         if self.tip_908() {
-            let mut vv = Vec::new();
-            for tx in self.transactions.values() {
-                let complex = tx.hash_nosigs().pipe(|nosigs_hash| {
-                    let mut v = nosigs_hash.0.to_vec();
-                    v.extend_from_slice(&tx.stdcode().hash().0);
-                    v
-                });
-                vv.push(complex);
-            }
-            vv.sort_unstable();
-            HashVal(DenseMerkleTree::new(&vv).root_hash())
+            HashVal(self.tip908_transactions().root_hash())
         } else {
             let db = Database::new(InMemoryCas::default());
             let mut smt = SmtMapping::new(db.get_tree(Default::default()).unwrap());
@@ -240,6 +163,30 @@ impl<C: ContentAddrStore> State<C> {
             }
             smt.root_hash()
         }
+    }
+
+    /// Obtains the dense merkle tree (tip-908)
+    pub fn tip908_transactions(&self) -> DenseMerkleTree {
+        let mut vv = Vec::new();
+        for tx in self.transactions.values() {
+            let complex = tx.hash_nosigs().pipe(|nosigs_hash| {
+                let mut v = nosigs_hash.0.to_vec();
+                v.extend_from_slice(&tx.stdcode().hash().0);
+                v
+            });
+            vv.push(complex);
+        }
+        vv.sort_unstable();
+        DenseMerkleTree::new(&vv)
+    }
+
+    /// Obtains the sorted position of the given transaction within this state.
+    pub fn transaction_sorted_posn(&self, txhash: TxHash) -> Option<usize> {
+        self.transactions
+            .keys()
+            .enumerate()
+            .find(|(_, k)| k == &&txhash)
+            .map(|(i, _)| i)
     }
 
     /// Finalizes a state into a block. This consumes the state.
@@ -414,13 +361,6 @@ impl<C: ContentAddrStore> SealedState<C> {
     }
     /// Creates a new unfinalized state representing the next block.
     pub fn next_state(&self) -> State<C> {
-        // static CACHE: Lazy<DashMap<HashVal, Vec<u8>>> = Lazy::new(Default::default);
-        // if let Some(v) = CACHE.get(&self.header().hash()) {
-        //     State::from_partial_encoding_infallible(
-        //         v.value(),
-        //         &self.inner_ref().coins.inner().database(),
-        //     )
-        // } else {
         let mut new = State::clone(self.inner_ref());
         // fee variables
         new.history.insert(self.0.height, self.header());
@@ -466,7 +406,7 @@ impl<C: ContentAddrStore> SealedState<C> {
                 transactions.len()
             );
             block.transactions.iter().for_each(|tx| {
-                log::warn!("{:?}", tx);
+                log::warn!("{:?}", tx.kind);
             });
 
             Err(StateError::WrongHeader)
@@ -478,6 +418,7 @@ impl<C: ContentAddrStore> SealedState<C> {
     /// Confirms a state with a given consensus proof. If called with a second argument, this function is supposed to be called to *verify* the consensus proof.
     ///
     /// **TODO**: Right now it DOES NOT check the consensus proof!
+    #[deprecated]
     pub fn confirm(
         self,
         cproof: ConsensusProof,
@@ -512,47 +453,156 @@ impl<C: ContentAddrStore> ConfirmedState<C> {
 
 #[cfg(test)]
 mod tests {
-    use novasmt::{Database, InMemoryCas};
-    use themelio_structs::{CoinData, CoinValue, Denom, NetID, Transaction};
+    use std::collections::HashMap;
 
-    use crate::{melvm::Covenant, GenesisConfig};
+    use rand::prelude::SliceRandom;
+    use stdcode::StdcodeSerializeExt;
+    use tap::Tap;
+    use themelio_structs::{
+        CoinData, CoinValue, Denom, StakeDoc, Transaction, TransactionBuilder, TxKind,
+    };
+    use tmelcrypt::Hashable;
+
+    use crate::{
+        melvm::Covenant,
+        testing::functions::{create_state, valid_txx},
+        StateError,
+    };
+
+    #[test]
+    fn apply_batch_normal() {
+        let state = create_state(&HashMap::new(), 0);
+        let txx = valid_txx(tmelcrypt::ed25519_keygen());
+        // all at once
+        state.clone().apply_tx_batch(&txx).unwrap();
+        // not all at once
+        {
+            let mut state = state.clone();
+            for tx in txx.iter() {
+                state.apply_tx(tx).unwrap();
+            }
+        }
+        // now shuffle
+        let mut txx = txx;
+        txx.shuffle(&mut rand::thread_rng());
+        // all at once must also work
+        state.clone().apply_tx_batch(&txx).unwrap();
+        let mut state = state;
+        for tx in txx.iter() {
+            if state.apply_tx(tx).is_err() {
+                return;
+            }
+        }
+        panic!("should not reach here")
+    }
+
+    #[test]
+    fn fee_pool_increase() {
+        let mut state = create_state(&HashMap::new(), 0);
+        let txx = valid_txx(tmelcrypt::ed25519_keygen());
+        for tx in txx.iter() {
+            let pre_fee = state.fee_pool + state.tips;
+            state.apply_tx(tx).unwrap();
+            assert_eq!(pre_fee + tx.fee, state.fee_pool + state.tips);
+        }
+    }
+
+    #[test]
+    fn staked_coin_cannot_spend() {
+        let mut state = create_state(&HashMap::new(), 0);
+        state.fee_multiplier = 0;
+        state = state.seal(None).next_state();
+        // create some syms
+        let sym_faucet = Transaction {
+            kind: TxKind::Faucet,
+            inputs: vec![],
+            outputs: vec![
+                CoinData {
+                    denom: Denom::Sym,
+                    value: CoinValue(1000),
+                    covhash: Covenant::always_true().hash(),
+                    additional_data: vec![],
+                },
+                CoinData {
+                    denom: Denom::Mel,
+                    value: CoinValue(1000),
+                    covhash: Covenant::always_true().hash(),
+                    additional_data: vec![],
+                },
+            ],
+            fee: CoinValue(0),
+            covenants: vec![],
+            data: vec![],
+            sigs: vec![],
+        };
+        state.apply_tx(&sym_faucet).unwrap();
+        // stake the syms
+        let sym_stake = TransactionBuilder::new()
+            .kind(TxKind::Stake)
+            .input(sym_faucet.output_coinid(0), sym_faucet.outputs[0].clone())
+            .input(sym_faucet.output_coinid(1), sym_faucet.outputs[1].clone())
+            .output(sym_faucet.outputs[0].clone())
+            .covenant(Covenant::always_true().0)
+            .output(sym_faucet.outputs[1].clone())
+            .data(
+                StakeDoc {
+                    pubkey: tmelcrypt::Ed25519PK(Default::default()),
+                    e_start: 1,
+                    e_post_end: 2,
+                    syms_staked: CoinValue(1000),
+                }
+                .stdcode(),
+            )
+            .build()
+            .unwrap();
+        state.apply_tx(&sym_stake).unwrap();
+        let another = TransactionBuilder::new()
+            .input(sym_stake.output_coinid(0), sym_stake.outputs[0].clone())
+            .input(sym_stake.output_coinid(1), sym_stake.outputs[1].clone())
+            .output(CoinData {
+                denom: Denom::Sym,
+                value: CoinValue(1000),
+                covhash: Covenant::always_true().hash(),
+                additional_data: vec![],
+            })
+            .covenant(Covenant::always_true().0)
+            .fee(CoinValue(1000))
+            .build()
+            .unwrap();
+        assert_eq!(
+            StateError::CoinLocked,
+            state.apply_tx(&another).unwrap_err()
+        );
+    }
 
     #[test]
     fn simple_dmt() {
-        // let mut test_state = GenesisConfig {
-        //     network: NetID::Custom02,
-        //     init_coindata: CoinData {
-        //         value: CoinValue(10000),
-        //         denom: Denom::Mel,
-        //         additional_data: vec![],
-        //         covhash: Covenant::always_true().hash(),
-        //     },
-        //     stakes: Default::default(),
-        //     init_fee_pool: CoinValue(0),
-        // }
-        // .realize(&Database::new(InMemoryCas::default()))
-        // .seal(None)
-        // .next_state();
-        // // insert a bunch of transactions, then make sure all of them have valid proofs of inclusion
-        // let txx_to_insert = (0..1000).map(|i| {
-        //     let txn = Transaction{
-        //         kind: TxKind::Faucet,
-        //         inputs: vec![],
-        //         outputs: vec![
-        //             CoinData {
-        //                 value: CoinValue(10000),
-        //                 denom: Denom::Mel,
-        //                 additional_data: vec![],
-        //                 covhash: Covenant::always_true().hash(),
-        //             },
-        //             CoinData {
-        //                 value: CoinValue(10000),
-        //                 denom: Denom::Mel,
-        //                 additional_data: vec![],
-        //                 covhash: Covenant::always_true().hash(),
-        //             },
-        //         ],
-        //     };
-        // }
+        let mut test_state = create_state(&HashMap::new(), 0);
+        // insert a bunch of transactions, then make sure all of them have valid proofs of inclusion
+        let txx_to_insert = valid_txx(tmelcrypt::ed25519_keygen());
+        for tx in txx_to_insert.iter() {
+            test_state.apply_tx(tx).unwrap();
+        }
+        let sealed = test_state.seal(None);
+        let header = sealed.header();
+        let dmt = sealed.inner_ref().tip908_transactions();
+        for tx in txx_to_insert.iter() {
+            let posn = sealed
+                .inner_ref()
+                .transaction_sorted_posn(tx.hash_nosigs())
+                .unwrap();
+            let proof = dmt.proof(posn);
+            assert!(novasmt::dense::verify_dense(
+                &proof,
+                header.transactions_hash.0,
+                posn,
+                novasmt::hash_data(
+                    &tx.hash_nosigs()
+                        .0
+                        .to_vec()
+                        .tap_mut(|v| v.extend_from_slice(&tx.stdcode().hash().0))
+                ),
+            ));
+        }
     }
 }

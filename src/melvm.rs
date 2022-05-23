@@ -88,7 +88,7 @@ impl Covenant {
 
     /// Execute a transaction in a [CovenantEnv] to completion and return whether the covenant succeeded.
     pub fn check_opt_env(&self, tx: &Transaction, env: Option<CovenantEnv>) -> bool {
-        let _timer = STAT_MELVM_RUNTIME_SECS.timer_secs();
+        let _timer = STAT_MELVM_RUNTIME_SECS.timer_secs("running covenant");
         if let Ok(instrs) = self.to_ops() {
             Executor::new_from_env(instrs, tx.clone(), env).run_to_end()
         } else {
@@ -364,21 +364,6 @@ mod tests {
         tx.sigs[0][0] ^= 123;
         assert!(!check_sig_script.check_opt_env(&tx, None));
     }
-
-    // #[quickcheck]
-    // fn loop_once_is_identity(bitcode: Vec<u8>) -> bool {
-    //     let ops = Covenant(bitcode.clone()).to_ops();
-    //     let tx = Transaction::empty_test();
-    //     match ops {
-    //         None => true,
-    //         Some(ops) => {
-    //             let loop_ops = vec![OpCode::Loop(1, ops.clone())];
-    //             let loop_script = Covenant::from_ops(&loop_ops).unwrap();
-    //             let orig_script = Covenant::from_ops(&ops).unwrap();
-    //             loop_script.check_no_env(&tx) == orig_script.check_no_env(&tx)
-    //         }
-    //     }
-    // }
 
     #[quickcheck]
     fn deterministic_execution(bitcode: Vec<u8>) -> bool {

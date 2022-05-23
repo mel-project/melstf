@@ -44,9 +44,10 @@ impl StatCounter {
     }
 
     /// Create a duration-based timer.
-    pub(crate) fn timer_secs(&self) -> StatTimer<'_> {
+    pub(crate) fn timer_secs(&self, name: &'static str) -> StatTimer<'_> {
         StatTimer {
             r: self,
+            name,
             start: Instant::now(),
         }
     }
@@ -55,6 +56,7 @@ impl StatCounter {
 /// A timer that increments the statistic when dropped
 pub struct StatTimer<'a> {
     r: &'a StatCounter,
+    name: &'static str,
     start: Instant,
 }
 
