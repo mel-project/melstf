@@ -1357,7 +1357,7 @@ mod tests {
         let end: u8 = 5;
 
         let covenant: Covenant = Covenant::from_ops(&[
-            OpCode::PushI(end.into()),
+            OpCode::PushI((end + 1).into()),
             OpCode::PushI(beginning.into()),
             OpCode::PushI(5_u8.into()),
             OpCode::PushI(4_u8.into()),

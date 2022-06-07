@@ -427,10 +427,8 @@ impl Executor {
 
                     match vec {
                         Value::Vector(vec) => {
-                            let is_end_greater_or_equal_to_vector_length: bool = end >= vec.len();
-                            let is_end_less_than_or_equal_to_beginning: bool = end <= beginning;
 
-                            if is_end_greater_or_equal_to_vector_length || is_end_less_than_or_equal_to_beginning {
+                            if end > vec.len() || end < beginning {
                                 log::trace!("Tried to create a VM slice with invalid bounds. Returning an empty VM vector.");
 
                                 Some(Value::Vector(Default::default()))
