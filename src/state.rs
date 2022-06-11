@@ -459,7 +459,7 @@ mod tests {
     use stdcode::StdcodeSerializeExt;
     use tap::Tap;
     use themelio_structs::{
-        CoinData, CoinValue, Denom, StakeDoc, Transaction, TransactionBuilder, TxKind,
+        CoinData, CoinValue, Denom, NetID, StakeDoc, Transaction, TransactionBuilder, TxKind,
     };
     use tmelcrypt::Hashable;
 
@@ -505,6 +505,24 @@ mod tests {
             state.apply_tx(tx).unwrap();
             assert_eq!(pre_fee + tx.fee, state.fee_pool + state.tips);
         }
+    }
+
+    #[test]
+    fn forbid_mainnet_faucet() {
+        let mut state = create_state(&HashMap::new(), 0);
+        state.fee_multiplier = 0;
+        state.network = NetID::Mainnet;
+        state
+            .apply_tx(&Transaction {
+                kind: TxKind::Faucet,
+                inputs: vec![],
+                outputs: vec![],
+                data: vec![],
+                fee: CoinValue(1000),
+                covenants: vec![],
+                sigs: vec![],
+            })
+            .unwrap_err();
     }
 
     #[test]

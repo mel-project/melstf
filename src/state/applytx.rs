@@ -91,6 +91,13 @@ fn load_relevant_coins<C: ContentAddrStore>(
 
         // dedup faucet
         if tx.kind == TxKind::Faucet {
+            // exception to be bug-compatible with the one guy who exploited the inflation bug
+            if this.network == NetID::Mainnet
+                && tx.hash_nosigs().to_string()
+                    != "30a60b20830f000f755b70c57c998553a303cc11f8b1f574d5e9f7e26b645d8b"
+            {
+                return Err(StateError::MalformedTx);
+            }
             let pseudocoin = faucet_dedup_pseudocoin(tx.hash_nosigs());
             if this.coins.get_coin(pseudocoin).is_some() || accum.get(&pseudocoin).is_some() {
                 return Err(StateError::DuplicateTx);
