@@ -79,7 +79,7 @@ impl Executor {
             hm.insert(HADDR_PARENT_DENOM, (*denom).into());
             hm.insert(HADDR_PARENT_ADDITIONAL_DATA, additional_data.clone().into());
             hm.insert(HADDR_PARENT_HEIGHT, height.0.into());
-            hm.insert(HADDR_LAST_HEADER, Value::from(*env.last_header));
+            hm.insert(HADDR_LAST_HEADER, Value::from(env.last_header));
             hm.insert(HADDR_SPENDER_INDEX, Value::from(env.spender_index as u64));
         }
 

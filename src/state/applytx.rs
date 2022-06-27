@@ -245,10 +245,10 @@ fn check_tx_validity<C: ContentAddrStore>(
                     if !script.check(
                         tx,
                         CovenantEnv {
-                            parent_coinid: coin_id,
-                            parent_cdh: coin_data,
+                            parent_coinid: *coin_id,
+                            parent_cdh: coin_data.clone(),
                             spender_index: spend_idx as u8,
-                            last_header: &last_header,
+                            last_header,
                         },
                     ) {
                         return Err(StateError::ViolatesScript(coin_data.coin_data.covhash));

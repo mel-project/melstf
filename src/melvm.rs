@@ -38,11 +38,11 @@ pub enum AddrParseError {
 
 #[derive(Clone, Eq, PartialEq, Debug, Hash)]
 /// The execution environment of a covenant.
-pub struct CovenantEnv<'a> {
-    pub parent_coinid: &'a CoinID,
-    pub parent_cdh: &'a CoinDataHeight,
+pub struct CovenantEnv {
+    pub parent_coinid: CoinID,
+    pub parent_cdh: CoinDataHeight,
     pub spender_index: u8,
-    pub last_header: &'a Header,
+    pub last_header: Header,
 }
 
 impl Covenant {
