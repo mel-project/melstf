@@ -1711,6 +1711,23 @@ mod tests {
 
     #[test]
     fn test_loop() {
+        // This will add 1 to 3, two times, and assert that it's equal to 5.
+        let covenant: Covenant = Covenant::from_ops(&[
+            OpCode::PushI(3_u8.into()),
+            OpCode::Loop(2, 2),
+            OpCode::PushI(1_u8.into()),
+            OpCode::Add,
+            OpCode::PushI(5_u8.into()),
+            OpCode::Eql,
+        ])
+        .expect("Failed to create a Loop covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
+    }
+
+    #[test]
+    fn test_loop_fail() {
         // This will loop the PushI(3) opcode twice, and then run PushI(5).
         // Comparing equality will fail because it is comparing 5 and 3.
         let covenant: Covenant = Covenant::from_ops(&[
@@ -1723,6 +1740,23 @@ mod tests {
         let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
+    }
+
+    #[test]
+    fn test_loop_zero_times() {
+        // This will add 1 to 3, zero times, and assert that it's equal to 3.
+        let covenant: Covenant = Covenant::from_ops(&[
+            OpCode::PushI(3_u8.into()),
+            OpCode::Loop(0, 2),
+            OpCode::PushI(1_u8.into()),
+            OpCode::Add,
+            OpCode::PushI(3_u8.into()),
+            OpCode::Eql,
+        ])
+        .expect("Failed to create a Loop covenant.");
+        let output: bool = covenant.debug_run_without_transaction(&[]);
+
+        assert_eq!(output, true);
     }
 
     #[test]

@@ -609,32 +609,19 @@ impl Executor {
                     return Some(());
                 }
                 OpCode::Loop(iterations, op_count) => {
-                    let is_iterations_positive: bool = iterations > 0;
-                    let is_op_count_positive: bool = op_count > 0;
-
-                    if is_iterations_positive && is_op_count_positive {
-                        log::trace!("In a call to Loop, iterations and op_count were positive. Looping {} times.", iterations);
-
+                    if iterations > 0 { 
                         self.loop_state.push(LoopState {
                             // start after loop instruction
                             begin: self.pc,
                             // final op is inclusive
                             end: self.pc + op_count as usize - 1,
                             // dec happens after an iteration so -1 for first loop
-                            iterations_left: iterations - 1,
+                            iterations_left: iterations -1 ,
                         });
                     } else {
-                        if !is_iterations_positive {
-                            log::trace!("In a call to Loop, iterations was not positive: {}. Skipping loop.", iterations);
-                        } else if !is_op_count_positive {
-                            log::trace!("In a call to Loop, op_count was not positive: {}. Skipping loop.", iterations);
-                        } else {
-                            log::trace!("In a call to Loop, neither iterations: {}, nor op_count were positive: {}. Skipping loop.", iterations, op_count);
-                        }
-
-                        return None;
+                        self.pc += op_count as usize;
                     }
-                }
+                    }
                 // Conversions
                 OpCode::BtoI => self.do_monop(|input_byte_vector| {
                     log::trace!("Converting bytes {:?} into an integer.", &input_byte_vector);
