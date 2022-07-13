@@ -550,13 +550,13 @@ mod tests {
             outputs: vec![
                 CoinData {
                     covhash: my_covhash,
-                    value: 8000.into(),
+                    value: 10000.into(),
                     denom: pool_key.left,
                     additional_data: vec![],
                 },
                 CoinData {
                     covhash: my_covhash,
-                    value: 10000.into(),
+                    value: 8000.into(),
                     denom: pool_key.right,
                     additional_data: vec![],
                 },
