@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use novasmt::ContentAddrStore;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use rustc_hash::{FxHashMap, FxHashSet};
 use themelio_structs::{
     Address, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc,
@@ -133,12 +133,22 @@ fn load_relevant_coins<C: ContentAddrStore>(
     }
     // add the ones *referenced* in this batch
     // Todo: do this in "parallel" to exploit I/O scheduler tricks?
+    let cache: FxHashMap<_, _> = txx
+        .into_par_iter()
+        .flat_map(|tx| tx.inputs.par_iter())
+        .map(|input| (*input, this.coins.get_coin(*input)))
+        .collect();
     for tx in txx {
         for input in tx.inputs.iter() {
             if !accum.contains_key(input) {
-                let from_disk = this
-                    .coins
-                    .get_coin(*input)
+                // let from_disk = this
+                //     .coins
+                //     .get_coin(*input)
+                //     .ok_or(StateError::NonexistentCoin(*input))?;
+                let from_disk = cache
+                    .get(input)
+                    .unwrap()
+                    .clone()
                     .ok_or(StateError::NonexistentCoin(*input))?;
                 accum.insert(*input, from_disk);
             }
