@@ -98,38 +98,32 @@ impl<C: ContentAddrStore> Clone for State<C> {
 impl<C: ContentAddrStore> State<C> {
     /// Returns true iff TIP 901 rule changes apply.
     pub fn tip_901(&self) -> bool {
-        self.height >= TIP_901_HEIGHT
-            || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
+        self.height >= TIP_901_HEIGHT || (self.network != NetID::Mainnet)
     }
 
     /// Returns true iff TIP 902 rule changes apply.
     pub fn tip_902(&self) -> bool {
-        self.height >= TIP_902_HEIGHT
-            || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
+        self.height >= TIP_902_HEIGHT || (self.network != NetID::Mainnet)
     }
 
     /// Returns true iff TIP 906 rule changes apply.
     pub fn tip_906(&self) -> bool {
-        self.height >= TIP_906_HEIGHT
-            || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
+        self.height >= TIP_906_HEIGHT || (self.network != NetID::Mainnet)
     }
 
     /// Returns true iff TIP 908 rule changes apply.
     pub fn tip_908(&self) -> bool {
-        self.height >= TIP_908_HEIGHT
-            || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
+        self.height >= TIP_908_HEIGHT || (self.network != NetID::Mainnet)
     }
 
     /// Returns true iff TIP 909 rule changes apply.
     pub fn tip_909(&self) -> bool {
-        self.height >= TIP_909_HEIGHT
-            || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
+        self.height >= TIP_909_HEIGHT || (self.network != NetID::Mainnet)
     }
 
     /// Returns true iff TIP 909a rule changes apply.
     pub fn tip_909a(&self) -> bool {
-        self.height >= TIP_909A_HEIGHT
-            || (self.network != NetID::Mainnet && self.network != NetID::Testnet)
+        self.height >= TIP_909A_HEIGHT || (self.network != NetID::Mainnet)
     }
 
     /// Applies a single transaction.
