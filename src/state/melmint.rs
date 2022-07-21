@@ -544,19 +544,30 @@ mod tests {
         .signed_ed25519(my_sk);
         second_state.apply_tx(&newcoin_tx).unwrap();
         let pool_key = PoolKey::mel_and(Denom::Custom(newcoin_tx.hash_nosigs()));
+
+        dbg!(&pool_key);
+
         let deposit_tx = Transaction {
             kind: TxKind::LiqDeposit,
             inputs: vec![newcoin_tx.output_coinid(0), newcoin_tx.output_coinid(1)],
             outputs: vec![
                 CoinData {
                     covhash: my_covhash,
-                    value: 10000.into(),
+                    value: if pool_key.left == Denom::Mel {
+                        8000.into()
+                    } else {
+                        10000.into()
+                    },
                     denom: pool_key.left,
                     additional_data: vec![],
                 },
                 CoinData {
                     covhash: my_covhash,
-                    value: 8000.into(),
+                    value: if pool_key.left == Denom::Mel {
+                        10000.into()
+                    } else {
+                        8000.into()
+                    },
                     denom: pool_key.right,
                     additional_data: vec![],
                 },
