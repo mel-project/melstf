@@ -466,7 +466,6 @@ mod tests {
     };
 
     #[test]
-    #[should_panic]
     fn apply_batch_exceed_maximum_coin_value() {
         let state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
 
@@ -480,7 +479,9 @@ mod tests {
             });
         });
 
-        state.clone().apply_tx_batch(&transactions).unwrap();
+        let state_error_result: Result<(), StateError> = state.clone().apply_tx_batch(&transactions);
+
+        assert_eq!(state_error_result, Err(StateError::MalformedTx));
     }
 
     #[test]
