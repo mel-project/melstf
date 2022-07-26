@@ -15,66 +15,11 @@ use crate::{
     LegacyMelPowHash, State, StateError, Tip910MelPowHash,
 };
 
-/// Applies a batch of transactions to the state.
-pub fn apply_tx_batch_impl<C: ContentAddrStore>(
-    this: &State<C>,
-    txx: &[Transaction],
-) -> Result<State<C>, StateError> {
-    // we first obtain *all* the relevant coins
-    let relevant_coins = load_relevant_coins(this, txx)?;
-    // apply the stake transactions
-    let new_stakes = load_stake_info(this, txx)?;
-    // check validity of every transaction, with respect to the relevant coins and stakes
-    txx.par_iter()
-        .try_for_each(|tx| check_tx_validity(this, tx, &relevant_coins, &new_stakes))?;
-    // check the stake txx
-    let new_max_speed = txx
-        .par_iter()
-        .filter(|tx| tx.kind == TxKind::DoscMint)
-        .try_fold(
-            || this.dosc_speed,
-            |a, tx| {
-                let new_speed = check_doscmint_validity(this, &relevant_coins, tx)?;
-                Ok(a.max(new_speed))
-            },
-        )
-        .try_reduce(|| this.dosc_speed, |a, b| Ok(a.max(b)))?;
-    // great, now we create the new state
-    let mut next_state = this.clone();
-    for tx in txx {
-        let txhash = tx.hash_nosigs();
-        for (i, _) in tx.outputs.iter().enumerate() {
-            let coinid = CoinID::new(txhash, i as u8);
-            next_state.coins.insert_coin(
-                coinid,
-                relevant_coins.get(&coinid).unwrap().clone(),
-                this.tip_906(),
-            );
-        }
-        for coinid in tx.inputs.iter() {
-            next_state.coins.remove_coin(*coinid, this.tip_906());
-        }
-
-        // fees
-        let min_fee = tx.base_fee(next_state.fee_multiplier, 0, |c| {
-            Covenant(c.to_vec()).weight().unwrap_or(0)
-        });
-        if tx.fee < min_fee {
-            return Err(StateError::InsufficientFees(min_fee));
-        } else {
-            let tips = tx.fee - min_fee;
-            next_state.tips.0 = next_state.tips.0.saturating_add(tips.0);
-            next_state.fee_pool.0 = next_state.fee_pool.0.saturating_add(min_fee.0);
-        }
-        next_state.transactions.insert(txhash, tx.clone());
+fn faucet_dedup_pseudocoin(txhash: TxHash) -> CoinID {
+    CoinID {
+        txhash: tmelcrypt::hash_keyed(b"fdp", &txhash.0).into(),
+        index: 0,
     }
-    // dosc
-    next_state.dosc_speed = new_max_speed;
-    // apply stakes
-    for (k, v) in new_stakes {
-        next_state.stakes.insert(k, v);
-    }
-    Ok(next_state)
 }
 
 fn load_relevant_coins<C: ContentAddrStore>(
@@ -94,7 +39,7 @@ fn load_relevant_coins<C: ContentAddrStore>(
             // exception to be bug-compatible with the one guy who exploited the inflation bug
             if this.network == NetID::Mainnet
                 && tx.hash_nosigs().to_string()
-                    != "30a60b20830f000f755b70c57c998553a303cc11f8b1f574d5e9f7e26b645d8b"
+                != "30a60b20830f000f755b70c57c998553a303cc11f8b1f574d5e9f7e26b645d8b"
             {
                 return Err(StateError::MalformedTx);
             }
@@ -192,7 +137,7 @@ fn load_stake_info<C: ContentAddrStore>(
 
             if is_first_coin_not_a_sym {
                 return Err(StateError::MalformedTx);
-            // then we check consistency
+                // then we check consistency
             } else if stake_doc.e_start > curr_epoch
                 && stake_doc.e_post_end > stake_doc.e_start
                 && stake_doc.syms_staked == first_coin.value
@@ -230,7 +175,7 @@ fn check_tx_validity<C: ContentAddrStore>(
         if (new_stakes.contains_key(&coin_id.txhash)
             || this.stakes.get(&coin_id.txhash).0.is_some())
             && !((this.network == NetID::Mainnet || this.network == NetID::Testnet)
-                && this.height.0 < 900000)
+            && this.height.0 < 900000)
         // Workaround for BUGGY old code!
         {
             return Err(StateError::CoinLocked);
@@ -376,9 +321,72 @@ fn check_doscmint_validity<C: ContentAddrStore>(
     Ok(my_speed)
 }
 
-fn faucet_dedup_pseudocoin(txhash: TxHash) -> CoinID {
-    CoinID {
-        txhash: tmelcrypt::hash_keyed(b"fdp", &txhash.0).into(),
-        index: 0,
+/// Applies a batch of transactions to the state.
+pub fn apply_tx_batch_impl<C: ContentAddrStore>(
+    this: &State<C>,
+    txx: &[Transaction],
+) -> Result<State<C>, StateError> {
+    // we first obtain *all* the relevant coins
+    let relevant_coins: FxHashMap<CoinID, CoinDataHeight> = load_relevant_coins(this, txx)?;
+
+    // apply the stake transactions
+    let new_stakes: FxHashMap<TxHash, StakeDoc> = load_stake_info(this, txx)?;
+
+    // check validity of every transaction, with respect to the relevant coins and stakes
+    txx.par_iter()
+        .try_for_each(|tx| check_tx_validity(this, tx, &relevant_coins, &new_stakes))?;
+
+    // check the stake txx
+    let new_max_speed: u128 = txx
+        .par_iter()
+        .filter(|tx| tx.kind == TxKind::DoscMint)
+        .try_fold(
+            || this.dosc_speed,
+            |a, tx| {
+                let new_speed = check_doscmint_validity(this, &relevant_coins, tx)?;
+                Ok(a.max(new_speed))
+            },
+        )
+        .try_reduce(|| this.dosc_speed, |a, b| Ok(a.max(b)))?;
+
+    // great, now we create the new state
+    let mut next_state = this.clone();
+
+    for tx in txx {
+        let txhash = tx.hash_nosigs();
+        for (i, _) in tx.outputs.iter().enumerate() {
+            let coinid = CoinID::new(txhash, i as u8);
+            next_state.coins.insert_coin(
+                coinid,
+                relevant_coins.get(&coinid).unwrap().clone(),
+                this.tip_906(),
+            );
+        }
+        for coinid in tx.inputs.iter() {
+            next_state.coins.remove_coin(*coinid, this.tip_906());
+        }
+
+        // fees
+        let min_fee = tx.base_fee(next_state.fee_multiplier, 0, |c| {
+            Covenant(c.to_vec()).weight().unwrap_or(0)
+        });
+        if tx.fee < min_fee {
+            return Err(StateError::InsufficientFees(min_fee));
+        } else {
+            let tips = tx.fee - min_fee;
+            next_state.tips.0 = next_state.tips.0.saturating_add(tips.0);
+            next_state.fee_pool.0 = next_state.fee_pool.0.saturating_add(min_fee.0);
+        }
+        next_state.transactions.insert(txhash, tx.clone());
     }
+
+    // dosc
+    next_state.dosc_speed = new_max_speed;
+
+    // apply stakes
+    for (k, v) in new_stakes {
+        next_state.stakes.insert(k, v);
+    }
+
+    Ok(next_state)
 }
