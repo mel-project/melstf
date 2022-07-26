@@ -484,6 +484,33 @@ mod tests {
     }
 
     #[test]
+    fn apply_batch_normal() {
+        let state = create_state(&HashMap::new(), 0);
+        let txx = valid_txx(tmelcrypt::ed25519_keygen());
+        // all at once
+        state.clone().apply_tx_batch(&txx).unwrap();
+        // not all at once
+        {
+            let mut state = state.clone();
+            for tx in txx.iter() {
+                state.apply_tx(tx).unwrap();
+            }
+        }
+        // now shuffle
+        let mut txx = txx;
+        txx.shuffle(&mut rand::thread_rng());
+        // all at once must also work
+        state.clone().apply_tx_batch(&txx).unwrap();
+        let mut state = state;
+        for tx in txx.iter() {
+            if state.apply_tx(tx).is_err() {
+                return;
+            }
+        }
+        panic!("should not reach here")
+    }
+
+    #[test]
     fn fee_pool_increase() {
         let mut state = create_state(&HashMap::new(), 0);
         let txx = valid_txx(tmelcrypt::ed25519_keygen());
