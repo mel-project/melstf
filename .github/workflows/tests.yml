@@ -39,4 +39,4 @@ jobs:
         run: rustup update
 
       - name: Run Tests
-        run: mold --run cargo test --verbose
+        run: mold --run cargo test --all-features --verbose
