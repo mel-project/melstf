@@ -14,7 +14,7 @@ env:
   RUSTC_WRAPPER: "/usr/local/bin/sccache"
 
 jobs:
-  build:
+  tests:
 
     runs-on: self-hosted
 
