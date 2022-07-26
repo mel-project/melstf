@@ -36,6 +36,9 @@ jobs:
 
       - uses: themeliolabs/actions-mold@v1
 
+      - name: Add Default Toolchain
+        run: rustup default stable
+
       - name: Generate Code Coverage
         run: mold --run cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out Xml
 
