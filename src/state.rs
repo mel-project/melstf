@@ -449,7 +449,9 @@ impl<C: ContentAddrStore> ConfirmedState<C> {
 mod tests {
     use std::collections::HashMap;
 
+    use novasmt::InMemoryCas;
     use rand::prelude::SliceRandom;
+    use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
     use stdcode::StdcodeSerializeExt;
     use tap::Tap;
     use themelio_structs::{
@@ -460,34 +462,25 @@ mod tests {
     use crate::{
         melvm::Covenant,
         testing::functions::{create_state, valid_txx},
-        StateError,
+        State, StateError,
     };
 
     #[test]
-    fn apply_batch_normal() {
-        let state = create_state(&HashMap::new(), 0);
-        let txx = valid_txx(tmelcrypt::ed25519_keygen());
-        // all at once
-        state.clone().apply_tx_batch(&txx).unwrap();
-        // not all at once
-        {
-            let mut state = state.clone();
-            for tx in txx.iter() {
-                state.apply_tx(tx).unwrap();
-            }
-        }
-        // now shuffle
-        let mut txx = txx;
-        txx.shuffle(&mut rand::thread_rng());
-        // all at once must also work
-        state.clone().apply_tx_batch(&txx).unwrap();
-        let mut state = state;
-        for tx in txx.iter() {
-            if state.apply_tx(tx).is_err() {
-                return;
-            }
-        }
-        panic!("should not reach here")
+    #[should_panic]
+    fn apply_batch_exceed_maximum_coin_value() {
+        let state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
+
+        let maximum_coin_value_exceeded: CoinValue = themelio_structs::MAX_COINVAL + themelio_structs::CoinValue(1);
+
+        let mut transactions: Vec<Transaction> = valid_txx(tmelcrypt::ed25519_keygen());
+
+        transactions.par_iter_mut().for_each(|transaction| {
+            transaction.outputs.par_iter_mut().for_each(|coin_data| {
+                coin_data.value = maximum_coin_value_exceeded;
+            });
+        });
+
+        state.clone().apply_tx_batch(&transactions).unwrap();
     }
 
     #[test]
