@@ -86,28 +86,15 @@ fn load_relevant_coins<C: ContentAddrStore>(
             accum.extend(coins_to_add);
         }
 
-        // for (i, coin_data) in tx.outputs.iter().enumerate() {
-        //     let mut coin_data = coin_data.clone();
-        //     if coin_data.denom == Denom::NewCoin {
-        //         coin_data.denom = Denom::Custom(tx.hash_nosigs());
-        //     }
-        //     // if covenant hash is zero, this destroys the coins permanently
-        //     if coin_data.covhash != Address::coin_destroy() {
-        //         accum.insert(
-        //             CoinID::new(txhash, i as u8),
-        //             CoinDataHeight { coin_data, height },
-        //         );
-        //     }
-        // }
-
     }
     // add the ones *referenced* in this batch
     // Todo: do this in "parallel" to exploit I/O scheduler tricks?
-    let cache: FxHashMap<_, _> = txx
+    let cache: FxHashMap<CoinID, Option<CoinDataHeight>> = txx
         .into_par_iter()
         .flat_map(|tx| tx.inputs.par_iter())
         .map(|input| (*input, this.coins.get_coin(*input)))
         .collect();
+
     for tx in txx {
         for input in tx.inputs.iter() {
             if !accum.contains_key(input) {
@@ -124,8 +111,10 @@ fn load_relevant_coins<C: ContentAddrStore>(
             }
         }
     }
+
     // ensure no double-spending within this batch
     let mut seen = FxHashSet::default();
+
     for tx in txx {
         for input in tx.inputs.iter() {
             if !seen.insert(input) {
@@ -133,6 +122,7 @@ fn load_relevant_coins<C: ContentAddrStore>(
             }
         }
     }
+
     Ok(accum)
 }
 
