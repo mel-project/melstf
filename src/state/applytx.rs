@@ -88,20 +88,15 @@ fn load_relevant_coins<C: ContentAddrStore>(
 
     }
     // add the ones *referenced* in this batch
-    // Todo: do this in "parallel" to exploit I/O scheduler tricks?
     let cache: FxHashMap<CoinID, Option<CoinDataHeight>> = txx
         .into_par_iter()
-        .flat_map(|tx| tx.inputs.par_iter())
+        .flat_map(|transaction| transaction.inputs.par_iter())
         .map(|input| (*input, this.coins.get_coin(*input)))
         .collect();
 
     for tx in txx {
         for input in tx.inputs.iter() {
             if !accum.contains_key(input) {
-                // let from_disk = this
-                //     .coins
-                //     .get_coin(*input)
-                //     .ok_or(StateError::NonexistentCoin(*input))?;
                 let from_disk = cache
                     .get(input)
                     .unwrap()
