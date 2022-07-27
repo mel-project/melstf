@@ -455,14 +455,14 @@ mod tests {
     use stdcode::StdcodeSerializeExt;
     use tap::Tap;
     use themelio_structs::{
-        Address, CoinData, CoinValue, Denom, NetID, StakeDoc, Transaction, TransactionBuilder, TxKind,
+        CoinData, CoinValue, Denom, NetID, StakeDoc, Transaction, TransactionBuilder, TxKind,
     };
     use tmelcrypt::Hashable;
 
     use crate::{
-        melvm::Covenant,
+        melvm::Covenant, melvm::opcode::OpCode,
         testing::functions::{create_state, valid_txx},
-        State, StateError,
+        State, StateError, StateError::InsufficientFees,
     };
 
     #[test]
@@ -482,6 +482,34 @@ mod tests {
         let state_error_result: Result<(), StateError> = state.clone().apply_tx_batch(&transactions);
 
         assert_eq!(state_error_result, Err(StateError::MalformedTx));
+    }
+
+    #[test]
+    fn insufficient_fees() {
+        let state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
+
+        let covenant: Covenant = Covenant::from_ops(&[
+            OpCode::PushI(1_u8.into()),
+            OpCode::PushI(2_u8.into()),
+            OpCode::Add,
+            OpCode::PushI(3_u8.into()),
+            OpCode::Eql,
+        ])
+            .expect("Failed to create a Add covenant.");
+
+        let transaction: Transaction = Transaction {
+            kind: TxKind::Faucet,
+            inputs: vec![],
+            outputs: vec![],
+            data: vec![],
+            fee: CoinValue(1000),
+            covenants: vec![covenant.0],
+            sigs: vec![],
+        };
+
+        let transaction_result: Result<(), StateError> = state.clone().apply_tx_batch(&[transaction]);
+
+        assert_eq!(transaction_result, Err(InsufficientFees(CoinValue(1861))));
     }
 
     #[test]
