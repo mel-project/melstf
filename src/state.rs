@@ -462,7 +462,8 @@ mod tests {
     use crate::{
         melvm::Covenant, melvm::opcode::OpCode,
         testing::functions::{create_state, valid_txx},
-        State, StateError, StateError::{InsufficientFees, NonexistentCoin},
+        State, StateError, StateError::{InsufficientFees, NonexistentCoin, NonexistentScript,
+                                        MalformedTx, UnbalancedInOut, ViolatesScript},
     };
 
     #[test]
@@ -481,7 +482,60 @@ mod tests {
 
         let state_error_result: Result<(), StateError> = state.clone().apply_tx_batch(&transactions);
 
-        assert_eq!(state_error_result, Err(StateError::MalformedTx));
+        assert_eq!(state_error_result, Err(MalformedTx));
+    }
+
+    #[test]
+    fn nonexistent_script() {
+        let mut state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
+
+        let (public_key, secret_key): (tmelcrypt::Ed25519PK, tmelcrypt::Ed25519SK) = tmelcrypt::ed25519_keygen();
+
+        let my_covhash: themelio_structs::Address = Covenant::std_ed25519_pk_legacy(public_key).hash();
+
+        let first_transaction: Transaction = Transaction {
+            kind: TxKind::Faucet,
+            inputs: vec![],
+            outputs: vec![
+                CoinData {
+                    covhash: my_covhash,
+                    value: 20000.into(),
+                    denom: Denom::Mel,
+                    additional_data: vec![],
+                },
+            ],
+            data: vec![],
+            fee: CoinValue(20000),
+            covenants: vec![],
+            sigs: vec![],
+        };
+
+        let _first_transaction_result: () = state.apply_tx(&first_transaction).unwrap();
+
+        let mut covenant: Covenant = Covenant::from_ops(&[
+            OpCode::PushI(1_u8.into()),
+            OpCode::PushI(2_u8.into()),
+            OpCode::Add,
+            OpCode::PushI(3_u8.into()),
+            OpCode::Eql,
+        ])
+            .expect("Failed to create an Add covenant.");
+
+        covenant.0 = vec![1];
+
+        let second_transaction: Transaction = Transaction {
+            kind: TxKind::Normal,
+            inputs: vec![first_transaction.output_coinid(0)],
+            outputs: vec![],
+            data: vec![],
+            fee: CoinValue(1000),
+            covenants: vec![covenant.0],
+            sigs: vec![],
+        };
+
+        let second_transaction_result: Result<(), StateError> = state.apply_tx(&second_transaction);
+
+        assert!(matches!(second_transaction_result, Err(NonexistentScript(_))));
     }
 
     #[test]
@@ -498,7 +552,7 @@ mod tests {
             sigs: vec![],
         };
 
-        let first_transaction_result: Result<(), StateError> = state.clone().apply_tx_batch(&[first_transaction.clone()]);
+        let _first_transaction_result: () = state.clone().apply_tx(&first_transaction).unwrap();
 
         let second_transaction: Transaction = Transaction {
             kind: TxKind::Normal,
@@ -510,9 +564,9 @@ mod tests {
             sigs: vec![],
         };
 
-        let second_transaction_result: Result<(), StateError> = state.clone().apply_tx_batch(&[second_transaction]);
+        let second_transaction_result: Result<(), StateError> = state.clone().apply_tx(&second_transaction);
 
-        assert!(matches!(second_transaction_result, Err(StateError::NonexistentCoin(_))));
+        assert!(matches!(second_transaction_result, Err(NonexistentCoin(_))));
     }
 
     #[test]
@@ -559,7 +613,7 @@ mod tests {
 
         let spend_nonexistant_coins_transaction_result: Result<(), StateError> = state.clone().apply_tx_batch(&[spend_nonexistant_coins_transaction]);
 
-        assert_eq!(spend_nonexistant_coins_transaction_result, Err(StateError::UnbalancedInOut));
+        assert_eq!(spend_nonexistant_coins_transaction_result, Err(UnbalancedInOut));
     }
 
     #[test]
