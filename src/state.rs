@@ -455,7 +455,7 @@ mod tests {
     use stdcode::StdcodeSerializeExt;
     use tap::Tap;
     use themelio_structs::{
-        CoinData, CoinValue, Denom, NetID, StakeDoc, Transaction, TransactionBuilder, TxKind,
+        Address, CoinData, CoinValue, Denom, NetID, StakeDoc, Transaction, TransactionBuilder, TxKind,
     };
     use tmelcrypt::Hashable;
 
@@ -482,6 +482,25 @@ mod tests {
         let state_error_result: Result<(), StateError> = state.clone().apply_tx_batch(&transactions);
 
         assert_eq!(state_error_result, Err(StateError::MalformedTx));
+    }
+
+    #[test]
+    fn unbalanced_input_and_output() {
+        let state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
+
+        let spend_nonexistant_coins_transaction: Transaction = Transaction {
+            kind: TxKind::Normal,
+            inputs: vec![],
+            outputs: vec![],
+            data: vec![],
+            fee: CoinValue(1000),
+            covenants: vec![],
+            sigs: vec![],
+        };
+
+        let spend_nonexistant_coins_transaction_result: Result<(), StateError> = state.clone().apply_tx_batch(&[spend_nonexistant_coins_transaction]);
+
+        assert_eq!(spend_nonexistant_coins_transaction_result, Err(StateError::UnbalancedInOut));
     }
 
     #[test]
