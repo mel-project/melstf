@@ -455,14 +455,14 @@ mod tests {
     use stdcode::StdcodeSerializeExt;
     use tap::Tap;
     use themelio_structs::{
-        CoinData, CoinValue, Denom, NetID, StakeDoc, Transaction, TransactionBuilder, TxKind,
+        CoinData, CoinID, CoinValue, Denom, NetID, StakeDoc, Transaction, TransactionBuilder, TxKind,
     };
     use tmelcrypt::Hashable;
 
     use crate::{
         melvm::Covenant, melvm::opcode::OpCode,
         testing::functions::{create_state, valid_txx},
-        State, StateError, StateError::InsufficientFees,
+        State, StateError, StateError::{InsufficientFees, NonexistentCoin},
     };
 
     #[test]
@@ -482,6 +482,37 @@ mod tests {
         let state_error_result: Result<(), StateError> = state.clone().apply_tx_batch(&transactions);
 
         assert_eq!(state_error_result, Err(StateError::MalformedTx));
+    }
+
+    #[test]
+    fn nonexistant_coin() {
+        let state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
+
+        let first_transaction: Transaction = Transaction {
+            kind: TxKind::Faucet,
+            inputs: vec![],
+            outputs: vec![],
+            data: vec![],
+            fee: CoinValue(1000),
+            covenants: vec![],
+            sigs: vec![],
+        };
+
+        let first_transaction_result: Result<(), StateError> = state.clone().apply_tx_batch(&[first_transaction.clone()]);
+
+        let second_transaction: Transaction = Transaction {
+            kind: TxKind::Normal,
+            inputs: vec![first_transaction.output_coinid(0)],
+            outputs: vec![],
+            data: vec![],
+            fee: CoinValue(1000),
+            covenants: vec![],
+            sigs: vec![],
+        };
+
+        let second_transaction_result: Result<(), StateError> = state.clone().apply_tx_batch(&[second_transaction]);
+
+        assert!(matches!(second_transaction_result, Err(StateError::NonexistentCoin(_))));
     }
 
     #[test]
