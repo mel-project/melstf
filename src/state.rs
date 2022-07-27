@@ -486,19 +486,72 @@ mod tests {
     }
 
     #[test]
-    fn nonexistent_script() {
+    fn script_violation() {
         let mut state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
 
         let (public_key, secret_key): (tmelcrypt::Ed25519PK, tmelcrypt::Ed25519SK) = tmelcrypt::ed25519_keygen();
 
-        let my_covhash: themelio_structs::Address = Covenant::std_ed25519_pk_legacy(public_key).hash();
+        let covenant_hash: themelio_structs::Address = Covenant::std_ed25519_pk_legacy(public_key).hash();
 
         let first_transaction: Transaction = Transaction {
             kind: TxKind::Faucet,
             inputs: vec![],
             outputs: vec![
                 CoinData {
-                    covhash: my_covhash,
+                    covhash: covenant_hash,
+                    value: 20000.into(),
+                    denom: Denom::Mel,
+                    additional_data: vec![],
+                },
+                ],
+            data: vec![],
+            fee: CoinValue(20000),
+            covenants: vec![],
+            sigs: vec![],
+        };
+
+        let _first_transaction_result: () = state.apply_tx(&first_transaction).unwrap();
+
+        let mut covenant: Covenant = Covenant::from_ops(&[
+            OpCode::PushI(1_u8.into()),
+            OpCode::PushI(2_u8.into()),
+            OpCode::Add,
+            OpCode::PushI(3_u8.into()),
+            OpCode::Eql,
+        ])
+            .expect("Failed to create a Add covenant.");
+
+        covenant.0 = vec![1];
+
+        let second_transaction: Transaction = Transaction {
+            kind: TxKind::Normal,
+            inputs: vec![first_transaction.output_coinid(0)],
+            outputs: vec![],
+            data: vec![],
+            fee: CoinValue(1000),
+            covenants: vec![covenant.0, Covenant::std_ed25519_pk_legacy(public_key).0],
+            sigs: vec![],
+        };
+
+        let second_transaction_result: Result<(), StateError> = state.apply_tx(&second_transaction);
+
+        assert!(matches!(second_transaction_result, Err(ViolatesScript(_))));
+    }
+
+    #[test]
+    fn nonexistent_script() {
+        let mut state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
+
+        let (public_key, secret_key): (tmelcrypt::Ed25519PK, tmelcrypt::Ed25519SK) = tmelcrypt::ed25519_keygen();
+
+        let covenant_hash: themelio_structs::Address = Covenant::std_ed25519_pk_legacy(public_key).hash();
+
+        let first_transaction: Transaction = Transaction {
+            kind: TxKind::Faucet,
+            inputs: vec![],
+            outputs: vec![
+                CoinData {
+                    covhash: covenant_hash,
                     value: 20000.into(),
                     denom: Denom::Mel,
                     additional_data: vec![],
