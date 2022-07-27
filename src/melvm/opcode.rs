@@ -538,7 +538,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
         ])
-        .expect("Failed to create a Add covenant.");
+        .expect("Failed to create an Add covenant.");
         let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
@@ -550,7 +550,7 @@ mod tests {
             OpCode::PushI(4_u8.into()),
             OpCode::Eql,
         ])
-        .expect("Failed to create a Add covenant.");
+        .expect("Failed to create an Add covenant.");
         let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, false);
@@ -600,7 +600,7 @@ mod tests {
             OpCode::PushI(0_u8.into()),
             OpCode::Eql,
         ])
-        .expect("Failed to create a Add covenant.");
+        .expect("Failed to create an Add covenant.");
         let output: bool = covenant.debug_run_without_transaction(&[]);
 
         assert_eq!(output, true);
