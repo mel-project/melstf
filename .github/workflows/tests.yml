@@ -35,6 +35,9 @@ jobs:
 
       - uses: themeliolabs/actions-mold@v1
 
+      - name: Add Default Toolchain
+        run: rustup default stable
+
       - name: Update Rust
         run: rustup update
 
