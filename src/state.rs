@@ -455,14 +455,14 @@ mod tests {
     use stdcode::StdcodeSerializeExt;
     use tap::Tap;
     use themelio_structs::{
-        CoinData, CoinID, CoinValue, Denom, NetID, StakeDoc, Transaction, TransactionBuilder, TxKind,
+        CoinData, CoinValue, Denom, NetID, StakeDoc, Transaction, TransactionBuilder, TxKind,
     };
     use tmelcrypt::Hashable;
 
     use crate::{
         melvm::Covenant, melvm::opcode::OpCode,
         testing::functions::{create_state, valid_txx},
-        State, StateError, StateError::{InsufficientFees, NonexistentCoin, NonexistentScript,
+        State, StateError, StateError::{InsufficientFees, InvalidMelPoW, NonexistentCoin, NonexistentScript,
                                         MalformedTx, UnbalancedInOut, ViolatesScript},
     };
 
@@ -489,7 +489,7 @@ mod tests {
     fn script_violation() {
         let mut state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
 
-        let (public_key, secret_key): (tmelcrypt::Ed25519PK, tmelcrypt::Ed25519SK) = tmelcrypt::ed25519_keygen();
+        let (public_key, _secret_key): (tmelcrypt::Ed25519PK, tmelcrypt::Ed25519SK) = tmelcrypt::ed25519_keygen();
 
         let covenant_hash: themelio_structs::Address = Covenant::std_ed25519_pk_legacy(public_key).hash();
 
@@ -538,11 +538,64 @@ mod tests {
         assert!(matches!(second_transaction_result, Err(ViolatesScript(_))));
     }
 
+    // This requires creating minting transactions, which will be covered later during melswap testing.
+    // Remaining variants of the `state::StateError` enum are:
+    // `InvalidMelPoW`, `WrongHeader`, `CoinLocked`, and `DuplicateTx`
+    // #[test]
+    // fn invalid_mel_proof_of_work() {
+    //     let mut state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
+    //
+    //     let covenant: Covenant = Covenant::from_ops(&[
+    //         OpCode::PushI(1_u8.into()),
+    //         OpCode::PushI(2_u8.into()),
+    //         OpCode::Add,
+    //         OpCode::PushI(3_u8.into()),
+    //         OpCode::Eql,
+    //     ])
+    //         .expect("Failed to create a Add covenant.");
+    //
+    //     let covenant_hash: themelio_structs::Address = covenant.hash();
+    //
+    //     let first_transaction: Transaction = Transaction {
+    //         kind: TxKind::Faucet,
+    //         inputs: vec![],
+    //         outputs: vec![
+    //             CoinData {
+    //                 covhash: covenant_hash,
+    //                 value: 1000.into(),
+    //                 denom: Denom::Mel,
+    //                 additional_data: vec![],
+    //             },
+    //         ],
+    //         data: vec![],
+    //         fee: CoinValue(20000),
+    //         covenants: vec![],
+    //         sigs: vec![],
+    //     };
+    //
+    //     let _first_transaction_result: () = state.apply_tx(&first_transaction).unwrap();
+    //
+    //
+    //     let second_transaction: Transaction = Transaction {
+    //         kind: TxKind::Normal,
+    //         inputs: vec![first_transaction.output_coinid(0)],
+    //         outputs: vec![],
+    //         data: vec![],
+    //         fee: CoinValue(1000),
+    //         covenants: vec![covenant.0],
+    //         sigs: vec![],
+    //     };
+    //
+    //     let second_transaction_result: Result<(), StateError> = state.apply_tx(&second_transaction);
+    //
+    //     assert_eq!(second_transaction_result, Err(InvalidMelPoW));
+    // }
+
     #[test]
     fn nonexistent_script() {
         let mut state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
 
-        let (public_key, secret_key): (tmelcrypt::Ed25519PK, tmelcrypt::Ed25519SK) = tmelcrypt::ed25519_keygen();
+        let (public_key, _secret_key): (tmelcrypt::Ed25519PK, tmelcrypt::Ed25519SK) = tmelcrypt::ed25519_keygen();
 
         let covenant_hash: themelio_structs::Address = Covenant::std_ed25519_pk_legacy(public_key).hash();
 
