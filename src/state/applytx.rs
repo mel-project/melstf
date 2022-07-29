@@ -43,6 +43,31 @@ pub fn apply_tx_batch_impl<C: ContentAddrStore>(
     let mut next_state = this.clone();
     for tx in txx {
         let txhash = tx.hash_nosigs();
+
+        if tx.kind == TxKind::Faucet {
+            let pseudocoin = faucet_dedup_pseudocoin(tx.hash_nosigs());
+            if tx.hash_nosigs().to_string()
+                != "aa46c89bc731a907e61a251ac4a0de52532512fec213d2501bb33e4bbfa2bbab0"
+            {
+                if next_state.coins.get_coin(pseudocoin).is_some() {
+                    return Err(StateError::DuplicateTx);
+                }
+                next_state.coins.insert_coin(
+                    pseudocoin,
+                    CoinDataHeight {
+                        coin_data: CoinData {
+                            denom: Denom::Mel,
+                            value: 0.into(),
+                            additional_data: vec![],
+                            covhash: HashVal::default().into(),
+                        },
+                        height: 0.into(),
+                    },
+                    next_state.tip_906(),
+                );
+            }
+        }
+
         for (i, _) in tx.outputs.iter().enumerate() {
             let coinid = CoinID::new(txhash, i as u8);
             next_state.coins.insert_coin(
@@ -98,22 +123,6 @@ fn load_relevant_coins<C: ContentAddrStore>(
             {
                 return Err(StateError::MalformedTx);
             }
-            let pseudocoin = faucet_dedup_pseudocoin(tx.hash_nosigs());
-            if this.coins.get_coin(pseudocoin).is_some() || accum.get(&pseudocoin).is_some() {
-                return Err(StateError::DuplicateTx);
-            }
-            accum.insert(
-                pseudocoin,
-                CoinDataHeight {
-                    coin_data: CoinData {
-                        denom: Denom::Mel,
-                        value: 0.into(),
-                        additional_data: vec![],
-                        covhash: HashVal::default().into(),
-                    },
-                    height: 0.into(),
-                },
-            );
         }
 
         let txhash = tx.hash_nosigs();
@@ -141,10 +150,6 @@ fn load_relevant_coins<C: ContentAddrStore>(
     for tx in txx {
         for input in tx.inputs.iter() {
             if !accum.contains_key(input) {
-                // let from_disk = this
-                //     .coins
-                //     .get_coin(*input)
-                //     .ok_or(StateError::NonexistentCoin(*input))?;
                 let from_disk = cache
                     .get(input)
                     .unwrap()
