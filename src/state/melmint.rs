@@ -544,9 +544,6 @@ mod tests {
         .signed_ed25519(my_sk);
         second_state.apply_tx(&newcoin_tx).unwrap();
         let pool_key = PoolKey::mel_and(Denom::Custom(newcoin_tx.hash_nosigs()));
-
-        dbg!(&pool_key);
-
         let deposit_tx = Transaction {
             kind: TxKind::LiqDeposit,
             inputs: vec![newcoin_tx.output_coinid(0), newcoin_tx.output_coinid(1)],

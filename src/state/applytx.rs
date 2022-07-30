@@ -46,35 +46,32 @@ pub fn apply_tx_batch_impl<C: ContentAddrStore>(
 
         if tx.kind == TxKind::Faucet {
             let pseudocoin = faucet_dedup_pseudocoin(tx.hash_nosigs());
-            if tx.hash_nosigs().to_string()
-                != "aa46c89bc731a907e61a251ac4a0de52532512fec213d2501bb33e4bbfa2bbab0"
-            {
-                if next_state.coins.get_coin(pseudocoin).is_some() {
-                    return Err(StateError::DuplicateTx);
-                }
-                next_state.coins.insert_coin(
-                    pseudocoin,
-                    CoinDataHeight {
-                        coin_data: CoinData {
-                            denom: Denom::Mel,
-                            value: 0.into(),
-                            additional_data: vec![],
-                            covhash: HashVal::default().into(),
-                        },
-                        height: 0.into(),
-                    },
-                    next_state.tip_906(),
-                );
+            if next_state.coins.get_coin(pseudocoin).is_some() {
+                return Err(StateError::DuplicateTx);
             }
+            next_state.coins.insert_coin(
+                pseudocoin,
+                CoinDataHeight {
+                    coin_data: CoinData {
+                        denom: Denom::Mel,
+                        value: 0.into(),
+                        additional_data: vec![],
+                        covhash: HashVal::default().into(),
+                    },
+                    height: 0.into(),
+                },
+                next_state.tip_906(),
+            );
         }
 
         for (i, _) in tx.outputs.iter().enumerate() {
             let coinid = CoinID::new(txhash, i as u8);
-            next_state.coins.insert_coin(
-                coinid,
-                relevant_coins.get(&coinid).unwrap().clone(),
-                this.tip_906(),
-            );
+            // this filters out coins that we get rid of (e.g. due to them going to the coin destruction cov)
+            if let Some(coin_data) = relevant_coins.get(&coinid) {
+                next_state
+                    .coins
+                    .insert_coin(coinid, coin_data.clone(), this.tip_906());
+            }
         }
         for coinid in tx.inputs.iter() {
             next_state.coins.remove_coin(*coinid, this.tip_906());

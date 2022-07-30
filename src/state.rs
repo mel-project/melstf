@@ -453,7 +453,8 @@ mod tests {
     use stdcode::StdcodeSerializeExt;
     use tap::Tap;
     use themelio_structs::{
-        CoinData, CoinValue, Denom, NetID, StakeDoc, Transaction, TransactionBuilder, TxKind,
+        Address, CoinData, CoinValue, Denom, NetID, StakeDoc, Transaction, TransactionBuilder,
+        TxKind,
     };
     use tmelcrypt::Hashable;
 
@@ -517,6 +518,46 @@ mod tests {
                 sigs: vec![],
             })
             .unwrap_err();
+    }
+
+    #[test]
+    fn no_duplicate_faucet_same_block() {
+        let mut state = create_state(&HashMap::new(), 0);
+        state.network = NetID::Testnet;
+        let faucet = TransactionBuilder::new()
+            .kind(TxKind::Faucet)
+            .output(CoinData {
+                denom: Denom::Mel,
+                covhash: Address(Default::default()),
+                value: CoinValue(100000),
+                additional_data: vec![],
+            })
+            .fee(CoinValue(20000))
+            .build()
+            .unwrap();
+        state.apply_tx(&faucet).unwrap();
+
+        assert_eq!(state.apply_tx(&faucet), Err(StateError::DuplicateTx))
+    }
+
+    #[test]
+    fn no_duplicate_faucet_diff_blocks() {
+        let mut state = create_state(&HashMap::new(), 0);
+        state.network = NetID::Testnet;
+        let faucet = TransactionBuilder::new()
+            .kind(TxKind::Faucet)
+            .output(CoinData {
+                denom: Denom::Mel,
+                covhash: Address(Default::default()),
+                value: CoinValue(100000),
+                additional_data: vec![],
+            })
+            .fee(CoinValue(20000))
+            .build()
+            .unwrap();
+        state.apply_tx(&faucet).unwrap();
+        state = state.seal(None).next_state();
+        assert_eq!(state.apply_tx(&faucet), Err(StateError::DuplicateTx))
     }
 
     #[test]
