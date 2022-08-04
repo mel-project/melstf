@@ -123,7 +123,7 @@ impl<C: ContentAddrStore> State<C> {
 
     /// Returns true iff TIP 908 rule changes apply.
     pub fn tip_908(&self) -> bool {
-        self.tip_condition(TIP_908_HEIGHT)
+        false
     }
 
     /// Returns true iff TIP 909 rule changes apply.
