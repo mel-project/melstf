@@ -14,7 +14,7 @@ use crate::{melvm::Covenant, CoinMapping, SmtMapping, State};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GenesisConfig {
     /// What kind of network?
-    #[serde(with = "serde_with::rust::display_fromstr")]
+    #[serde(with = "stdcode::asstr")]
     pub network: NetID,
     /// Initial supply of free money. This will be put at the zero-zero coin ID.
     pub init_coindata: CoinData,

@@ -96,34 +96,44 @@ impl<C: ContentAddrStore> Clone for State<C> {
 }
 
 impl<C: ContentAddrStore> State<C> {
+    fn tip_condition(&self, activation: BlockHeight) -> bool {
+        if self.network == NetID::Mainnet {
+            self.height >= activation
+        } else if self.network == NetID::Testnet {
+            self.height >= BlockHeight(27501)
+        } else {
+            true
+        }
+    }
+
     /// Returns true iff TIP 901 rule changes apply.
     pub fn tip_901(&self) -> bool {
-        self.height >= TIP_901_HEIGHT || (self.network != NetID::Mainnet)
+        self.tip_condition(TIP_901_HEIGHT)
     }
 
     /// Returns true iff TIP 902 rule changes apply.
     pub fn tip_902(&self) -> bool {
-        self.height >= TIP_902_HEIGHT || (self.network != NetID::Mainnet)
+        self.tip_condition(TIP_902_HEIGHT)
     }
 
     /// Returns true iff TIP 906 rule changes apply.
     pub fn tip_906(&self) -> bool {
-        self.height >= TIP_906_HEIGHT || (self.network != NetID::Mainnet)
+        self.tip_condition(TIP_906_HEIGHT)
     }
 
     /// Returns true iff TIP 908 rule changes apply.
     pub fn tip_908(&self) -> bool {
-        self.height >= TIP_908_HEIGHT || (self.network != NetID::Mainnet)
+        false
     }
 
     /// Returns true iff TIP 909 rule changes apply.
     pub fn tip_909(&self) -> bool {
-        self.height >= TIP_909_HEIGHT || (self.network != NetID::Mainnet)
+        self.tip_condition(TIP_909_HEIGHT)
     }
 
     /// Returns true iff TIP 909a rule changes apply.
     pub fn tip_909a(&self) -> bool {
-        self.height >= TIP_909A_HEIGHT || (self.network != NetID::Mainnet)
+        self.tip_condition(TIP_909A_HEIGHT)
     }
 
     /// Applies a single transaction.
@@ -455,7 +465,8 @@ mod tests {
     use stdcode::StdcodeSerializeExt;
     use tap::Tap;
     use themelio_structs::{
-        CoinData, CoinValue, Denom, NetID, StakeDoc, Transaction, TransactionBuilder, TxKind,
+        Address, CoinData, CoinValue, Denom, NetID, StakeDoc, Transaction, TransactionBuilder,
+        TxKind,
     };
     use tmelcrypt::Hashable;
 
@@ -776,6 +787,46 @@ mod tests {
                 sigs: vec![],
             })
             .unwrap_err();
+    }
+
+    #[test]
+    fn no_duplicate_faucet_same_block() {
+        let mut state = create_state(&HashMap::new(), 0);
+        state.network = NetID::Testnet;
+        let faucet = TransactionBuilder::new()
+            .kind(TxKind::Faucet)
+            .output(CoinData {
+                denom: Denom::Mel,
+                covhash: Address(Default::default()),
+                value: CoinValue(100000),
+                additional_data: vec![],
+            })
+            .fee(CoinValue(20000))
+            .build()
+            .unwrap();
+        state.apply_tx(&faucet).unwrap();
+
+        assert_eq!(state.apply_tx(&faucet), Err(StateError::DuplicateTx))
+    }
+
+    #[test]
+    fn no_duplicate_faucet_diff_blocks() {
+        let mut state = create_state(&HashMap::new(), 0);
+        state.network = NetID::Testnet;
+        let faucet = TransactionBuilder::new()
+            .kind(TxKind::Faucet)
+            .output(CoinData {
+                denom: Denom::Mel,
+                covhash: Address(Default::default()),
+                value: CoinValue(100000),
+                additional_data: vec![],
+            })
+            .fee(CoinValue(20000))
+            .build()
+            .unwrap();
+        state.apply_tx(&faucet).unwrap();
+        state = state.seal(None).next_state();
+        assert_eq!(state.apply_tx(&faucet), Err(StateError::DuplicateTx))
     }
 
     #[test]
