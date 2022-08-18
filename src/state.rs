@@ -413,6 +413,9 @@ impl<C: ContentAddrStore> SealedState<C> {
                 log::warn!("{:?}", tx.kind);
             });
 
+            log::warn!("pre-apply header: {:#?}", self.header());
+            log::warn!("block: {:#?}", block);
+
             Err(StateError::WrongHeader)
         } else {
             Ok(basis)
