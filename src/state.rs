@@ -638,19 +638,17 @@ mod tests {
 
         // Try to spend them all.
 
-        // the total number of MELs going into this transaction is the max coinval * number of coins (since every coin is the max coinval)
-        let total_input = CoinValue(MAX_COINVAL.0 * (coins_to_spend.len() as u128));
         let fun_transaction = Transaction {
             kind: TxKind::Normal,
             inputs: coins_to_spend, // the inputs are the bunch of IDs we created earlier
             outputs: vec![CoinData {
-                value: total_input, // output is equal to all the inputs added together
+                value: CoinValue(12345), // output is incorrect, but this is intentional. there are too many inputs to fit in a 128. the intention is that in the process of trying to balance the input and output, we want to trigger an overflow panic instead of correctly concluding that the sides do not balance and returning an unbalanced in out error.
                 denom: Denom::Mel,
                 additional_data: vec![],
                 covhash: Covenant::always_true().hash(),
             }],
             fee: CoinValue(0), // Because we are spending so many more coins than we are creating, our transaction is free (since it reduces long-term storage burden to the network).
-            covenants: vec![],
+            covenants: vec![Covenant::always_true().0],
             data: vec![],
             sigs: vec![],
         };
