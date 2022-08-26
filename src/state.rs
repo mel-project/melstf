@@ -460,7 +460,7 @@ mod tests {
     use std::collections::HashMap;
 
     use novasmt::InMemoryCas;
-    use rand::prelude::SliceRandom;
+    use rand::{prelude::SliceRandom, RngCore};
     use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
     use stdcode::StdcodeSerializeExt;
     use tap::Tap;
@@ -614,7 +614,7 @@ mod tests {
 
         // We attempt to cause an overflow by creating a ton of coins, all with the maximum allowed value, then trying to spend them in one transaction.
         let mut coins_to_spend = vec![];
-        for _ in 0..1000 {
+        for _ in 0..300 {
             // Every iteration, we make a faucet that creates a max-value coin that any transaction can spend.
             let tx = Transaction {
                 kind: TxKind::Faucet,
@@ -625,18 +625,37 @@ mod tests {
                     covhash: Covenant::always_true().hash(),
                     additional_data: vec![],
                 }],
-                fee: CoinValue(10000),
+                fee: CoinValue(100000),
                 covenants: vec![],
-                data: vec![],
+                // random data so that the transactions are distinct (this avoids a DuplicateTx error)
+                data: vec![0; 32].tap_mut(|v| rand::thread_rng().fill_bytes(v)),
                 sigs: vec![],
             };
             state.apply_tx(&tx).unwrap();
-            // Record the coin we created into the vector
+            // Record the ID of the coin we created into the vector
             coins_to_spend.push(tx.output_coinid(0));
         }
 
-        // Try to spend them all. Because we are spending so many more coins than we are creating, our transaction is free (since it reduces long-term storage burden to the network)
+        // Try to spend them all.
+
+        // the total number of MELs going into this transaction is the max coinval * number of coins (since every coin is the max coinval)
         let total_input = CoinValue(MAX_COINVAL.0 * (coins_to_spend.len() as u128));
+        let fun_transaction = Transaction {
+            kind: TxKind::Normal,
+            inputs: coins_to_spend, // the inputs are the bunch of IDs we created earlier
+            outputs: vec![CoinData {
+                value: total_input, // output is equal to all the inputs added together
+                denom: Denom::Mel,
+                additional_data: vec![],
+                covhash: Covenant::always_true().hash(),
+            }],
+            fee: CoinValue(0), // Because we are spending so many more coins than we are creating, our transaction is free (since it reduces long-term storage burden to the network).
+            covenants: vec![],
+            data: vec![],
+            sigs: vec![],
+        };
+        // print out the error. There needs to be an error!
+        dbg!(state.apply_tx(&fun_transaction).unwrap_err());
     }
 
     #[test]
