@@ -465,23 +465,28 @@ mod tests {
     use stdcode::StdcodeSerializeExt;
     use tap::Tap;
     use themelio_structs::{
-        Address, CoinData, CoinID, CoinValue, Denom, NetID, StakeDoc, Transaction, TransactionBuilder,
-        TxKind,
+        Address, CoinData, CoinID, CoinValue, Denom, NetID, StakeDoc, Transaction,
+        TransactionBuilder, TxKind, MAX_COINVAL,
     };
     use tmelcrypt::Hashable;
 
     use crate::{
-        melvm::Covenant, melvm::opcode::OpCode,
+        melvm::opcode::OpCode,
+        melvm::Covenant,
         testing::functions::{create_state, valid_txx},
-        State, StateError, StateError::{InsufficientFees, InvalidMelPoW, NonexistentCoin, NonexistentScript,
-                                        MalformedTx, UnbalancedInOut, ViolatesScript},
+        State, StateError,
+        StateError::{
+            InsufficientFees, InvalidMelPoW, MalformedTx, NonexistentCoin, NonexistentScript,
+            UnbalancedInOut, ViolatesScript,
+        },
     };
 
     #[test]
     fn apply_batch_exceed_maximum_coin_value() {
         let state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
 
-        let maximum_coin_value_exceeded: CoinValue = themelio_structs::MAX_COINVAL + themelio_structs::CoinValue(1);
+        let maximum_coin_value_exceeded: CoinValue =
+            themelio_structs::MAX_COINVAL + themelio_structs::CoinValue(1);
 
         let mut transactions: Vec<Transaction> = valid_txx(tmelcrypt::ed25519_keygen());
 
@@ -491,7 +496,8 @@ mod tests {
             });
         });
 
-        let state_error_result: Result<(), StateError> = state.clone().apply_tx_batch(&transactions);
+        let state_error_result: Result<(), StateError> =
+            state.clone().apply_tx_batch(&transactions);
 
         assert_eq!(state_error_result, Err(MalformedTx));
     }
@@ -500,21 +506,21 @@ mod tests {
     fn script_violation() {
         let mut state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
 
-        let (public_key, _secret_key): (tmelcrypt::Ed25519PK, tmelcrypt::Ed25519SK) = tmelcrypt::ed25519_keygen();
+        let (public_key, _secret_key): (tmelcrypt::Ed25519PK, tmelcrypt::Ed25519SK) =
+            tmelcrypt::ed25519_keygen();
 
-        let covenant_hash: themelio_structs::Address = Covenant::std_ed25519_pk_legacy(public_key).hash();
+        let covenant_hash: themelio_structs::Address =
+            Covenant::std_ed25519_pk_legacy(public_key).hash();
 
         let first_transaction: Transaction = Transaction {
             kind: TxKind::Faucet,
             inputs: vec![],
-            outputs: vec![
-                CoinData {
-                    covhash: covenant_hash,
-                    value: 20000.into(),
-                    denom: Denom::Mel,
-                    additional_data: vec![],
-                },
-                ],
+            outputs: vec![CoinData {
+                covhash: covenant_hash,
+                value: 20000.into(),
+                denom: Denom::Mel,
+                additional_data: vec![],
+            }],
             data: vec![],
             fee: CoinValue(20000),
             covenants: vec![],
@@ -530,7 +536,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
         ])
-            .expect("Failed to create a Add covenant.");
+        .expect("Failed to create a Add covenant.");
 
         covenant.0 = vec![1];
 
@@ -606,153 +612,52 @@ mod tests {
     fn overflow_coins() {
         let mut state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
 
-        let (public_key, _secret_key): (tmelcrypt::Ed25519PK, tmelcrypt::Ed25519SK) = tmelcrypt::ed25519_keygen();
-
-        let covenant_hash: themelio_structs::Address = Covenant::std_ed25519_pk_legacy(public_key).hash();
-
-        // let faucet_coin_ids: Vec<CoinID> = (0..256).into_iter().map(|index| {
-        //     let faucet_transaction: Transaction = Transaction {
-        //         kind: TxKind::Faucet,
-        //         inputs: vec![],
-        //         outputs: vec![
-        //             CoinData {
-        //                 covhash: Covenant::always_true().hash(),
-        //                 value: 1329227995784915872903807060280344575.into(),
-        //                 denom: Denom::Mel,
-        //                 additional_data: vec![],
-        //             },
-        //         ],
-        //         data: vec![],
-        //         fee: CoinValue(20000 - index),
-        //         covenants: vec![],
-        //         sigs: vec![],
-        //     };
-        //
-        //     let _first_transaction_result: () = state.apply_tx(&faucet_transaction).unwrap();
-        //
-        //     // faucet_transaction.outputs[0].covhash
-        //
-        //     faucet_transaction.output_coinid(0)
-        // }).collect::<Vec<CoinID>>();
-
-        let faucet_coin_ids_and_covhashes: (Vec<CoinID>, Vec<Address>) = (0..255).into_iter().map(|index| {
-            let faucet_transaction: Transaction = Transaction {
+        // We attempt to cause an overflow by creating a ton of coins, all with the maximum allowed value, then trying to spend them in one transaction.
+        let mut coins_to_spend = vec![];
+        for _ in 0..1000 {
+            // Every iteration, we make a faucet that creates a max-value coin that any transaction can spend.
+            let tx = Transaction {
                 kind: TxKind::Faucet,
                 inputs: vec![],
-                outputs: vec![
-                    CoinData {
-                        covhash: Covenant::always_true().hash(),
-                        value: 1329227995784915872903807060280344575.into(),
-                        denom: Denom::Mel,
-                        additional_data: vec![],
-                    },
-                ],
-                data: vec![],
-                fee: CoinValue(17000 - index),
+                outputs: vec![CoinData {
+                    value: MAX_COINVAL,
+                    denom: Denom::Mel,
+                    covhash: Covenant::always_true().hash(),
+                    additional_data: vec![],
+                }],
+                fee: CoinValue(10000),
                 covenants: vec![],
+                data: vec![],
                 sigs: vec![],
             };
+            state.apply_tx(&tx).unwrap();
+            // Record the coin we created into the vector
+            coins_to_spend.push(tx.output_coinid(0));
+        }
 
-            let _first_transaction_result: () = state.apply_tx(&faucet_transaction).unwrap();
-
-            (faucet_transaction.output_coinid(0), faucet_transaction.outputs[0].covhash)
-        }).unzip();
-
-        let faucet_coin_ids: Vec<CoinID> = faucet_coin_ids_and_covhashes.0;
-
-        let faucet_covhashes: Vec<Address> = faucet_coin_ids_and_covhashes.1;
-
-
-        let outputs: Vec<CoinData> = faucet_covhashes.iter().map(|faucet_covhash| {
-            CoinData {
-                covhash: *faucet_covhash,
-                value: 1329227995784915872903807060280344575.into(),
-                denom: Denom::Mel,
-                additional_data: vec![],
-            }
-        }).collect::<Vec<CoinData>>();
-
-
-
-
-        let second_transaction: Transaction = Transaction {
-            kind: TxKind::Normal,
-            inputs: faucet_coin_ids,
-            outputs: outputs,
-            data: vec![],
-            // fee: CoinValue(20000),
-            fee: CoinValue(1000000),
-            covenants: vec![Covenant::always_true().0],
-            sigs: vec![],
-        };
-
-        let second_transaction_result: Result<(), StateError> = state.apply_tx(&second_transaction);
-
-        assert_eq!(second_transaction_result, Err(InsufficientFees(CoinValue(1861))));
-
-        // let first_transaction: Transaction = Transaction {
-        //     kind: TxKind::Faucet,
-        //     inputs: vec![],
-        //     outputs: vec![
-        //         CoinData {
-        //             covhash: Covenant::always_true().hash(),
-        //             value: 1329227995784915872903807060280344575.into(),
-        //             denom: Denom::Mel,
-        //             additional_data: vec![],
-        //         },
-        //     ],
-        //     data: vec![],
-        //     fee: CoinValue(20000),
-        //     covenants: vec![],
-        //     sigs: vec![],
-        // };
-        //
-        // let _first_transaction_result: () = state.apply_tx(&first_transaction).unwrap();
-
-        // let second_transaction: Transaction = Transaction {
-        //     kind: TxKind::Normal,
-        //     inputs: faucet_coin_ids,
-        //     outputs: vec![
-        //         CoinData {
-        //             covhash: Covenant::always_true().hash(),
-        //             // covhash: first_transaction.outputs[0].covhash,
-        //             // value: 1329227995784915872903807060280344575.into(),
-        //             value: 1000.into(),
-        //             denom: Denom::Mel,
-        //             additional_data: vec![],
-        //         },
-        //     ],
-        //     data: vec![],
-        //     // fee: CoinValue(20000),
-        //     fee: CoinValue(1000),
-        //     covenants: vec![Covenant::always_true().0],
-        //     sigs: vec![],
-        // };
-        //
-        // let second_transaction_result: Result<(), StateError> = state.apply_tx(&second_transaction);
-        //
-        // assert_eq!(second_transaction_result, Err(InsufficientFees(CoinValue(1861))));
+        // Try to spend them all. Because we are spending so many more coins than we are creating, our transaction is free (since it reduces long-term storage burden to the network)
+        let total_input = CoinValue(MAX_COINVAL.0 * (coins_to_spend.len() as u128));
     }
 
     #[test]
     fn nonexistent_script() {
         let mut state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
 
-        let (public_key, _secret_key): (tmelcrypt::Ed25519PK, tmelcrypt::Ed25519SK) = tmelcrypt::ed25519_keygen();
+        let (public_key, _secret_key): (tmelcrypt::Ed25519PK, tmelcrypt::Ed25519SK) =
+            tmelcrypt::ed25519_keygen();
 
-        let covenant_hash: themelio_structs::Address = Covenant::std_ed25519_pk_legacy(public_key).hash();
+        let covenant_hash: themelio_structs::Address =
+            Covenant::std_ed25519_pk_legacy(public_key).hash();
 
         let first_transaction: Transaction = Transaction {
             kind: TxKind::Faucet,
             inputs: vec![],
-            outputs: vec![
-                CoinData {
-                    covhash: covenant_hash,
-                    value: 20000.into(),
-                    denom: Denom::Mel,
-                    additional_data: vec![],
-                },
-            ],
+            outputs: vec![CoinData {
+                covhash: covenant_hash,
+                value: 20000.into(),
+                denom: Denom::Mel,
+                additional_data: vec![],
+            }],
             data: vec![],
             fee: CoinValue(20000),
             covenants: vec![],
@@ -768,7 +673,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
         ])
-            .expect("Failed to create an Add covenant.");
+        .expect("Failed to create an Add covenant.");
 
         covenant.0 = vec![1];
 
@@ -784,7 +689,10 @@ mod tests {
 
         let second_transaction_result: Result<(), StateError> = state.apply_tx(&second_transaction);
 
-        assert!(matches!(second_transaction_result, Err(NonexistentScript(_))));
+        assert!(matches!(
+            second_transaction_result,
+            Err(NonexistentScript(_))
+        ));
     }
 
     #[test]
@@ -813,7 +721,8 @@ mod tests {
             sigs: vec![],
         };
 
-        let second_transaction_result: Result<(), StateError> = state.clone().apply_tx(&second_transaction);
+        let second_transaction_result: Result<(), StateError> =
+            state.clone().apply_tx(&second_transaction);
 
         assert!(matches!(second_transaction_result, Err(NonexistentCoin(_))));
     }
@@ -829,7 +738,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
         ])
-            .expect("Failed to create a Add covenant.");
+        .expect("Failed to create a Add covenant.");
 
         let transaction: Transaction = Transaction {
             kind: TxKind::Faucet,
@@ -841,7 +750,8 @@ mod tests {
             sigs: vec![],
         };
 
-        let transaction_result: Result<(), StateError> = state.clone().apply_tx_batch(&[transaction]);
+        let transaction_result: Result<(), StateError> =
+            state.clone().apply_tx_batch(&[transaction]);
 
         assert_eq!(transaction_result, Err(InsufficientFees(CoinValue(1861))));
     }
@@ -860,9 +770,14 @@ mod tests {
             sigs: vec![],
         };
 
-        let spend_nonexistant_coins_transaction_result: Result<(), StateError> = state.clone().apply_tx_batch(&[spend_nonexistant_coins_transaction]);
+        let spend_nonexistant_coins_transaction_result: Result<(), StateError> = state
+            .clone()
+            .apply_tx_batch(&[spend_nonexistant_coins_transaction]);
 
-        assert_eq!(spend_nonexistant_coins_transaction_result, Err(UnbalancedInOut));
+        assert_eq!(
+            spend_nonexistant_coins_transaction_result,
+            Err(UnbalancedInOut)
+        );
     }
 
     #[test]
