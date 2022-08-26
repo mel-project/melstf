@@ -613,10 +613,9 @@ mod tests {
         let mut state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
 
         // We attempt to cause an overflow by creating a ton of coins, all with the maximum allowed value, then trying to spend them in one transaction.
-        let mut coins_to_spend = vec![];
-        for _ in 0..300 {
+        let faucet_coin_ids: Vec<CoinID> = (0..300).into_iter().map(|index| {
             // Every iteration, we make a faucet that creates a max-value coin that any transaction can spend.
-            let tx = Transaction {
+            let faucet_transaction: Transaction = Transaction {
                 kind: TxKind::Faucet,
                 inputs: vec![],
                 outputs: vec![CoinData {
@@ -625,35 +624,38 @@ mod tests {
                     covhash: Covenant::always_true().hash(),
                     additional_data: vec![],
                 }],
-                fee: CoinValue(100000),
-                covenants: vec![],
                 // random data so that the transactions are distinct (this avoids a DuplicateTx error)
                 data: vec![0; 32].tap_mut(|v| rand::thread_rng().fill_bytes(v)),
+                fee: CoinValue(100000),
+                covenants: vec![],
                 sigs: vec![],
             };
-            state.apply_tx(&tx).unwrap();
-            // Record the ID of the coin we created into the vector
-            coins_to_spend.push(tx.output_coinid(0));
-        }
+
+            let _first_transaction_result: () = state.apply_tx(&faucet_transaction).unwrap();
+
+            faucet_transaction.output_coinid(0)
+        }).collect();
+
 
         // Try to spend them all.
-
-        let fun_transaction = Transaction {
+        let second_transaction: Transaction = Transaction {
             kind: TxKind::Normal,
-            inputs: coins_to_spend, // the inputs are the bunch of IDs we created earlier
+            inputs: faucet_coin_ids,
             outputs: vec![CoinData {
                 value: CoinValue(12345), // output is incorrect, but this is intentional. there are too many inputs to fit in a 128. the intention is that in the process of trying to balance the input and output, we want to trigger an overflow panic instead of correctly concluding that the sides do not balance and returning an unbalanced in out error.
                 denom: Denom::Mel,
                 additional_data: vec![],
                 covhash: Covenant::always_true().hash(),
             }],
+            data: vec![],
             fee: CoinValue(0), // Because we are spending so many more coins than we are creating, our transaction is free (since it reduces long-term storage burden to the network).
             covenants: vec![Covenant::always_true().0],
-            data: vec![],
             sigs: vec![],
         };
-        // print out the error. There needs to be an error!
-        dbg!(state.apply_tx(&fun_transaction).unwrap_err());
+
+
+        // Print out the error. There needs to be an error!
+        dbg!(state.apply_tx(&second_transaction).unwrap_err());
     }
 
     #[test]
