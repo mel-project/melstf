@@ -98,6 +98,7 @@ impl<C: ContentAddrStore> Clone for State<C> {
 impl<C: ContentAddrStore> State<C> {
     fn tip_condition(&self, activation: BlockHeight) -> bool {
         if self.network == NetID::Mainnet {
+            // incomplete things are always
             self.height >= activation
         } else if self.network == NetID::Testnet {
             self.height >= BlockHeight(27501)
@@ -123,7 +124,7 @@ impl<C: ContentAddrStore> State<C> {
 
     /// Returns true iff TIP 908 rule changes apply.
     pub fn tip_908(&self) -> bool {
-        false
+        self.tip_condition(TIP_908_HEIGHT) || self.network == NetID::Custom08
     }
 
     /// Returns true iff TIP 909 rule changes apply.
@@ -466,14 +467,15 @@ mod tests {
     use stdcode::StdcodeSerializeExt;
     use tap::Tap;
     use themelio_structs::{
-        Address, CoinData, CoinValue, Denom, NetID, StakeDoc, Transaction, TransactionBuilder,
-        TxKind,
+        Address, BlockHeight, CoinData, CoinValue, Denom, NetID, StakeDoc, Transaction,
+        TransactionBuilder, TxKind,
     };
     use tmelcrypt::Hashable;
 
     use crate::{
         melvm::Covenant,
         testing::functions::{create_state, valid_txx},
+        tip_heights::TIP_908_HEIGHT,
         StateError,
     };
 
@@ -643,7 +645,9 @@ mod tests {
 
     #[test]
     fn simple_dmt() {
+        // custom08 has all the tips
         let mut test_state = create_state(&HashMap::new(), 0);
+        test_state.network = NetID::Custom08;
         // insert a bunch of transactions, then make sure all of them have valid proofs of inclusion
         let txx_to_insert = valid_txx(tmelcrypt::ed25519_keygen());
         for tx in txx_to_insert.iter() {
