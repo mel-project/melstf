@@ -963,34 +963,34 @@ mod tests {
         );
     }
 
-    // #[test]
-    // fn simple_dmt() {
-    //     let mut test_state = create_state(&HashMap::new(), 0);
-    //     // insert a bunch of transactions, then make sure all of them have valid proofs of inclusion
-    //     let txx_to_insert = valid_txx(tmelcrypt::ed25519_keygen());
-    //     for tx in txx_to_insert.iter() {
-    //         test_state.apply_tx(tx).unwrap();
-    //     }
-    //     let sealed = test_state.seal(None);
-    //     let header = sealed.header();
-    //     let dmt = sealed.inner_ref().tip908_transactions();
-    //     for tx in txx_to_insert.iter() {
-    //         let posn = sealed
-    //             .inner_ref()
-    //             .transaction_sorted_posn(tx.hash_nosigs())
-    //             .unwrap();
-    //         let proof = dmt.proof(posn);
-    //         assert!(novasmt::dense::verify_dense(
-    //             &proof,
-    //             header.transactions_hash.0,
-    //             posn,
-    //             novasmt::hash_data(
-    //                 &tx.hash_nosigs()
-    //                     .0
-    //                     .to_vec()
-    //                     .tap_mut(|v| v.extend_from_slice(&tx.stdcode().hash().0))
-    //             ),
-    //         ));
-    //     }
-    // }
+    #[test]
+    fn simple_dmt() {
+        let mut test_state = create_state(&HashMap::new(), 0);
+        // insert a bunch of transactions, then make sure all of them have valid proofs of inclusion
+        let txx_to_insert = valid_txx(tmelcrypt::ed25519_keygen());
+        for tx in txx_to_insert.iter() {
+            test_state.apply_tx(tx).unwrap();
+        }
+        let sealed = test_state.seal(None);
+        let header = sealed.header();
+        let dmt = sealed.inner_ref().tip908_transactions();
+        for tx in txx_to_insert.iter() {
+            let posn = sealed
+                .inner_ref()
+                .transaction_sorted_posn(tx.hash_nosigs())
+                .unwrap();
+            let proof = dmt.proof(posn);
+            assert!(novasmt::dense::verify_dense(
+                &proof,
+                header.transactions_hash.0,
+                posn,
+                novasmt::hash_data(
+                    &tx.hash_nosigs()
+                        .0
+                        .to_vec()
+                        .tap_mut(|v| v.extend_from_slice(&tx.stdcode().hash().0))
+                ),
+            ));
+        }
+    }
 }
