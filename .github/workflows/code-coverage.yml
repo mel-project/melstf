@@ -39,6 +39,9 @@ jobs:
       - name: Add Default Toolchain
         run: rustup default stable
 
+      - name: Update Rust
+        run: rustup update
+
       - name: Generate Code Coverage
         run: mold --run cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out Xml
 
