@@ -463,11 +463,14 @@ impl<C: ContentAddrStore> ConfirmedState<C> {
 mod tests {
     use std::collections::HashMap;
 
+    use novasmt::InMemoryCas;
     use rand::prelude::SliceRandom;
+    use rand::RngCore;
+    use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
     use stdcode::StdcodeSerializeExt;
     use tap::Tap;
     use themelio_structs::{
-        Address, BlockHeight, CoinData, CoinID, CoinValue, Denom, NetID, StakeDoc, Transaction,
+        Address, CoinData, CoinID, CoinValue, Denom, NetID, StakeDoc, Transaction,
         TransactionBuilder, TxKind, MAX_COINVAL,
     };
     use tmelcrypt::Hashable;
@@ -478,9 +481,8 @@ mod tests {
         testing::functions::{create_state, valid_txx},
         State, StateError,
         StateError::{
-            InsufficientFees, InvalidMelPoW, MalformedTx, NonexistentCoin, NonexistentScript,
+            InsufficientFees, MalformedTx, NonexistentCoin, NonexistentScript,
             UnbalancedInOut, ViolatesScript,
-        tip_heights::TIP_908_HEIGHT,
         },
     };
 
@@ -617,7 +619,7 @@ mod tests {
         let mut state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
 
         // We attempt to cause an overflow by creating a ton of coins, all with the maximum allowed value, then trying to spend them in one transaction.
-        let faucet_coin_ids: Vec<CoinID> = (0..300).into_iter().map(|index| {
+        let faucet_coin_ids: Vec<CoinID> = (0..300).into_iter().map(|_index| {
             // Every iteration, we make a faucet that creates a max-value coin that any transaction can spend.
             let faucet_transaction: Transaction = Transaction {
                 kind: TxKind::Faucet,
