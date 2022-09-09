@@ -609,6 +609,7 @@ mod tests {
     // }
 
     #[test]
+    #[should_panic]
     fn overflow_coins() {
         let mut state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
 
