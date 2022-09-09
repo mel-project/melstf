@@ -49,19 +49,24 @@ pub fn apply_tx_batch_impl<C: ContentAddrStore>(
             if next_state.coins.get_coin(pseudocoin).is_some() {
                 return Err(StateError::DuplicateTx);
             }
-            next_state.coins.insert_coin(
-                pseudocoin,
-                CoinDataHeight {
-                    coin_data: CoinData {
-                        denom: Denom::Mel,
-                        value: 0.into(),
-                        additional_data: vec![],
-                        covhash: HashVal::default().into(),
+            // bug-compatible exception
+            if tx.hash_nosigs().to_string()
+                != "30a60b20830f000f755b70c57c998553a303cc11f8b1f574d5e9f7e26b645d8b"
+            {
+                next_state.coins.insert_coin(
+                    pseudocoin,
+                    CoinDataHeight {
+                        coin_data: CoinData {
+                            denom: Denom::Mel,
+                            value: 0.into(),
+                            additional_data: vec![],
+                            covhash: HashVal::default().into(),
+                        },
+                        height: 0.into(),
                     },
-                    height: 0.into(),
-                },
-                next_state.tip_906(),
-            );
+                    next_state.tip_906(),
+                );
+            }
         }
 
         for (i, _) in tx.outputs.iter().enumerate() {
@@ -120,26 +125,15 @@ fn load_relevant_coins<C: ContentAddrStore>(
                 && tx.hash_nosigs().to_string()
                     != "30a60b20830f000f755b70c57c998553a303cc11f8b1f574d5e9f7e26b645d8b"
             {
+                log::error!(
+                    "rejecting mainnet faucet with hash {:?}",
+                    tx.hash_nosigs().to_string()
+                );
                 return Err(StateError::MalformedTx);
             }
-
-            let pseudocoin = faucet_dedup_pseudocoin(tx.hash_nosigs());
-
-            if this.coins.get_coin(pseudocoin).is_some() || accum.get(&pseudocoin).is_some() {
-                return Err(StateError::DuplicateTx);
-            }
-
-            accum.insert(
-                pseudocoin,
-                CoinDataHeight {
-                    coin_data: CoinData {
-                        denom: Denom::Mel,
-                        value: 0.into(),
-                        additional_data: vec![],
-                        covhash: HashVal::default().into(),
-                    },
-                    height: 0.into(),
-                },
+            log::error!(
+                "allowing mainnet faucet with hash {:?}",
+                tx.hash_nosigs().to_string()
             );
         }
 

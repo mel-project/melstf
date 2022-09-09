@@ -98,6 +98,7 @@ impl<C: ContentAddrStore> Clone for State<C> {
 impl<C: ContentAddrStore> State<C> {
     fn tip_condition(&self, activation: BlockHeight) -> bool {
         if self.network == NetID::Mainnet {
+            // incomplete things are always
             self.height >= activation
         } else if self.network == NetID::Testnet {
             self.height >= BlockHeight(27501)
@@ -123,7 +124,7 @@ impl<C: ContentAddrStore> State<C> {
 
     /// Returns true iff TIP 908 rule changes apply.
     pub fn tip_908(&self) -> bool {
-        false
+        self.tip_condition(TIP_908_HEIGHT) || self.network == NetID::Custom08
     }
 
     /// Returns true iff TIP 909 rule changes apply.
@@ -413,6 +414,9 @@ impl<C: ContentAddrStore> SealedState<C> {
                 log::warn!("{:?}", tx.kind);
             });
 
+            log::warn!("pre-apply header: {:#?}", self.header());
+            log::warn!("block: {:#?}", block);
+
             Err(StateError::WrongHeader)
         } else {
             Ok(basis)
@@ -459,13 +463,11 @@ impl<C: ContentAddrStore> ConfirmedState<C> {
 mod tests {
     use std::collections::HashMap;
 
-    use novasmt::InMemoryCas;
-    use rand::{prelude::SliceRandom, RngCore};
-    use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
+    use rand::prelude::SliceRandom;
     use stdcode::StdcodeSerializeExt;
     use tap::Tap;
     use themelio_structs::{
-        Address, CoinData, CoinID, CoinValue, Denom, NetID, StakeDoc, Transaction,
+        Address, BlockHeight, CoinData, CoinID, CoinValue, Denom, NetID, StakeDoc, Transaction,
         TransactionBuilder, TxKind, MAX_COINVAL,
     };
     use tmelcrypt::Hashable;
@@ -478,6 +480,7 @@ mod tests {
         StateError::{
             InsufficientFees, InvalidMelPoW, MalformedTx, NonexistentCoin, NonexistentScript,
             UnbalancedInOut, ViolatesScript,
+        tip_heights::TIP_908_HEIGHT,
         },
     };
 
@@ -966,7 +969,9 @@ mod tests {
 
     #[test]
     fn simple_dmt() {
+        // custom08 has all the tips
         let mut test_state = create_state(&HashMap::new(), 0);
+        test_state.network = NetID::Custom08;
         // insert a bunch of transactions, then make sure all of them have valid proofs of inclusion
         let txx_to_insert = valid_txx(tmelcrypt::ed25519_keygen());
         for tx in txx_to_insert.iter() {
