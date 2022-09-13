@@ -19,6 +19,7 @@ use super::{
 type ProgramCounter = usize;
 
 /// Internal tracking of state during a loop in [Executor].
+#[derive(Debug)]
 struct LoopState {
     /// Pointer to first op in loop
     begin: ProgramCounter,
@@ -173,7 +174,6 @@ impl Executor {
     pub fn step(&mut self) -> Option<()> {
         let mut inner = || {
             let op = self.instrs.get(self.pc)?.clone();
-            log::trace!("Getting next instruction {op:?}");
             // eprintln!("OPS: {:?}", self.instrs);
             // eprintln!("PC:  {}", self.pc);
             // eprintln!("OP:  {:?}", op);
@@ -181,6 +181,7 @@ impl Executor {
             // eprintln!();
             self.pc += 1;
             // eprintln!("running {:?}", op);
+            log::debug!("Getting next instruction {op:?} @ {}, loop state {:?}", self.pc+1, self.loop_state);
             match op {
                 #[cfg(feature = "print")]
                 OpCode::Print => self.do_monop(|x| {
@@ -610,6 +611,14 @@ impl Executor {
                 }
                 OpCode::Loop(iterations, op_count) => {
                     if iterations > 0 { 
+                        if let Some(last) = self.loop_state.last() {
+                            let previous_loop_end = last.end;
+                            let this_end = self.pc + op_count as usize - 1;
+                            if this_end > previous_loop_end {
+                                log::debug!("FAIL due to loop not nested properly");
+                                return None;
+                            }
+                        }
                         self.loop_state.push(LoopState {
                             // start after loop instruction
                             begin: self.pc,
