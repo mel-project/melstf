@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use novasmt::ContentAddrStore;
-use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use rustc_hash::{FxHashMap, FxHashSet};
 use themelio_structs::{
     Address, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc,
@@ -109,7 +109,9 @@ fn load_relevant_coins<C: ContentAddrStore>(
     txx: &[Transaction],
 ) -> Result<FxHashMap<CoinID, CoinDataHeight>, StateError> {
     let height = this.height;
-    let mut accum = FxHashMap::default();
+
+    let mut accum: FxHashMap<CoinID, CoinDataHeight> = FxHashMap::default();
+
     // add the ones created in this batch
     for tx in txx {
         if !tx.is_well_formed() {
@@ -136,27 +138,33 @@ fn load_relevant_coins<C: ContentAddrStore>(
         }
 
         let txhash = tx.hash_nosigs();
-        for (i, coin_data) in tx.outputs.iter().enumerate() {
+
+        let coins_to_add: FxHashMap<CoinID, CoinDataHeight> = tx.outputs.par_iter().enumerate().filter_map(|(i, coin_data)| {
             let mut coin_data = coin_data.clone();
             if coin_data.denom == Denom::NewCoin {
                 coin_data.denom = Denom::Custom(tx.hash_nosigs());
             }
+
             // if covenant hash is zero, this destroys the coins permanently
             if coin_data.covhash != Address::coin_destroy() {
-                accum.insert(
-                    CoinID::new(txhash, i as u8),
-                    CoinDataHeight { coin_data, height },
-                );
+                Some((CoinID::new(txhash, i as u8), CoinDataHeight { coin_data, height }))
+            } else {
+                None
             }
+        }).collect::<FxHashMap<CoinID, CoinDataHeight>>();
+
+        if !coins_to_add.is_empty() {
+            accum.extend(coins_to_add);
         }
+
     }
     // add the ones *referenced* in this batch
-    // Todo: do this in "parallel" to exploit I/O scheduler tricks?
-    let cache: FxHashMap<_, _> = txx
+    let cache: FxHashMap<CoinID, Option<CoinDataHeight>> = txx
         .into_par_iter()
-        .flat_map(|tx| tx.inputs.par_iter())
+        .flat_map(|transaction| transaction.inputs.par_iter())
         .map(|input| (*input, this.coins.get_coin(*input)))
         .collect();
+
     for tx in txx {
         for input in tx.inputs.iter() {
             if !accum.contains_key(input) {
@@ -169,8 +177,10 @@ fn load_relevant_coins<C: ContentAddrStore>(
             }
         }
     }
+
     // ensure no double-spending within this batch
     let mut seen = FxHashSet::default();
+
     for tx in txx {
         for input in tx.inputs.iter() {
             if !seen.insert(input) {
@@ -178,6 +188,7 @@ fn load_relevant_coins<C: ContentAddrStore>(
             }
         }
     }
+
     Ok(accum)
 }
 

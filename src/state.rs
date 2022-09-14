@@ -463,21 +463,347 @@ impl<C: ContentAddrStore> ConfirmedState<C> {
 mod tests {
     use std::collections::HashMap;
 
+    use novasmt::InMemoryCas;
     use rand::prelude::SliceRandom;
+    use rand::RngCore;
+    use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
     use stdcode::StdcodeSerializeExt;
     use tap::Tap;
     use themelio_structs::{
-        Address, BlockHeight, CoinData, CoinValue, Denom, NetID, StakeDoc, Transaction,
-        TransactionBuilder, TxKind,
+        Address, CoinData, CoinID, CoinValue, Denom, NetID, StakeDoc, Transaction,
+        TransactionBuilder, TxKind, MAX_COINVAL,
     };
     use tmelcrypt::Hashable;
 
     use crate::{
+        melvm::opcode::OpCode,
         melvm::Covenant,
         testing::functions::{create_state, valid_txx},
-        tip_heights::TIP_908_HEIGHT,
-        StateError,
+        State, StateError,
+        StateError::{
+            InsufficientFees, MalformedTx, NonexistentCoin, NonexistentScript,
+            UnbalancedInOut, ViolatesScript,
+        },
     };
+
+    #[test]
+    fn apply_batch_exceed_maximum_coin_value() {
+        let state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
+
+        let maximum_coin_value_exceeded: CoinValue =
+            themelio_structs::MAX_COINVAL + themelio_structs::CoinValue(1);
+
+        let mut transactions: Vec<Transaction> = valid_txx(tmelcrypt::ed25519_keygen());
+
+        transactions.par_iter_mut().for_each(|transaction| {
+            transaction.outputs.par_iter_mut().for_each(|coin_data| {
+                coin_data.value = maximum_coin_value_exceeded;
+            });
+        });
+
+        let state_error_result: Result<(), StateError> =
+            state.clone().apply_tx_batch(&transactions);
+
+        assert_eq!(state_error_result, Err(MalformedTx));
+    }
+
+    #[test]
+    fn script_violation() {
+        let mut state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
+
+        let (public_key, _secret_key): (tmelcrypt::Ed25519PK, tmelcrypt::Ed25519SK) =
+            tmelcrypt::ed25519_keygen();
+
+        let covenant_hash: themelio_structs::Address =
+            Covenant::std_ed25519_pk_legacy(public_key).hash();
+
+        let first_transaction: Transaction = Transaction {
+            kind: TxKind::Faucet,
+            inputs: vec![],
+            outputs: vec![CoinData {
+                covhash: covenant_hash,
+                value: 20000.into(),
+                denom: Denom::Mel,
+                additional_data: vec![],
+            }],
+            data: vec![],
+            fee: CoinValue(20000),
+            covenants: vec![],
+            sigs: vec![],
+        };
+
+        let _first_transaction_result: () = state.apply_tx(&first_transaction).unwrap();
+
+        let mut covenant: Covenant = Covenant::from_ops(&[
+            OpCode::PushI(1_u8.into()),
+            OpCode::PushI(2_u8.into()),
+            OpCode::Add,
+            OpCode::PushI(3_u8.into()),
+            OpCode::Eql,
+        ])
+        .expect("Failed to create a Add covenant.");
+
+        covenant.0 = vec![1];
+
+        let second_transaction: Transaction = Transaction {
+            kind: TxKind::Normal,
+            inputs: vec![first_transaction.output_coinid(0)],
+            outputs: vec![],
+            data: vec![],
+            fee: CoinValue(1000),
+            covenants: vec![covenant.0, Covenant::std_ed25519_pk_legacy(public_key).0],
+            sigs: vec![],
+        };
+
+        let second_transaction_result: Result<(), StateError> = state.apply_tx(&second_transaction);
+
+        assert!(matches!(second_transaction_result, Err(ViolatesScript(_))));
+    }
+
+    // This requires creating minting transactions, which will be covered later during melswap testing.
+    // Remaining variants of the `state::StateError` enum are:
+    // `InvalidMelPoW`, `WrongHeader`, `CoinLocked`, and `DuplicateTx`
+    // #[test]
+    // fn invalid_mel_proof_of_work() {
+    //     let mut state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
+    //
+    //     let covenant: Covenant = Covenant::from_ops(&[
+    //         OpCode::PushI(1_u8.into()),
+    //         OpCode::PushI(2_u8.into()),
+    //         OpCode::Add,
+    //         OpCode::PushI(3_u8.into()),
+    //         OpCode::Eql,
+    //     ])
+    //         .expect("Failed to create a Add covenant.");
+    //
+    //     let covenant_hash: themelio_structs::Address = covenant.hash();
+    //
+    //     let first_transaction: Transaction = Transaction {
+    //         kind: TxKind::Faucet,
+    //         inputs: vec![],
+    //         outputs: vec![
+    //             CoinData {
+    //                 covhash: covenant_hash,
+    //                 value: 1000.into(),
+    //                 denom: Denom::Mel,
+    //                 additional_data: vec![],
+    //             },
+    //         ],
+    //         data: vec![],
+    //         fee: CoinValue(20000),
+    //         covenants: vec![],
+    //         sigs: vec![],
+    //     };
+    //
+    //     let _first_transaction_result: () = state.apply_tx(&first_transaction).unwrap();
+    //
+    //
+    //     let second_transaction: Transaction = Transaction {
+    //         kind: TxKind::Normal,
+    //         inputs: vec![first_transaction.output_coinid(0)],
+    //         outputs: vec![],
+    //         data: vec![],
+    //         fee: CoinValue(1000),
+    //         covenants: vec![covenant.0],
+    //         sigs: vec![],
+    //     };
+    //
+    //     let second_transaction_result: Result<(), StateError> = state.apply_tx(&second_transaction);
+    //
+    //     assert_eq!(second_transaction_result, Err(InvalidMelPoW));
+    // }
+
+    #[test]
+    #[should_panic]
+    fn overflow_coins() {
+        let mut state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
+
+        // We attempt to cause an overflow by creating a ton of coins, all with the maximum allowed value, then trying to spend them in one transaction.
+        let faucet_coin_ids: Vec<CoinID> = (0..300).into_iter().map(|_index| {
+            // Every iteration, we make a faucet that creates a max-value coin that any transaction can spend.
+            let faucet_transaction: Transaction = Transaction {
+                kind: TxKind::Faucet,
+                inputs: vec![],
+                outputs: vec![CoinData {
+                    value: MAX_COINVAL,
+                    denom: Denom::Mel,
+                    covhash: Covenant::always_true().hash(),
+                    additional_data: vec![],
+                }],
+                // random data so that the transactions are distinct (this avoids a DuplicateTx error)
+                data: vec![0; 32].tap_mut(|v| rand::thread_rng().fill_bytes(v)),
+                fee: CoinValue(100000),
+                covenants: vec![],
+                sigs: vec![],
+            };
+
+            let _first_transaction_result: () = state.apply_tx(&faucet_transaction).unwrap();
+
+            faucet_transaction.output_coinid(0)
+        }).collect();
+
+
+        // Try to spend them all.
+        let second_transaction: Transaction = Transaction {
+            kind: TxKind::Normal,
+            inputs: faucet_coin_ids,
+            outputs: vec![CoinData {
+                value: CoinValue(12345), // output is incorrect, but this is intentional. there are too many inputs to fit in a 128. the intention is that in the process of trying to balance the input and output, we want to trigger an overflow panic instead of correctly concluding that the sides do not balance and returning an unbalanced in out error.
+                denom: Denom::Mel,
+                additional_data: vec![],
+                covhash: Covenant::always_true().hash(),
+            }],
+            data: vec![],
+            fee: CoinValue(0), // Because we are spending so many more coins than we are creating, our transaction is free (since it reduces long-term storage burden to the network).
+            covenants: vec![Covenant::always_true().0],
+            sigs: vec![],
+        };
+
+
+        // Print out the error. There needs to be an error!
+        dbg!(state.apply_tx(&second_transaction).unwrap_err());
+    }
+
+    #[test]
+    fn nonexistent_script() {
+        let mut state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
+
+        let (public_key, _secret_key): (tmelcrypt::Ed25519PK, tmelcrypt::Ed25519SK) =
+            tmelcrypt::ed25519_keygen();
+
+        let covenant_hash: themelio_structs::Address =
+            Covenant::std_ed25519_pk_legacy(public_key).hash();
+
+        let first_transaction: Transaction = Transaction {
+            kind: TxKind::Faucet,
+            inputs: vec![],
+            outputs: vec![CoinData {
+                covhash: covenant_hash,
+                value: 20000.into(),
+                denom: Denom::Mel,
+                additional_data: vec![],
+            }],
+            data: vec![],
+            fee: CoinValue(20000),
+            covenants: vec![],
+            sigs: vec![],
+        };
+
+        let _first_transaction_result: () = state.apply_tx(&first_transaction).unwrap();
+
+        let mut covenant: Covenant = Covenant::from_ops(&[
+            OpCode::PushI(1_u8.into()),
+            OpCode::PushI(2_u8.into()),
+            OpCode::Add,
+            OpCode::PushI(3_u8.into()),
+            OpCode::Eql,
+        ])
+        .expect("Failed to create an Add covenant.");
+
+        covenant.0 = vec![1];
+
+        let second_transaction: Transaction = Transaction {
+            kind: TxKind::Normal,
+            inputs: vec![first_transaction.output_coinid(0)],
+            outputs: vec![],
+            data: vec![],
+            fee: CoinValue(1000),
+            covenants: vec![covenant.0],
+            sigs: vec![],
+        };
+
+        let second_transaction_result: Result<(), StateError> = state.apply_tx(&second_transaction);
+
+        assert!(matches!(
+            second_transaction_result,
+            Err(NonexistentScript(_))
+        ));
+    }
+
+    #[test]
+    fn nonexistant_coin() {
+        let state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
+
+        let first_transaction: Transaction = Transaction {
+            kind: TxKind::Faucet,
+            inputs: vec![],
+            outputs: vec![],
+            data: vec![],
+            fee: CoinValue(1000),
+            covenants: vec![],
+            sigs: vec![],
+        };
+
+        let _first_transaction_result: () = state.clone().apply_tx(&first_transaction).unwrap();
+
+        let second_transaction: Transaction = Transaction {
+            kind: TxKind::Normal,
+            inputs: vec![first_transaction.output_coinid(0)],
+            outputs: vec![],
+            data: vec![],
+            fee: CoinValue(1000),
+            covenants: vec![],
+            sigs: vec![],
+        };
+
+        let second_transaction_result: Result<(), StateError> =
+            state.clone().apply_tx(&second_transaction);
+
+        assert!(matches!(second_transaction_result, Err(NonexistentCoin(_))));
+    }
+
+    #[test]
+    fn insufficient_fees() {
+        let state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
+
+        let covenant: Covenant = Covenant::from_ops(&[
+            OpCode::PushI(1_u8.into()),
+            OpCode::PushI(2_u8.into()),
+            OpCode::Add,
+            OpCode::PushI(3_u8.into()),
+            OpCode::Eql,
+        ])
+        .expect("Failed to create a Add covenant.");
+
+        let transaction: Transaction = Transaction {
+            kind: TxKind::Faucet,
+            inputs: vec![],
+            outputs: vec![],
+            data: vec![],
+            fee: CoinValue(1000),
+            covenants: vec![covenant.0],
+            sigs: vec![],
+        };
+
+        let transaction_result: Result<(), StateError> =
+            state.clone().apply_tx_batch(&[transaction]);
+
+        assert_eq!(transaction_result, Err(InsufficientFees(CoinValue(1861))));
+    }
+
+    #[test]
+    fn unbalanced_input_and_output() {
+        let state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
+
+        let spend_nonexistant_coins_transaction: Transaction = Transaction {
+            kind: TxKind::Normal,
+            inputs: vec![],
+            outputs: vec![],
+            data: vec![],
+            fee: CoinValue(1000),
+            covenants: vec![],
+            sigs: vec![],
+        };
+
+        let spend_nonexistant_coins_transaction_result: Result<(), StateError> = state
+            .clone()
+            .apply_tx_batch(&[spend_nonexistant_coins_transaction]);
+
+        assert_eq!(
+            spend_nonexistant_coins_transaction_result,
+            Err(UnbalancedInOut)
+        );
+    }
 
     #[test]
     fn apply_batch_normal() {
