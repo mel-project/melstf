@@ -541,10 +541,7 @@ impl Executor {
 
                     match vec {
                         Value::Bytes(mut vec) => {
-                            let is_end_greater_or_equal_to_vector_length: bool = end >= vec.len();
-                            let is_end_less_than_or_equal_to_beginning: bool = end <= beginning;
-
-                            if is_end_greater_or_equal_to_vector_length || is_end_less_than_or_equal_to_beginning {
+                            if end > vec.len() || end < beginning {
                                 log::trace!("Tried to create a byte slice with invalid bounds. Returning an empty byte vector.");
 
                                 Some(Value::Bytes(Default::default()))
