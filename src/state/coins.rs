@@ -5,9 +5,6 @@ use themelio_structs::{Address, CoinDataHeight, CoinID};
 use tmelcrypt::{HashVal, Hashable};
 
 /// A mapping that contains the coins, exposing a safeish API for the rest of the crate.
-///
-/// Apply
-///
 /// For more details, see the [Yellow Paper](https://docs.themelio.org/specifications/yellow/)
 #[derive(Debug, Derivative)]
 #[derivative(Clone(bound = ""))]
