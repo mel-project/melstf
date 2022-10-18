@@ -11,6 +11,8 @@ use tmelcrypt::{Ed25519PK, HashVal};
 use crate::{melvm::Covenant, CoinMapping, SmtMapping, State};
 
 /// Configuration of a genesis state. Serializable via serde.
+/// NOTE: Full nodes can be configured to use a specific configuration by reading in files.
+/// You can see an example [here](https://github.com/themeliolabs/themelio-node#configurations).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GenesisConfig {
     /// What kind of network?
@@ -24,7 +26,7 @@ pub struct GenesisConfig {
     pub init_fee_pool: CoinValue,
 }
 
-impl GenesisConfig { 
+impl GenesisConfig {
     /// The "standard" mainnet genesis.
     pub fn std_mainnet() -> Self {
         Self {

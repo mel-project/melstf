@@ -1,7 +1,9 @@
 use std::time::Instant;
 
 use novasmt::ContentAddrStore;
-use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{
+    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
+};
 use rustc_hash::{FxHashMap, FxHashSet};
 use themelio_structs::{
     Address, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc,
@@ -104,6 +106,12 @@ pub fn apply_tx_batch_impl<C: ContentAddrStore>(
     Ok(next_state)
 }
 
+// This iterates over the given transactions and:
+// - does some light (incomplete) validation on the transaction
+// - looks at the outputs and collects coins referenced by the state
+//
+// NOTE: Coins specified in a transaction's `output` that have a `Address::coin_destroy()` covhash are permanently destroyed.
+//
 fn load_relevant_coins<C: ContentAddrStore>(
     this: &State<C>,
     txx: &[Transaction],
@@ -139,24 +147,31 @@ fn load_relevant_coins<C: ContentAddrStore>(
 
         let txhash = tx.hash_nosigs();
 
-        let coins_to_add: FxHashMap<CoinID, CoinDataHeight> = tx.outputs.par_iter().enumerate().filter_map(|(i, coin_data)| {
-            let mut coin_data = coin_data.clone();
-            if coin_data.denom == Denom::NewCoin {
-                coin_data.denom = Denom::Custom(tx.hash_nosigs());
-            }
+        let coins_to_add: FxHashMap<CoinID, CoinDataHeight> = tx
+            .outputs
+            .par_iter()
+            .enumerate()
+            .filter_map(|(i, coin_data)| {
+                let mut coin_data = coin_data.clone();
+                if coin_data.denom == Denom::NewCoin {
+                    coin_data.denom = Denom::Custom(tx.hash_nosigs());
+                }
 
-            // if covenant hash is zero, this destroys the coins permanently
-            if coin_data.covhash != Address::coin_destroy() {
-                Some((CoinID::new(txhash, i as u8), CoinDataHeight { coin_data, height }))
-            } else {
-                None
-            }
-        }).collect::<FxHashMap<CoinID, CoinDataHeight>>();
+                // if covenant hash is zero, this destroys the coins permanently
+                if coin_data.covhash != Address::coin_destroy() {
+                    Some((
+                        CoinID::new(txhash, i as u8),
+                        CoinDataHeight { coin_data, height },
+                    ))
+                } else {
+                    None
+                }
+            })
+            .collect::<FxHashMap<CoinID, CoinDataHeight>>();
 
         if !coins_to_add.is_empty() {
             accum.extend(coins_to_add);
         }
-
     }
     // add the ones *referenced* in this batch
     let cache: FxHashMap<CoinID, Option<CoinDataHeight>> = txx
@@ -192,6 +207,7 @@ fn load_relevant_coins<C: ContentAddrStore>(
     Ok(accum)
 }
 
+// TODO: add a useful summary for this function
 fn load_stake_info<C: ContentAddrStore>(
     this: &State<C>,
     txx: &[Transaction],

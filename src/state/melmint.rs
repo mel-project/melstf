@@ -92,6 +92,11 @@ pub fn calculate_reward(my_speed: u128, dosc_speed: u128, difficulty: u32, tip91
 }
 
 /// Presealing function that is called before a state is sealed to apply melmint actions.
+///
+/// Internally, this prepares the given state for sealing:
+/// - create built-in nonzero liquidity pools if they don't exist already
+/// - process any swap, deposit, or withdrawal requests for the state's pools. This consists of finding a subset of transactions and pools and applying swaps on them as needed.
+/// - process pegging for MEL. This includes some nudging of inflation rates, etc. More details can be found [here](https://github.com/themeliolabs/themelio-stf/blob/master/src/state/melmint.rs#L411)
 pub fn preseal_melmint<C: ContentAddrStore>(state: State<C>) -> State<C> {
     let state = create_builtins(state);
     assert!(state.pools.val_iter().count() >= 2);
@@ -116,10 +121,10 @@ fn create_builtins<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
     }
     if state.tip_902()
         && state
-        .pools
-        .get(&PoolKey::new(Denom::Erg, Denom::Sym))
-        .0
-        .is_none()
+            .pools
+            .get(&PoolKey::new(Denom::Erg, Denom::Sym))
+            .0
+            .is_none()
     {
         state
             .pools
@@ -200,14 +205,14 @@ fn process_swaps<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
                     right_withdrawn,
                     Ratio::new(swap.outputs[0].value.0, total_lefts),
                 ))
-                    .min(MAX_COINVAL);
+                .min(MAX_COINVAL);
             } else {
                 swap.outputs[0].denom = pool.left;
                 swap.outputs[0].value = CoinValue(multiply_frac(
                     left_withdrawn,
                     Ratio::new(swap.outputs[0].value.0, total_rights),
                 ))
-                    .min(MAX_COINVAL);
+                .min(MAX_COINVAL);
             }
             state.coins.insert_coin(
                 correct_coinid,
@@ -237,7 +242,7 @@ fn process_deposits<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
                 && tx.outputs.len() >= 2
                 && state.coins.get_coin(tx.output_coinid(0)).is_some()
                 && state.coins.get_coin(tx.output_coinid(1)).is_some())
-                .then(|| ())?;
+            .then(|| ())?;
             let pool_key = PoolKey::from_bytes(&tx.data)?;
             (tx.outputs[0].denom == pool_key.left && tx.outputs[1].denom == pool_key.right)
                 .then(|| tx)
@@ -337,7 +342,7 @@ fn process_withdrawals<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
             (tx.kind == TxKind::LiqWithdraw
                 && tx.outputs.len() == 1
                 && state.coins.get_coin(tx.output_coinid(0)).is_some())
-                .then(|| ())?;
+            .then(|| ())?;
             let pool_key = PoolKey::from_bytes(&tx.data)?;
             state.pools.get(&pool_key).0?;
             (tx.outputs[0].denom == pool_key.liq_token_denom()).then(|| tx)
@@ -541,7 +546,7 @@ mod tests {
             data: vec![],
             sigs: vec![],
         }
-            .signed_ed25519(my_sk);
+        .signed_ed25519(my_sk);
         second_state.apply_tx(&newcoin_tx).unwrap();
         let pool_key = PoolKey::mel_and(Denom::Custom(newcoin_tx.hash_nosigs()));
         let deposit_tx = Transaction {
@@ -574,7 +579,7 @@ mod tests {
             data: pool_key.to_bytes(), // this is important, since it "points" to the pool
             sigs: vec![],
         }
-            .signed_ed25519(my_sk);
+        .signed_ed25519(my_sk);
         second_state.apply_tx(&deposit_tx).unwrap();
         let second_sealed = second_state.seal(None);
 

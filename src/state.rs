@@ -55,6 +55,52 @@ pub enum StateError {
 }
 
 /// World state of the Themelio blockchain
+///
+/// `themelio-stf` provides functionality interact with a `State` and it's associated types `SealedState` and `ConfirmedState`.
+///
+/// # Examples
+///
+/// ```rust
+/// use themelio_stf::{melvm::Covenant, GenesisConfig};
+///
+/// let cfg = GenesisConfig {
+///     network: NetID::Testnet,
+///     init_coindata: CoinData {
+///         covhash: Address::coin_destroy(),
+///         value: 0.into(),
+///         denom: Denom::Mel,
+///         additional_data: vec![],
+///     },
+///     stakes: Default::default(),
+///     init_fee_pool: 0.into(),
+/// };
+/// let mut state = cfg.realize(&novasmt::Database::new(InMemoryCas::default()));
+///
+/// let tx = Transaction {
+///     kind: TxKind::Faucet,
+///     inputs: vec![],
+///     outputs: vec![
+///         CoinData {
+///             value: CoinValue(10000),
+///             denom: Denom::Mel,
+///             additional_data: vec![],
+///             covhash: Covenant::always_true().hash(),
+///         },
+///         CoinData {
+///             value: CoinValue(10000),
+///             denom: Denom::Mel,
+///             additional_data: vec![],
+///             covhash: Covenant::always_true().hash(),
+///         },
+///     ],
+///     fee: CoinValue(100000000),
+///     covenants: vec![Covenant::always_true().0],
+///     data,
+///     sigs: vec![],
+/// };
+///
+/// state.apply_tx(&tx).expect("Failed to apply transaction");
+/// ```
 #[derive(Debug)]
 pub struct State<C: ContentAddrStore> {
     pub network: NetID,
@@ -138,11 +184,31 @@ impl<C: ContentAddrStore> State<C> {
     }
 
     /// Applies a single transaction.
+    ///
+    /// Internally, this calls [apply_tx_batch](State::apply_tx_batch) with a slice of length 1.
+    ///
+    /// # Examples
+    /// As an example, this is called by a full node's mempool while processing an incoming `send_tx` RPC.
+    ///
+    /// ```rust
+    /// let tx = Transaction { ... };
+    /// let mempool = Arc::new(Mempool::new(highest.next_state()).into());
+    /// mempool.provisional_state.apply_tx(tx).unwrap();
+    /// ```
     pub fn apply_tx(&mut self, tx: &Transaction) -> Result<(), StateError> {
         self.apply_tx_batch(std::slice::from_ref(tx))
     }
 
     /// Applies a whole lot of transactions.
+    ///
+    /// At a high level, this goes through the given transactions and creates a new state by:
+    /// - validating each of the transactions, failing if any are invalid
+    /// - "spending" or removing the specified coins from a transaction's input
+    /// - creating the specified coins from a transaction's output
+    /// - applying stakes
+    /// - creating a new state
+    ///
+    /// The state then updates itself to the new state.
     pub fn apply_tx_batch(&mut self, txx: &[Transaction]) -> Result<(), StateError> {
         let old_hash = HashVal(self.coins.inner().root_hash());
         let new_state = apply_tx_batch_impl(self, txx)?;
@@ -194,7 +260,9 @@ impl<C: ContentAddrStore> State<C> {
             .map(|(i, _)| i)
     }
 
-    /// Finalizes a state into a block. This consumes the state.
+    /// Finalizes a state into a block, consuming the state into a `SealedState`.
+    /// This does [some pre-processing](crate::melmint::preseal_melmint) and applies the given propose action and creates the new `SealedState`.
+    /// This also means that no more transactions can be applied to this state at the current `BlockHeight`.
     pub fn seal(mut self, action: Option<ProposerAction>) -> SealedState<C> {
         // first apply melmint
         self = crate::melmint::preseal_melmint(self);
@@ -364,7 +432,17 @@ impl<C: ContentAddrStore> SealedState<C> {
             proposer_action: self.1,
         }
     }
+
     /// Creates a new unfinalized state representing the next block.
+    ///
+    /// This is the "main" operation on a `SealedState` used to advance it to a `State` that can start accepting further transactions for the next block.
+    /// ## Usage in Full Nodes
+    ///
+    /// After a block is applied to an Auditor or Staker node, their mempools will update their state like so:
+    /// ```rust
+    /// let next_state = highest_state().next_state();
+    /// mempool_mut().rebase(next_state);
+    /// ```
     pub fn next_state(&self) -> State<C> {
         let mut new = State::clone(self.inner_ref());
         // fee variables
@@ -394,6 +472,13 @@ impl<C: ContentAddrStore> SealedState<C> {
     }
 
     /// Applies a block to this state.
+    ///
+    /// ## Usage in Full Nodes
+    ///
+    /// This functionality is used by full nodes (both Auditors and Stakers) to sync and move the state forward by applying new transactions.
+    ///
+    /// For example, when [Auditor nodes](https://github.com/themeliolabs/themelio-node/blob/master/src/protocols/node.rs) sync with other nodes, they will apply a stream of blocks to persistent storage.
+    /// Every epoch loop, [Staker nodes](https://github.com/themeliolabs/themelio-node/blob/master/src/storage/storage.rs) will call `apply_block` on the latest confirmed block from the consensus algorithm.
     pub fn apply_block(&self, block: &Block) -> Result<SealedState<C>, StateError> {
         let mut basis = self.next_state();
         assert!(basis.pools.val_iter().count() >= 2);
@@ -481,8 +566,8 @@ mod tests {
         testing::functions::{create_state, valid_txx},
         State, StateError,
         StateError::{
-            InsufficientFees, MalformedTx, NonexistentCoin, NonexistentScript,
-            UnbalancedInOut, ViolatesScript,
+            InsufficientFees, MalformedTx, NonexistentCoin, NonexistentScript, UnbalancedInOut,
+            ViolatesScript,
         },
     };
 
@@ -619,29 +704,31 @@ mod tests {
         let mut state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
 
         // We attempt to cause an overflow by creating a ton of coins, all with the maximum allowed value, then trying to spend them in one transaction.
-        let faucet_coin_ids: Vec<CoinID> = (0..300).into_iter().map(|_index| {
-            // Every iteration, we make a faucet that creates a max-value coin that any transaction can spend.
-            let faucet_transaction: Transaction = Transaction {
-                kind: TxKind::Faucet,
-                inputs: vec![],
-                outputs: vec![CoinData {
-                    value: MAX_COINVAL,
-                    denom: Denom::Mel,
-                    covhash: Covenant::always_true().hash(),
-                    additional_data: vec![],
-                }],
-                // random data so that the transactions are distinct (this avoids a DuplicateTx error)
-                data: vec![0; 32].tap_mut(|v| rand::thread_rng().fill_bytes(v)),
-                fee: CoinValue(100000),
-                covenants: vec![],
-                sigs: vec![],
-            };
+        let faucet_coin_ids: Vec<CoinID> = (0..300)
+            .into_iter()
+            .map(|_index| {
+                // Every iteration, we make a faucet that creates a max-value coin that any transaction can spend.
+                let faucet_transaction: Transaction = Transaction {
+                    kind: TxKind::Faucet,
+                    inputs: vec![],
+                    outputs: vec![CoinData {
+                        value: MAX_COINVAL,
+                        denom: Denom::Mel,
+                        covhash: Covenant::always_true().hash(),
+                        additional_data: vec![],
+                    }],
+                    // random data so that the transactions are distinct (this avoids a DuplicateTx error)
+                    data: vec![0; 32].tap_mut(|v| rand::thread_rng().fill_bytes(v)),
+                    fee: CoinValue(100000),
+                    covenants: vec![],
+                    sigs: vec![],
+                };
 
-            let _first_transaction_result: () = state.apply_tx(&faucet_transaction).unwrap();
+                let _first_transaction_result: () = state.apply_tx(&faucet_transaction).unwrap();
 
-            faucet_transaction.output_coinid(0)
-        }).collect();
-
+                faucet_transaction.output_coinid(0)
+            })
+            .collect();
 
         // Try to spend them all.
         let second_transaction: Transaction = Transaction {
@@ -658,7 +745,6 @@ mod tests {
             covenants: vec![Covenant::always_true().0],
             sigs: vec![],
         };
-
 
         // Print out the error. There needs to be an error!
         dbg!(state.apply_tx(&second_transaction).unwrap_err());
