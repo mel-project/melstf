@@ -1,7 +1,9 @@
 use std::time::Instant;
 
 use novasmt::ContentAddrStore;
-use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{
+    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
+};
 use rustc_hash::{FxHashMap, FxHashSet};
 use themelio_structs::{
     Address, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc,
@@ -22,11 +24,14 @@ pub fn apply_tx_batch_impl<C: ContentAddrStore>(
 ) -> Result<State<C>, StateError> {
     // we first obtain *all* the relevant coins
     let relevant_coins = load_relevant_coins(this, txx)?;
+
     // apply the stake transactions
     let new_stakes = load_stake_info(this, txx)?;
+
     // check validity of every transaction, with respect to the relevant coins and stakes
     txx.par_iter()
         .try_for_each(|tx| check_tx_validity(this, tx, &relevant_coins, &new_stakes))?;
+
     // check the stake txx
     let new_max_speed = txx
         .par_iter()
@@ -39,34 +44,60 @@ pub fn apply_tx_batch_impl<C: ContentAddrStore>(
             },
         )
         .try_reduce(|| this.dosc_speed, |a, b| Ok(a.max(b)))?;
-    // great, now we create the new state
-    let mut next_state = this.clone();
-    for tx in txx {
+
+    // great, now we create the new state from the transactions
+    let mut next_state = create_next_state(this.clone(), txx, &relevant_coins, this.tip_906())?;
+
+    // dosc
+    next_state.dosc_speed = new_max_speed;
+
+    // apply stakes
+    for (k, v) in new_stakes {
+        next_state.stakes.insert(k, v);
+    }
+    Ok(next_state)
+}
+
+fn handle_faucet_tx<C: ContentAddrStore>(
+    state: &mut State<C>,
+    tx: &Transaction,
+) -> Result<(), StateError> {
+    let pseudocoin = faucet_dedup_pseudocoin(tx.hash_nosigs());
+    if state.coins.get_coin(pseudocoin).is_some() {
+        return Err(StateError::DuplicateTx);
+    }
+    // bug-compatible exception
+    if tx.hash_nosigs().to_string()
+        != "30a60b20830f000f755b70c57c998553a303cc11f8b1f574d5e9f7e26b645d8b"
+    {
+        state.coins.insert_coin(
+            pseudocoin,
+            CoinDataHeight {
+                coin_data: CoinData {
+                    denom: Denom::Mel,
+                    value: 0.into(),
+                    additional_data: vec![],
+                    covhash: HashVal::default().into(),
+                },
+                height: 0.into(),
+            },
+            state.tip_906(),
+        );
+    }
+    Ok(())
+}
+
+fn create_next_state<C: ContentAddrStore>(
+    mut next_state: State<C>,
+    transactions: &[Transaction],
+    relevant_coins: &FxHashMap<CoinID, CoinDataHeight>,
+    is_tip_906: bool,
+) -> Result<State<C>, StateError> {
+    for tx in transactions {
         let txhash = tx.hash_nosigs();
 
         if tx.kind == TxKind::Faucet {
-            let pseudocoin = faucet_dedup_pseudocoin(tx.hash_nosigs());
-            if next_state.coins.get_coin(pseudocoin).is_some() {
-                return Err(StateError::DuplicateTx);
-            }
-            // bug-compatible exception
-            if tx.hash_nosigs().to_string()
-                != "30a60b20830f000f755b70c57c998553a303cc11f8b1f574d5e9f7e26b645d8b"
-            {
-                next_state.coins.insert_coin(
-                    pseudocoin,
-                    CoinDataHeight {
-                        coin_data: CoinData {
-                            denom: Denom::Mel,
-                            value: 0.into(),
-                            additional_data: vec![],
-                            covhash: HashVal::default().into(),
-                        },
-                        height: 0.into(),
-                    },
-                    next_state.tip_906(),
-                );
-            }
+            handle_faucet_tx(&mut next_state, tx)?;
         }
 
         for (i, _) in tx.outputs.iter().enumerate() {
@@ -75,11 +106,11 @@ pub fn apply_tx_batch_impl<C: ContentAddrStore>(
             if let Some(coin_data) = relevant_coins.get(&coinid) {
                 next_state
                     .coins
-                    .insert_coin(coinid, coin_data.clone(), this.tip_906());
+                    .insert_coin(coinid, coin_data.clone(), is_tip_906);
             }
         }
         for coinid in tx.inputs.iter() {
-            next_state.coins.remove_coin(*coinid, this.tip_906());
+            next_state.coins.remove_coin(*coinid, is_tip_906);
         }
 
         // fees
@@ -94,12 +125,6 @@ pub fn apply_tx_batch_impl<C: ContentAddrStore>(
             next_state.fee_pool.0 = next_state.fee_pool.0.saturating_add(min_fee.0);
         }
         next_state.transactions.insert(txhash, tx.clone());
-    }
-    // dosc
-    next_state.dosc_speed = new_max_speed;
-    // apply stakes
-    for (k, v) in new_stakes {
-        next_state.stakes.insert(k, v);
     }
     Ok(next_state)
 }
@@ -139,24 +164,31 @@ fn load_relevant_coins<C: ContentAddrStore>(
 
         let txhash = tx.hash_nosigs();
 
-        let coins_to_add: FxHashMap<CoinID, CoinDataHeight> = tx.outputs.par_iter().enumerate().filter_map(|(i, coin_data)| {
-            let mut coin_data = coin_data.clone();
-            if coin_data.denom == Denom::NewCoin {
-                coin_data.denom = Denom::Custom(tx.hash_nosigs());
-            }
+        let coins_to_add: FxHashMap<CoinID, CoinDataHeight> = tx
+            .outputs
+            .par_iter()
+            .enumerate()
+            .filter_map(|(i, coin_data)| {
+                let mut coin_data = coin_data.clone();
+                if coin_data.denom == Denom::NewCoin {
+                    coin_data.denom = Denom::Custom(tx.hash_nosigs());
+                }
 
-            // if covenant hash is zero, this destroys the coins permanently
-            if coin_data.covhash != Address::coin_destroy() {
-                Some((CoinID::new(txhash, i as u8), CoinDataHeight { coin_data, height }))
-            } else {
-                None
-            }
-        }).collect::<FxHashMap<CoinID, CoinDataHeight>>();
+                // if covenant hash is zero, this destroys the coins permanently
+                if coin_data.covhash != Address::coin_destroy() {
+                    Some((
+                        CoinID::new(txhash, i as u8),
+                        CoinDataHeight { coin_data, height },
+                    ))
+                } else {
+                    None
+                }
+            })
+            .collect::<FxHashMap<CoinID, CoinDataHeight>>();
 
         if !coins_to_add.is_empty() {
             accum.extend(coins_to_add);
         }
-
     }
     // add the ones *referenced* in this batch
     let cache: FxHashMap<CoinID, Option<CoinDataHeight>> = txx
