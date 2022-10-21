@@ -17,6 +17,10 @@ use crate::{
     LegacyMelPowHash, State, StateError, Tip910MelPowHash,
 };
 
+// TODO: add proper description of this exploit
+const INFLATION_BUG_TX_HASH: &str =
+    "30a60b20830f000f755b70c57c998553a303cc11f8b1f574d5e9f7e26b645d8b";
+
 /// Applies a batch of transactions to the state.
 pub fn apply_tx_batch_impl<C: ContentAddrStore>(
     this: &State<C>,
@@ -62,14 +66,27 @@ fn handle_faucet_tx<C: ContentAddrStore>(
     state: &mut State<C>,
     tx: &Transaction,
 ) -> Result<(), StateError> {
-    let pseudocoin = faucet_dedup_pseudocoin(tx.hash_nosigs());
-    if state.coins.get_coin(pseudocoin).is_some() {
-        return Err(StateError::DuplicateTx);
-    }
-    // bug-compatible exception
-    if tx.hash_nosigs().to_string()
-        != "30a60b20830f000f755b70c57c998553a303cc11f8b1f574d5e9f7e26b645d8b"
-    {
+    // dedup faucet
+    if tx.kind == TxKind::Faucet {
+        // exception to be bug-compatible with the one guy who exploited the inflation bug
+        if state.network == NetID::Mainnet && tx.hash_nosigs().to_string() != INFLATION_BUG_TX_HASH
+        {
+            log::error!(
+                "rejecting mainnet faucet with hash {:?}",
+                tx.hash_nosigs().to_string()
+            );
+            return Err(StateError::MalformedTx);
+        }
+
+        log::error!(
+            "allowing mainnet faucet with hash {:?}",
+            tx.hash_nosigs().to_string()
+        );
+
+        let pseudocoin = faucet_dedup_pseudocoin(tx.hash_nosigs());
+        if state.coins.get_coin(pseudocoin).is_some() {
+            return Err(StateError::DuplicateTx);
+        }
         state.coins.insert_coin(
             pseudocoin,
             CoinDataHeight {
@@ -84,6 +101,7 @@ fn handle_faucet_tx<C: ContentAddrStore>(
             state.tip_906(),
         );
     }
+
     Ok(())
 }
 
@@ -141,25 +159,6 @@ fn load_relevant_coins<C: ContentAddrStore>(
     for tx in txx {
         if !tx.is_well_formed() {
             return Err(StateError::MalformedTx);
-        }
-
-        // dedup faucet
-        if tx.kind == TxKind::Faucet {
-            // exception to be bug-compatible with the one guy who exploited the inflation bug
-            if this.network == NetID::Mainnet
-                && tx.hash_nosigs().to_string()
-                    != "30a60b20830f000f755b70c57c998553a303cc11f8b1f574d5e9f7e26b645d8b"
-            {
-                log::error!(
-                    "rejecting mainnet faucet with hash {:?}",
-                    tx.hash_nosigs().to_string()
-                );
-                return Err(StateError::MalformedTx);
-            }
-            log::error!(
-                "allowing mainnet faucet with hash {:?}",
-                tx.hash_nosigs().to_string()
-            );
         }
 
         let txhash = tx.hash_nosigs();
