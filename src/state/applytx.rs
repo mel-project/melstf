@@ -273,9 +273,8 @@ fn validate_tx_scripts(
     coin_data: &CoinDataHeight,
     last_header: Header,
     scripts: HashMap<Address, Vec<u8>>,
+    good_scripts: &FxHashSet<Address>,
 ) -> Result<(), StateError> {
-    let mut good_scripts: FxHashSet<Address> = FxHashSet::default();
-
     log::trace!(
         "coin_data {:?} => {:?} for txid {:?}",
         coin_id,
@@ -300,7 +299,6 @@ fn validate_tx_scripts(
         ) {
             return Err(StateError::ViolatesScript(coin_data.coin_data.covhash));
         }
-        good_scripts.insert(coin_data.coin_data.covhash);
     }
 
     Ok(())
@@ -351,15 +349,16 @@ fn check_tx_validity<C: ContentAddrStore>(
     let txhash = tx.hash_nosigs();
     let start = Instant::now();
     let scripts = tx.covenants_as_map();
+
     // build a map of input coins
     let mut in_coins: FxHashMap<Denom, u128> = FxHashMap::default();
+
     // get last header
     let last_header = this
         .history
         .get(&(this.height.0.saturating_sub(1).into()))
         .0
         .unwrap_or_else(|| this.clone().seal(None).header());
-    // iterate through the inputs
 
     for (spend_idx, coin_id) in tx.inputs.iter().enumerate() {
         // Workaround for BUGGY old code!
@@ -372,6 +371,7 @@ fn check_tx_validity<C: ContentAddrStore>(
             return Err(StateError::CoinLocked);
         }
 
+        let mut good_scripts: FxHashSet<Address> = FxHashSet::default();
         let coin_data = relevant_coins.get(coin_id);
         match coin_data {
             None => return Err(StateError::NonexistentCoin(*coin_id)),
@@ -383,7 +383,9 @@ fn check_tx_validity<C: ContentAddrStore>(
                     coin_data,
                     last_header,
                     scripts.clone(),
+                    &good_scripts,
                 )?;
+                good_scripts.insert(coin_data.coin_data.covhash);
 
                 let amount = in_coins.get(&coin_data.coin_data.denom).unwrap_or(&0)
                     + coin_data.coin_data.value.0;
