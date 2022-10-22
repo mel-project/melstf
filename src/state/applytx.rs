@@ -1,13 +1,13 @@
-use std::time::Instant;
+use std::{collections::HashMap, hash::BuildHasherDefault, time::Instant};
 
 use novasmt::ContentAddrStore;
 use rayon::iter::{
     IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
 };
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
 use themelio_structs::{
-    Address, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc,
-    Transaction, TxHash, TxKind,
+    Address, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, Header, NetID,
+    StakeDoc, Transaction, TxHash, TxKind,
 };
 use tmelcrypt::HashVal;
 
@@ -147,6 +147,7 @@ fn create_next_state<C: ContentAddrStore>(
     Ok(next_state)
 }
 
+/// This collects all input and output coins referenced by the given transactions while filtering out any coins set to be destroyed.
 fn load_relevant_coins<C: ContentAddrStore>(
     this: &State<C>,
     txx: &[Transaction],
@@ -240,6 +241,7 @@ fn load_stake_info<C: ContentAddrStore>(
             let is_first_coin_not_a_sym: bool = first_coin.denom != Denom::Sym;
 
             // Are we operating under OLD BUGGY RULES?
+            // TODO: link to some documentation about this
             if (this.network == NetID::Mainnet || this.network == NetID::Testnet)
                 && this.height.0 < 500000
             {
@@ -264,6 +266,82 @@ fn load_stake_info<C: ContentAddrStore>(
     Ok(accum)
 }
 
+fn validate_tx_scripts(
+    spend_idx: usize,
+    coin_id: &CoinID,
+    tx: &Transaction,
+    coin_data: &CoinDataHeight,
+    last_header: Header,
+    scripts: HashMap<Address, Vec<u8>>,
+) -> Result<(), StateError> {
+    let mut good_scripts: FxHashSet<Address> = FxHashSet::default();
+
+    log::trace!(
+        "coin_data {:?} => {:?} for txid {:?}",
+        coin_id,
+        coin_data,
+        tx.hash_nosigs()
+    );
+    if !good_scripts.contains(&coin_data.coin_data.covhash) {
+        let script = Covenant(
+            scripts
+                .get(&coin_data.coin_data.covhash)
+                .ok_or(StateError::NonexistentScript(coin_data.coin_data.covhash))?
+                .clone(),
+        );
+        if !script.check(
+            tx,
+            CovenantEnv {
+                parent_coinid: *coin_id,
+                parent_cdh: coin_data.clone(),
+                spender_index: spend_idx as u8,
+                last_header,
+            },
+        ) {
+            return Err(StateError::ViolatesScript(coin_data.coin_data.covhash));
+        }
+        good_scripts.insert(coin_data.coin_data.covhash);
+    }
+
+    Ok(())
+}
+
+/// Balance inputs and outputs. Ignore outputs with empty cointype (they create a new token kind).
+fn check_tx_coins_balanced(
+    tx_kind: TxKind,
+    in_coins: HashMap<Denom, u128, BuildHasherDefault<FxHasher>>,
+    out_coins: HashMap<Denom, CoinValue>,
+) -> Result<(), StateError> {
+    if tx_kind != TxKind::Faucet {
+        for (currency, value) in out_coins.iter() {
+            // we skip the created doscs for a DoscMint transaction, which are left for later.
+            if *currency == Denom::NewCoin
+                || (tx_kind == TxKind::DoscMint && *currency == Denom::Erg)
+            {
+                continue;
+            }
+
+            let in_value = if let Some(in_value) = in_coins.get(currency) {
+                *in_value
+            } else {
+                return Err(StateError::UnbalancedInOut);
+            };
+
+            if *value != CoinValue(in_value) {
+                eprintln!(
+                    "unbalanced: {} {:?} in, {} {:?} out",
+                    CoinValue(in_value),
+                    currency,
+                    value,
+                    currency
+                );
+                return Err(StateError::UnbalancedInOut);
+            }
+        }
+    }
+    Ok(())
+}
+
 fn check_tx_validity<C: ContentAddrStore>(
     this: &State<C>,
     tx: &Transaction,
@@ -282,83 +360,41 @@ fn check_tx_validity<C: ContentAddrStore>(
         .0
         .unwrap_or_else(|| this.clone().seal(None).header());
     // iterate through the inputs
-    let mut good_scripts: FxHashSet<Address> = FxHashSet::default();
+
     for (spend_idx, coin_id) in tx.inputs.iter().enumerate() {
+        // Workaround for BUGGY old code!
+        // TODO: add some details for this
         if (new_stakes.contains_key(&coin_id.txhash)
             || this.stakes.get(&coin_id.txhash).0.is_some())
             && !((this.network == NetID::Mainnet || this.network == NetID::Testnet)
                 && this.height.0 < 900000)
-        // Workaround for BUGGY old code!
         {
             return Err(StateError::CoinLocked);
         }
+
         let coin_data = relevant_coins.get(coin_id);
         match coin_data {
             None => return Err(StateError::NonexistentCoin(*coin_id)),
             Some(coin_data) => {
-                log::trace!(
-                    "coin_data {:?} => {:?} for txid {:?}",
+                validate_tx_scripts(
+                    spend_idx,
                     coin_id,
+                    tx,
                     coin_data,
-                    tx.hash_nosigs()
-                );
-                if !good_scripts.contains(&coin_data.coin_data.covhash) {
-                    let script = Covenant(
-                        scripts
-                            .get(&coin_data.coin_data.covhash)
-                            .ok_or(StateError::NonexistentScript(coin_data.coin_data.covhash))?
-                            .clone(),
-                    );
-                    if !script.check(
-                        tx,
-                        CovenantEnv {
-                            parent_coinid: *coin_id,
-                            parent_cdh: coin_data.clone(),
-                            spender_index: spend_idx as u8,
-                            last_header,
-                        },
-                    ) {
-                        return Err(StateError::ViolatesScript(coin_data.coin_data.covhash));
-                    }
-                    good_scripts.insert(coin_data.coin_data.covhash);
-                }
-                in_coins.insert(
-                    coin_data.coin_data.denom,
-                    in_coins.get(&coin_data.coin_data.denom).unwrap_or(&0)
-                        + coin_data.coin_data.value.0,
-                );
-            }
-        }
-    }
-    log::trace!("{}: processed all inputs {:?}", txhash, start.elapsed());
-    // balance inputs and outputs. ignore outputs with empty cointype (they create a new token kind)
-    let out_coins = tx.total_outputs();
-    if tx.kind != TxKind::Faucet {
-        for (currency, value) in out_coins.iter() {
-            // we skip the created doscs for a DoscMint transaction, which are left for later.
-            if *currency == Denom::NewCoin
-                || (tx.kind == TxKind::DoscMint && *currency == Denom::Erg)
-            {
-                continue;
-            }
-            let in_value = if let Some(in_value) = in_coins.get(currency) {
-                *in_value
-            } else {
-                return Err(StateError::UnbalancedInOut);
-            };
-            if *value != CoinValue(in_value) {
-                eprintln!(
-                    "unbalanced: {} {:?} in, {} {:?} out",
-                    CoinValue(in_value),
-                    currency,
-                    value,
-                    currency
-                );
-                return Err(StateError::UnbalancedInOut);
+                    last_header,
+                    scripts.clone(),
+                )?;
+
+                let amount = in_coins.get(&coin_data.coin_data.denom).unwrap_or(&0)
+                    + coin_data.coin_data.value.0;
+                in_coins.insert(coin_data.coin_data.denom, amount);
             }
         }
     }
 
+    log::trace!("{}: processed all inputs {:?}", txhash, start.elapsed());
+    let out_coins = tx.total_outputs();
+    check_tx_coins_balanced(tx.kind, in_coins, out_coins)?;
     Ok(())
 }
 
