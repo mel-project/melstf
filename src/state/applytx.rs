@@ -1,5 +1,6 @@
 use std::{collections::HashMap, hash::BuildHasherDefault, time::Instant};
 
+use melpow::Proof;
 use novasmt::ContentAddrStore;
 use rayon::iter::{
     IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
@@ -43,7 +44,7 @@ pub fn apply_tx_batch_impl<C: ContentAddrStore>(
         .try_fold(
             || this.dosc_speed,
             |a, tx| {
-                let new_speed = check_doscmint_validity(this, &relevant_coins, tx)?;
+                let new_speed = validate_and_get_doscmint_speed(this, &relevant_coins, tx)?;
                 Ok(a.max(new_speed))
             },
         )
@@ -350,7 +351,6 @@ fn check_tx_validity<C: ContentAddrStore>(
     let start = Instant::now();
     let scripts = tx.covenants_as_map();
 
-    // build a map of input coins
     let mut in_coins: FxHashMap<Denom, u128> = FxHashMap::default();
 
     // get last header
@@ -400,8 +400,44 @@ fn check_tx_validity<C: ContentAddrStore>(
     Ok(())
 }
 
+fn proof_is_tip910(proof: Proof, puzzle: &HashVal, difficulty: u32) -> Result<bool, StateError> {
+    // try verifying the proof under the old and the new system
+    if proof.verify(&puzzle, difficulty as _, LegacyMelPowHash) {
+        Ok(false)
+    } else if proof.verify(&puzzle, difficulty as _, Tip910MelPowHash) {
+        Ok(true)
+    } else {
+        return Err(StateError::InvalidMelPoW);
+    }
+}
+
+fn compute_doscmint_speed(
+    is_tip910: bool,
+    difficulty: u32,
+    state_height: BlockHeight,
+    coin_height: BlockHeight,
+) -> u128 {
+    let speed = if is_tip910 { 100 } else { 1 } * 2u128.pow(difficulty)
+        / (state_height - coin_height).0 as u128;
+
+    speed
+}
+
+/// Ensure that the total output of DOSCs is correct.
+fn check_dosc_total_output(tx: &Transaction, reward_nom: CoinValue) -> Result<(), StateError> {
+    let total_dosc_output = tx
+        .total_outputs()
+        .get(&Denom::Erg)
+        .cloned()
+        .unwrap_or_default();
+    if total_dosc_output > reward_nom {
+        return Err(StateError::InvalidMelPoW);
+    }
+    Ok(())
+}
+
 /// Checks a doscmint transaction, and returns the implicit speed.
-fn check_doscmint_validity<C: ContentAddrStore>(
+fn validate_and_get_doscmint_speed<C: ContentAddrStore>(
     this: &State<C>,
     relevant_coins: &FxHashMap<CoinID, CoinDataHeight>,
     tx: &Transaction,
@@ -416,7 +452,7 @@ fn check_doscmint_validity<C: ContentAddrStore>(
         return Err(StateError::InvalidMelPoW);
     }
     // construct puzzle seed
-    let chi = tmelcrypt::hash_keyed(
+    let puzzle = tmelcrypt::hash_keyed(
         &this
             .history
             .get(&coin_data.height)
@@ -432,21 +468,9 @@ fn check_doscmint_validity<C: ContentAddrStore>(
             StateError::InvalidMelPoW
         })?;
     let proof = melpow::Proof::from_bytes(&proof_bytes).unwrap();
+    let is_tip910 = proof_is_tip910(proof, &puzzle, difficulty)?;
 
-    // try verifying the proof under the old and the new system
-    let is_tip910 = {
-        if proof.verify(&chi, difficulty as _, LegacyMelPowHash) {
-            false
-        } else if proof.verify(&chi, difficulty as _, Tip910MelPowHash) {
-            true
-        } else {
-            return Err(StateError::InvalidMelPoW);
-        }
-    };
-
-    // compute speeds
-    let my_speed = if is_tip910 { 100 } else { 1 } * 2u128.pow(difficulty)
-        / (this.height - coin_data.height).0 as u128;
+    let my_speed = compute_doscmint_speed(is_tip910, difficulty, this.height, coin_data.height);
     let reward_real = melmint::calculate_reward(
         my_speed,
         this.history
@@ -459,15 +483,7 @@ fn check_doscmint_validity<C: ContentAddrStore>(
     );
 
     let reward_nom = CoinValue(melmint::dosc_to_erg(this.height, reward_real));
-    // ensure that the total output of DOSCs is correct
-    let total_dosc_output = tx
-        .total_outputs()
-        .get(&Denom::Erg)
-        .cloned()
-        .unwrap_or_default();
-    if total_dosc_output > reward_nom {
-        return Err(StateError::InvalidMelPoW);
-    }
+    check_dosc_total_output(&tx, reward_nom)?;
     Ok(my_speed)
 }
 
