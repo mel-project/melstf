@@ -153,8 +153,6 @@ fn load_relevant_coins<C: ContentAddrStore>(
     this: &State<C>,
     txx: &[Transaction],
 ) -> Result<FxHashMap<CoinID, CoinDataHeight>, StateError> {
-    let height = this.height;
-
     let mut accum: FxHashMap<CoinID, CoinDataHeight> = FxHashMap::default();
 
     // add the ones created in this batch
@@ -163,42 +161,42 @@ fn load_relevant_coins<C: ContentAddrStore>(
             return Err(StateError::MalformedTx);
         }
 
-        let txhash = tx.hash_nosigs();
-
-        let coins_to_add: FxHashMap<CoinID, CoinDataHeight> = tx
-            .outputs
-            .par_iter()
-            .enumerate()
-            .filter_map(|(i, coin_data)| {
-                let mut coin_data = coin_data.clone();
-                if coin_data.denom == Denom::NewCoin {
-                    coin_data.denom = Denom::Custom(tx.hash_nosigs());
-                }
-
-                // if covenant hash is zero, this destroys the coins permanently
-                if coin_data.covhash != Address::coin_destroy() {
-                    Some((
-                        CoinID::new(txhash, i as u8),
-                        CoinDataHeight { coin_data, height },
-                    ))
-                } else {
-                    None
-                }
-            })
-            .collect::<FxHashMap<CoinID, CoinDataHeight>>();
-
+        let coins_to_add = output_coins_from_tx(&tx, this.height);
         if !coins_to_add.is_empty() {
             accum.extend(coins_to_add);
         }
     }
+
+    let input_coins = input_coins_from_tx_and_state(txx, this)?;
+    accum.extend(input_coins);
+
+    // ensure no double-spending within this batch
+    let mut seen = FxHashSet::default();
+    for tx in txx {
+        for input in tx.inputs.iter() {
+            if !seen.insert(input) {
+                return Err(StateError::NonexistentCoin(*input));
+            }
+        }
+    }
+
+    Ok(accum)
+}
+
+fn input_coins_from_tx_and_state<C: ContentAddrStore>(
+    transactions: &[Transaction],
+    state: &State<C>,
+) -> Result<FxHashMap<CoinID, CoinDataHeight>, StateError> {
+    let mut accum: FxHashMap<CoinID, CoinDataHeight> = FxHashMap::default();
+
     // add the ones *referenced* in this batch
-    let cache: FxHashMap<CoinID, Option<CoinDataHeight>> = txx
+    let cache: FxHashMap<CoinID, Option<CoinDataHeight>> = transactions
         .into_par_iter()
         .flat_map(|transaction| transaction.inputs.par_iter())
-        .map(|input| (*input, this.coins.get_coin(*input)))
+        .map(|input| (*input, state.coins.get_coin(*input)))
         .collect();
 
-    for tx in txx {
+    for tx in transactions {
         for input in tx.inputs.iter() {
             if !accum.contains_key(input) {
                 let from_disk = cache
@@ -211,18 +209,43 @@ fn load_relevant_coins<C: ContentAddrStore>(
         }
     }
 
-    // ensure no double-spending within this batch
-    let mut seen = FxHashSet::default();
-
-    for tx in txx {
-        for input in tx.inputs.iter() {
-            if !seen.insert(input) {
-                return Err(StateError::NonexistentCoin(*input));
-            }
-        }
-    }
-
     Ok(accum)
+}
+
+fn output_coins_from_tx(
+    tx: &Transaction,
+    height: BlockHeight,
+) -> FxHashMap<CoinID, CoinDataHeight> {
+    tx.outputs
+        .par_iter()
+        .enumerate()
+        .filter_map(|(i, coin_data)| {
+            let mut coin_data = coin_data.clone();
+            if coin_data.denom == Denom::NewCoin {
+                coin_data.denom = Denom::Custom(tx.hash_nosigs());
+            }
+
+            // if covenant hash is zero, this destroys the coins permanently
+            if coin_data.covhash != Address::coin_destroy() {
+                Some((
+                    CoinID::new(tx.hash_nosigs(), i as u8),
+                    CoinDataHeight { coin_data, height },
+                ))
+            } else {
+                None
+            }
+        })
+        .collect::<FxHashMap<CoinID, CoinDataHeight>>()
+}
+
+fn coin_is_denom(coin_data: &CoinData, denom: Denom) -> bool {
+    coin_data.denom == denom
+}
+
+fn stake_is_consistent(stake_doc: &StakeDoc, curr_epoch: u64, coin: &CoinData) -> bool {
+    stake_doc.e_start > curr_epoch
+        && stake_doc.e_post_end > stake_doc.e_start
+        && stake_doc.syms_staked == coin.value
 }
 
 fn load_stake_info<C: ContentAddrStore>(
@@ -232,15 +255,6 @@ fn load_stake_info<C: ContentAddrStore>(
     let mut accum = FxHashMap::default();
     for tx in txx {
         if tx.kind == TxKind::Stake {
-            // first we check that the data is correct
-            let stake_doc: StakeDoc =
-                stdcode::deserialize(&tx.data).map_err(|_| StateError::MalformedTx)?;
-            let curr_epoch = this.height.epoch();
-            // then we check that the first coin is valid
-            let first_coin = tx.outputs.get(0).ok_or(StateError::MalformedTx)?;
-
-            let is_first_coin_not_a_sym: bool = first_coin.denom != Denom::Sym;
-
             // Are we operating under OLD BUGGY RULES?
             // TODO: link to some documentation about this
             if (this.network == NetID::Mainnet || this.network == NetID::Testnet)
@@ -250,13 +264,18 @@ fn load_stake_info<C: ContentAddrStore>(
                 continue;
             }
 
-            if is_first_coin_not_a_sym {
+            // first we check that the data is correct
+            let stake_doc: StakeDoc =
+                stdcode::deserialize(&tx.data).map_err(|_| StateError::MalformedTx)?;
+            let curr_epoch = this.height.epoch();
+
+            // then we check that the first coin is valid
+            let first_coin = tx.outputs.get(0).ok_or(StateError::MalformedTx)?;
+            if !coin_is_denom(&first_coin, Denom::Sym) {
                 return Err(StateError::MalformedTx);
-            // then we check consistency
-            } else if stake_doc.e_start > curr_epoch
-                && stake_doc.e_post_end > stake_doc.e_start
-                && stake_doc.syms_staked == first_coin.value
-            {
+            }
+
+            if stake_is_consistent(&stake_doc, curr_epoch, first_coin) {
                 accum.insert(tx.hash_nosigs(), stake_doc);
             } else {
                 log::warn!("**** REJECTING STAKER {:?} ****", stake_doc);
@@ -442,6 +461,7 @@ fn validate_and_get_doscmint_speed<C: ContentAddrStore>(
     relevant_coins: &FxHashMap<CoinID, CoinDataHeight>,
     tx: &Transaction,
 ) -> Result<u128, StateError> {
+    // TODO: handle without panicking?
     let coin_id = *tx.inputs.get(0).unwrap();
     let coin_data = relevant_coins
         .get(&coin_id)

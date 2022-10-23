@@ -3,6 +3,7 @@ use std::{sync::atomic::Ordering, time::Instant};
 use atomic_float::AtomicF64;
 
 /// Tracks the total time spent applying transactions.
+
 pub static STAT_APPLY_SECS: StatCounter = StatCounter {
     counter: AtomicF64::new(0.0),
 };
@@ -53,6 +54,7 @@ impl StatCounter {
     }
 }
 
+#[allow(unused)]
 /// A timer that increments the statistic when dropped
 pub struct StatTimer<'a> {
     r: &'a StatCounter,
