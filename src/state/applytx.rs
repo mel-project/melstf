@@ -167,7 +167,7 @@ fn load_relevant_coins<C: ContentAddrStore>(
         }
     }
 
-    let input_coins = input_coins_from_tx_and_state(txx, this)?;
+    let input_coins = extract_input_coins(txx, this, &accum)?;
     accum.extend(input_coins);
 
     // ensure no double-spending within this batch
@@ -183,9 +183,10 @@ fn load_relevant_coins<C: ContentAddrStore>(
     Ok(accum)
 }
 
-fn input_coins_from_tx_and_state<C: ContentAddrStore>(
+fn extract_input_coins<C: ContentAddrStore>(
     transactions: &[Transaction],
     state: &State<C>,
+    coins_so_far: &FxHashMap<CoinID, CoinDataHeight>,
 ) -> Result<FxHashMap<CoinID, CoinDataHeight>, StateError> {
     let mut accum: FxHashMap<CoinID, CoinDataHeight> = FxHashMap::default();
 
@@ -198,7 +199,7 @@ fn input_coins_from_tx_and_state<C: ContentAddrStore>(
 
     for tx in transactions {
         for input in tx.inputs.iter() {
-            if !accum.contains_key(input) {
+            if !coins_so_far.contains_key(input) {
                 let from_disk = cache
                     .get(input)
                     .unwrap()
