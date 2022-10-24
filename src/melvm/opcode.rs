@@ -6,8 +6,8 @@ use crate::melvm::consts::{
     OPCODE_BLENGTH, OPCODE_BNZ, OPCODE_BPUSH, OPCODE_BREF, OPCODE_BSET, OPCODE_BSLICE, OPCODE_BTOI,
     OPCODE_DIV, OPCODE_DUP, OPCODE_EQL, OPCODE_EXP, OPCODE_GT, OPCODE_HASH, OPCODE_ITOB,
     OPCODE_JMP, OPCODE_LOAD, OPCODE_LOADIMM, OPCODE_LOOP, OPCODE_LT, OPCODE_MUL, OPCODE_NOOP,
-    OPCODE_NOT, OPCODE_OR, OPCODE_PUSHB, OPCODE_PUSHI, OPCODE_PUSHIC, OPCODE_REM,
-    OPCODE_SHL, OPCODE_SHR, OPCODE_SIGEOK, OPCODE_STORE, OPCODE_STOREIMM, OPCODE_SUB, OPCODE_TYPEQ,
+    OPCODE_NOT, OPCODE_OR, OPCODE_PUSHB, OPCODE_PUSHI, OPCODE_PUSHIC, OPCODE_REM, OPCODE_SHL,
+    OPCODE_SHR, OPCODE_SIGEOK, OPCODE_STORE, OPCODE_STOREIMM, OPCODE_SUB, OPCODE_TYPEQ,
     OPCODE_VAPPEND, OPCODE_VCONS, OPCODE_VEMPTY, OPCODE_VLENGTH, OPCODE_VPUSH, OPCODE_VREF,
     OPCODE_VSET, OPCODE_VSLICE, OPCODE_XOR,
 };
@@ -1596,7 +1596,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_empty_vector_with_out_of_bounds_byte_slice() {
+    fn test_verify_failure_with_out_of_bounds_byte_slice() {
         let length: u8 = 0;
         let beginning: u8 = 1;
         let end: u8 = 5;
@@ -1623,7 +1623,7 @@ mod tests {
         .expect("Failed to create a BEmpty/BPush/BSlice/BLength covenant.");
         let output: bool = covenant.debug_run_without_transaction(&[]);
 
-        assert_eq!(output, true);
+        assert_eq!(output, false);
     }
 
     #[test]
