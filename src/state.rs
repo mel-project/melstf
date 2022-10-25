@@ -204,6 +204,88 @@ impl<C: ContentAddrStore> State<C> {
             .filter(move |sd| height.epoch() >= sd.e_start && height.epoch() < sd.e_post_end)
     }
 
+    fn apply_tip_901(&mut self) {
+        let divider = self.height.0.saturating_sub(TIP_909_HEIGHT.0) / 1_000_000;
+        let reward = (1u128 << 20) >> divider;
+        let tip909a_erg_subsidy = reward >> 8;
+        // fee subsidy
+        let fee_subsidy = if self.tip_909a() {
+            reward - tip909a_erg_subsidy
+        } else {
+            reward / 2
+        };
+        let mut smpool = self
+            .pools
+            .get(&PoolKey::new(Denom::Mel, Denom::Sym))
+            .0
+            .unwrap();
+        let (mel, _) = smpool.swap_many(0, fee_subsidy);
+        self.pools
+            .insert(PoolKey::new(Denom::Mel, Denom::Sym), smpool);
+        self.fee_pool += CoinValue(mel);
+        // erg subsidy
+        let erg_subsidy = if self.tip_909a() {
+            tip909a_erg_subsidy
+        } else {
+            reward - fee_subsidy
+        };
+        let mut espool = self
+            .pools
+            .get(&PoolKey::new(Denom::Erg, Denom::Sym))
+            .0
+            .unwrap();
+        let _ = espool.swap_many(0, erg_subsidy);
+        self.pools
+            .insert(PoolKey::new(Denom::Erg, Denom::Sym), espool);
+    }
+
+    fn move_fee_multiplier_for_action(&mut self, after_tip_901: bool, action: ProposerAction) {
+        let max_movement = if after_tip_901 {
+            ((self.fee_multiplier >> 7) as i64).max(2)
+        } else {
+            (self.fee_multiplier >> 7) as i64
+        };
+        let scaled_movement = max_movement * action.fee_multiplier_delta as i64 / 128;
+        log::debug!(
+            "changing fee multiplier {} by {}",
+            self.fee_multiplier,
+            scaled_movement
+        );
+        if scaled_movement >= 0 {
+            self.fee_multiplier += scaled_movement as u128;
+        } else {
+            self.fee_multiplier -= scaled_movement.abs() as u128;
+        }
+    }
+
+    fn collect_proposer_action_fee(&mut self, action: ProposerAction) {
+        let base_fees = CoinValue(self.fee_pool.0 >> 16);
+        self.fee_pool -= base_fees;
+        let tips = self.tips;
+        self.tips = 0.into();
+        let pseudocoin_id = CoinID::proposer_reward(self.height);
+        let pseudocoin_data = CoinDataHeight {
+            coin_data: CoinData {
+                covhash: action.reward_dest,
+                value: base_fees + tips,
+                denom: Denom::Mel,
+                additional_data: vec![],
+            },
+            height: self.height,
+        };
+        // insert the fake coin
+        self.coins
+            .insert_coin(pseudocoin_id, pseudocoin_data, self.tip_906());
+    }
+
+    fn apply_proposer_action(&mut self, action: ProposerAction, after_tip_901: bool) {
+        // first let's move the fee multiplier
+        self.move_fee_multiplier_for_action(after_tip_901, action);
+
+        // collect the fees due! We synthesize a coin with 1/65536 of the fee pool and all the tips.
+        self.collect_proposer_action_fee(action);
+    }
+
     /// Finalizes a state into a block. This consumes the state.
     pub fn seal(mut self, action: Option<ProposerAction>) -> SealedState<C> {
         // first apply melmint
@@ -212,80 +294,12 @@ impl<C: ContentAddrStore> State<C> {
 
         // then apply tip 909
         if self.tip_909() {
-            let divider = self.height.0.saturating_sub(TIP_909_HEIGHT.0) / 1_000_000;
-            let reward = (1u128 << 20) >> divider;
-            let tip909a_erg_subsidy = reward >> 8;
-            // fee subsidy
-            let fee_subsidy = if self.tip_909a() {
-                reward - tip909a_erg_subsidy
-            } else {
-                reward / 2
-            };
-            let mut smpool = self
-                .pools
-                .get(&PoolKey::new(Denom::Mel, Denom::Sym))
-                .0
-                .unwrap();
-            let (mel, _) = smpool.swap_many(0, fee_subsidy);
-            self.pools
-                .insert(PoolKey::new(Denom::Mel, Denom::Sym), smpool);
-            self.fee_pool += CoinValue(mel);
-            // erg subsidy
-            let erg_subsidy = if self.tip_909a() {
-                tip909a_erg_subsidy
-            } else {
-                reward - fee_subsidy
-            };
-            let mut espool = self
-                .pools
-                .get(&PoolKey::new(Denom::Erg, Denom::Sym))
-                .0
-                .unwrap();
-            let _ = espool.swap_many(0, erg_subsidy);
-            self.pools
-                .insert(PoolKey::new(Denom::Erg, Denom::Sym), espool);
+            self.apply_tip_901();
         }
-
-        let after_tip_901 = self.tip_901();
 
         // apply the proposer action
         if let Some(action) = action {
-            // first let's move the fee multiplier
-            let max_movement = if after_tip_901 {
-                ((self.fee_multiplier >> 7) as i64).max(2)
-            } else {
-                (self.fee_multiplier >> 7) as i64
-            };
-            let scaled_movement = max_movement * action.fee_multiplier_delta as i64 / 128;
-            log::debug!(
-                "changing fee multiplier {} by {}",
-                self.fee_multiplier,
-                scaled_movement
-            );
-            if scaled_movement >= 0 {
-                self.fee_multiplier += scaled_movement as u128;
-            } else {
-                self.fee_multiplier -= scaled_movement.abs() as u128;
-            }
-
-            // then it's time to collect the fees dude! we synthesize a coin with 1/65536 of the fee pool and all the tips.
-            let base_fees = CoinValue(self.fee_pool.0 >> 16);
-            self.fee_pool -= base_fees;
-            let tips = self.tips;
-            self.tips = 0.into();
-            let pseudocoin_id = CoinID::proposer_reward(self.height);
-            let pseudocoin_data = CoinDataHeight {
-                coin_data: CoinData {
-                    covhash: action.reward_dest,
-                    value: base_fees + tips,
-                    denom: Denom::Mel,
-                    additional_data: vec![],
-                },
-                height: self.height,
-            };
-            // insert the fake coin
-            self.coins
-                .insert_coin(pseudocoin_id, pseudocoin_data, self.tip_906());
+            self.apply_proposer_action(action, self.tip_901());
         }
         // create the finalized state
         SealedState(self, action)
