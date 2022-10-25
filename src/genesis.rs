@@ -24,7 +24,7 @@ pub struct GenesisConfig {
     pub init_fee_pool: CoinValue,
 }
 
-impl GenesisConfig { 
+impl GenesisConfig {
     /// The "standard" mainnet genesis.
     pub fn std_mainnet() -> Self {
         Self {

@@ -181,7 +181,11 @@ impl Executor {
             // eprintln!();
             self.pc += 1;
             // eprintln!("running {:?}", op);
-            log::debug!("Getting next instruction {op:?} @ {}, loop state {:?}", self.pc+1, self.loop_state);
+            log::debug!(
+                "Getting next instruction {op:?} @ {}, loop state {:?}",
+                self.pc + 1,
+                self.loop_state
+            );
             match op {
                 #[cfg(feature = "print")]
                 OpCode::Print => self.do_monop(|x| {

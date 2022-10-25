@@ -204,7 +204,7 @@ impl<C: ContentAddrStore> State<C> {
             .filter(move |sd| height.epoch() >= sd.e_start && height.epoch() < sd.e_post_end)
     }
 
-    fn apply_tip_901(&mut self) {
+    fn apply_tip_909(&mut self) {
         let divider = self.height.0.saturating_sub(TIP_909_HEIGHT.0) / 1_000_000;
         let reward = (1u128 << 20) >> divider;
         let tip909a_erg_subsidy = reward >> 8;
@@ -294,7 +294,7 @@ impl<C: ContentAddrStore> State<C> {
 
         // then apply tip 909
         if self.tip_909() {
-            self.apply_tip_901();
+            self.apply_tip_909();
         }
 
         // apply the proposer action
