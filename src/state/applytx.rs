@@ -379,14 +379,12 @@ fn check_tx_validity<C: ContentAddrStore>(
     let last_header = this
         .history
         .get(&(this.height.0.saturating_sub(1).into()))
-        .0
         .unwrap_or_else(|| this.clone().seal(None).header());
 
     for (spend_idx, coin_id) in tx.inputs.iter().enumerate() {
         // Workaround for BUGGY old code!
         // TODO: add some details for this
-        if (new_stakes.contains_key(&coin_id.txhash)
-            || this.stakes.get(&coin_id.txhash).0.is_some())
+        if (new_stakes.contains_key(&coin_id.txhash) || this.stakes.get(&coin_id.txhash).is_some())
             && !((this.network == NetID::Mainnet || this.network == NetID::Testnet)
                 && this.height.0 < 900000)
         {
@@ -477,7 +475,6 @@ fn validate_and_get_doscmint_speed<C: ContentAddrStore>(
         &this
             .history
             .get(&coin_data.height)
-            .0
             .ok_or(StateError::InvalidMelPoW)?
             .hash(),
         &stdcode::serialize(tx.inputs.get(0).unwrap()).unwrap(),
@@ -496,7 +493,6 @@ fn validate_and_get_doscmint_speed<C: ContentAddrStore>(
         my_speed,
         this.history
             .get(&BlockHeight(this.height.0 - 1))
-            .0
             .ok_or(StateError::InvalidMelPoW)?
             .dosc_speed,
         difficulty,

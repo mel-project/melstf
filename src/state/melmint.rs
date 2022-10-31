@@ -131,7 +131,6 @@ fn create_builtins<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
     if state
         .pools
         .get(&PoolKey::new(Denom::Mel, Denom::Sym))
-        .0
         .is_none()
     {
         state
@@ -141,7 +140,6 @@ fn create_builtins<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
     if state
         .pools
         .get(&PoolKey::new(Denom::Mel, Denom::Erg))
-        .0
         .is_none()
     {
         state
@@ -152,7 +150,6 @@ fn create_builtins<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
         && state
             .pools
             .get(&PoolKey::new(Denom::Erg, Denom::Sym))
-            .0
             .is_none()
     {
         state
@@ -168,7 +165,7 @@ fn process_swaps_for_single_pool<C: ContentAddrStore>(
     swaps: &mut Vec<Transaction>,
 ) {
     log::trace!("{} relevant swaps for pool {:?}", swaps.len(), pool);
-    let mut pool_state = state.pools.get(pool).0.unwrap();
+    let mut pool_state = state.pools.get(pool).unwrap();
     // sum up total lefts and rights
     let total_lefts = swaps
         .iter()
@@ -235,7 +232,7 @@ fn process_swaps<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
             (!tx.outputs.is_empty()).then(|| ())?; // ensure not empty
             state.coins.get_coin(tx.output_coinid(0))?; // ensure that first output is unspent
             let pool_key = PoolKey::from_bytes(&tx.data)?; // ensure that data contains a pool key
-            state.pools.get(&pool_key).0?; // ensure that pool key points to a valid pool
+            state.pools.get(&pool_key)?; // ensure that pool key points to a valid pool
             (tx.outputs[0].denom == pool_key.left() || tx.outputs[0].denom == pool_key.right())
                 .then(|| ())?; // ensure that the first output is either left or right
             Some(tx)
@@ -274,7 +271,7 @@ fn process_deposits_for_single_pool<C: ContentAddrStore>(
 
     let total_mtsqrt = total_lefts.sqrt().saturating_mul(total_rights.sqrt());
     // main logic here
-    let total_liqs = if let Some(mut pool_state) = state.pools.get(pool).0 {
+    let total_liqs = if let Some(mut pool_state) = state.pools.get(pool) {
         let liq = pool_state.deposit(total_lefts, total_rights);
         state.pools.insert(*pool, pool_state);
         liq
@@ -363,7 +360,7 @@ fn process_withdrawals_for_single_pool<C: ContentAddrStore>(
         .map(|tx| tx.outputs[0].value.0)
         .fold(0u128, |a, b| a.saturating_add(b));
     // get the state
-    let mut pool_state = state.pools.get(pool).0.unwrap();
+    let mut pool_state = state.pools.get(pool).unwrap();
     let (total_left, total_write) = pool_state.withdraw(total_liqs);
     state.pools.insert(*pool, pool_state);
     // divvy up the lefts and rights
@@ -414,7 +411,7 @@ fn process_withdrawals<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
                 && state.coins.get_coin(tx.output_coinid(0)).is_some())
             .then(|| ())?;
             let pool_key = PoolKey::from_bytes(&tx.data)?;
-            state.pools.get(&pool_key).0?;
+            state.pools.get(&pool_key)?;
             (tx.outputs[0].denom == pool_key.liq_token_denom()).then(|| tx)
         })
         .collect::<Vec<_>>();
@@ -435,7 +432,6 @@ fn process_pegging<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
         state
             .pools
             .get(&PoolKey::new(Denom::Sym, Denom::Erg))
-            .0
             .unwrap()
             .implied_price() // doscs per sym
             .recip() // syms per dosc
@@ -443,14 +439,12 @@ fn process_pegging<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
         let x_s = state
             .pools
             .get(&PoolKey::new(Denom::Mel, Denom::Sym))
-            .0
             .unwrap()
             .implied_price()
             .recip();
         let x_d = state
             .pools
             .get(&PoolKey::new(Denom::Mel, Denom::Erg))
-            .0
             .unwrap()
             .implied_price()
             .recip();
@@ -463,7 +457,6 @@ fn process_pegging<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
     let mut sm_pool = state
         .pools
         .get(&PoolKey::new(Denom::Mel, Denom::Sym))
-        .0
         .unwrap();
     let konstant = BigInt::from(sm_pool.lefts) * BigInt::from(sm_pool.rights);
     // desired mel and sym
@@ -609,7 +602,7 @@ mod tests {
             dbg!(pool);
         });
 
-        dbg!(second_sealed.inner_ref().pools.get(&pool_key).0.unwrap());
+        dbg!(second_sealed.inner_ref().pools.get(&pool_key).unwrap());
     }
 }
 

@@ -217,7 +217,6 @@ impl<C: ContentAddrStore> State<C> {
         let mut smpool = self
             .pools
             .get(&PoolKey::new(Denom::Mel, Denom::Sym))
-            .0
             .unwrap();
         let (mel, _) = smpool.swap_many(0, fee_subsidy);
         self.pools
@@ -232,7 +231,6 @@ impl<C: ContentAddrStore> State<C> {
         let mut espool = self
             .pools
             .get(&PoolKey::new(Denom::Erg, Denom::Sym))
-            .0
             .unwrap();
         let _ = espool.swap_many(0, erg_subsidy);
         self.pools
@@ -361,7 +359,7 @@ impl<C: ContentAddrStore> SealedState<C> {
         Header {
             network: inner.network,
             previous: (inner.height.0.checked_sub(1))
-                .map(|height| inner.history.get(&BlockHeight(height)).0.unwrap().hash())
+                .map(|height| inner.history.get(&BlockHeight(height)).unwrap().hash())
                 .unwrap_or_default(),
             height: inner.height,
             history_hash: inner.history.root_hash(),
