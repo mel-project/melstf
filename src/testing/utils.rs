@@ -4,17 +4,6 @@ use themelio_structs::{CoinData, CoinID, CoinValue, Denom, Transaction, TxKind};
 
 use crate::melvm::{self, Covenant};
 
-pub fn random_valid_txx(
-    rng: &mut impl rand::Rng,
-    start_coin: CoinID,
-    start_coindata: CoinData,
-    signer: tmelcrypt::Ed25519SK,
-    covenant: &melvm::Covenant,
-    fee: CoinValue,
-) -> Vec<Transaction> {
-    random_valid_txx_count(rng, start_coin, start_coindata, signer, covenant, fee, 100)
-}
-
 pub fn random_valid_txx_count(
     rng: &mut impl rand::Rng,
     start_coin: CoinID,

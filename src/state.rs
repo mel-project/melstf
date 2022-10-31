@@ -254,7 +254,7 @@ impl<C: ContentAddrStore> State<C> {
         if scaled_movement >= 0 {
             self.fee_multiplier += scaled_movement as u128;
         } else {
-            self.fee_multiplier -= scaled_movement.abs() as u128;
+            self.fee_multiplier -= scaled_movement.unsigned_abs() as u128;
         }
     }
 
@@ -556,7 +556,7 @@ mod tests {
             sigs: vec![],
         };
 
-        let _first_transaction_result: () = state.apply_tx(&first_transaction).unwrap();
+        state.apply_tx(&first_transaction).unwrap();
 
         let mut covenant: Covenant = Covenant::from_ops(&[
             OpCode::PushI(1_u8.into()),
@@ -668,7 +668,7 @@ mod tests {
                     sigs: vec![],
                 };
 
-                let _first_transaction_result: () = state.apply_tx(&faucet_transaction).unwrap();
+                state.apply_tx(&faucet_transaction).unwrap();
 
                 faucet_transaction.output_coinid(0)
             })
@@ -719,7 +719,7 @@ mod tests {
             sigs: vec![],
         };
 
-        let _first_transaction_result: () = state.apply_tx(&first_transaction).unwrap();
+        state.apply_tx(&first_transaction).unwrap();
 
         let mut covenant: Covenant = Covenant::from_ops(&[
             OpCode::PushI(1_u8.into()),
@@ -764,7 +764,7 @@ mod tests {
             sigs: vec![],
         };
 
-        let _first_transaction_result: () = state.clone().apply_tx(&first_transaction).unwrap();
+        state.clone().apply_tx(&first_transaction).unwrap();
 
         let second_transaction: Transaction = Transaction {
             kind: TxKind::Normal,

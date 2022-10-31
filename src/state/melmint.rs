@@ -104,7 +104,7 @@ pub fn preseal_melmint<C: ContentAddrStore>(state: State<C>) -> State<C> {
     process_pegging(state)
 }
 
-fn extract_pool_keys(transactions: &mut Vec<Transaction>) -> Vec<PoolKey> {
+fn extract_pool_keys(transactions: &mut [Transaction]) -> Vec<PoolKey> {
     transactions
         .iter()
         .filter_map(|tx| PoolKey::from_bytes(&tx.data))
@@ -116,7 +116,7 @@ fn extract_pool_keys(transactions: &mut Vec<Transaction>) -> Vec<PoolKey> {
         })
 }
 
-fn transactions_for_pool(transactions: &Vec<Transaction>, pool_key: &PoolKey) -> Vec<Transaction> {
+fn transactions_for_pool(transactions: &[Transaction], pool_key: &PoolKey) -> Vec<Transaction> {
     transactions
         .iter()
         .filter(|tx| Some(pool_key) == PoolKey::from_bytes(&tx.data).as_ref())
@@ -259,7 +259,7 @@ fn process_swaps<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
 fn process_deposits_for_single_pool<C: ContentAddrStore>(
     pool: &PoolKey,
     state: &mut State<C>,
-    deposits: &mut Vec<Transaction>,
+    deposits: &mut [Transaction],
 ) {
     // sum up total lefts and rights
     let total_lefts: u128 = deposits
@@ -355,7 +355,7 @@ fn process_deposits<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
 fn process_withdrawals_for_single_pool<C: ContentAddrStore>(
     pool: &PoolKey,
     state: &mut State<C>,
-    relevant_txx: &mut Vec<Transaction>,
+    relevant_txx: &mut [Transaction],
 ) {
     // sum up total liqs
     let total_liqs = relevant_txx
@@ -566,7 +566,7 @@ mod tests {
             fee: 2000.into(),
             covenants: vec![Covenant::std_ed25519_pk_legacy(my_pk).0.into()],
             data: vec![].into(),
-            sigs: vec![].into(),
+            sigs: vec![],
         }
         .signed_ed25519(my_sk);
         second_state.apply_tx(&newcoin_tx).unwrap();
@@ -599,7 +599,7 @@ mod tests {
             fee: 2000.into(),
             covenants: vec![Covenant::std_ed25519_pk_legacy(my_pk).0.into()],
             data: pool_key.to_bytes(), // this is important, since it "points" to the pool
-            sigs: vec![].into(),
+            sigs: vec![],
         }
         .signed_ed25519(my_sk);
         second_state.apply_tx(&deposit_tx).unwrap();
