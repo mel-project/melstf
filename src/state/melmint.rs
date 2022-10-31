@@ -229,12 +229,12 @@ fn process_swaps<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
         .values()
         .cloned()
         .filter_map(|tx| {
-            (!tx.outputs.is_empty()).then(|| ())?; // ensure not empty
+            (!tx.outputs.is_empty()).then_some(())?; // ensure not empty
             state.coins.get_coin(tx.output_coinid(0))?; // ensure that first output is unspent
             let pool_key = PoolKey::from_bytes(&tx.data)?; // ensure that data contains a pool key
             state.pools.get(&pool_key)?; // ensure that pool key points to a valid pool
             (tx.outputs[0].denom == pool_key.left() || tx.outputs[0].denom == pool_key.right())
-                .then(|| ())?; // ensure that the first output is either left or right
+                .then_some(())?; // ensure that the first output is either left or right
             Some(tx)
         })
         .collect::<Vec<Transaction>>();
@@ -332,10 +332,10 @@ fn process_deposits<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
                 && tx.outputs.len() >= 2
                 && state.coins.get_coin(tx.output_coinid(0)).is_some()
                 && state.coins.get_coin(tx.output_coinid(1)).is_some())
-            .then(|| ())?;
+            .then_some(())?;
             let pool_key = PoolKey::from_bytes(&tx.data)?;
             (tx.outputs[0].denom == pool_key.left() && tx.outputs[1].denom == pool_key.right())
-                .then(|| tx)
+                .then_some(tx)
         })
         .collect::<Vec<_>>();
     log::trace!("{} deposit reqs", deposit_reqs.len());
@@ -409,10 +409,10 @@ fn process_withdrawals<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
             (tx.kind == TxKind::LiqWithdraw
                 && tx.outputs.len() == 1
                 && state.coins.get_coin(tx.output_coinid(0)).is_some())
-            .then(|| ())?;
+            .then_some(())?;
             let pool_key = PoolKey::from_bytes(&tx.data)?;
             state.pools.get(&pool_key)?;
-            (tx.outputs[0].denom == pool_key.liq_token_denom()).then(|| tx)
+            (tx.outputs[0].denom == pool_key.liq_token_denom()).then_some(tx)
         })
         .collect::<Vec<_>>();
     // find the pools mentioned

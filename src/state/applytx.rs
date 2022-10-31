@@ -472,8 +472,7 @@ fn validate_and_get_doscmint_speed<C: ContentAddrStore>(
     }
     // construct puzzle seed
     let puzzle = tmelcrypt::hash_keyed(
-        &this
-            .history
+        this.history
             .get(&coin_data.height)
             .ok_or(StateError::InvalidMelPoW)?
             .hash(),
@@ -506,7 +505,7 @@ fn validate_and_get_doscmint_speed<C: ContentAddrStore>(
 
 fn faucet_dedup_pseudocoin(txhash: TxHash) -> CoinID {
     CoinID {
-        txhash: tmelcrypt::hash_keyed(b"fdp", &txhash.0).into(),
+        txhash: tmelcrypt::hash_keyed(b"fdp", txhash.0).into(),
         index: 0,
     }
 }

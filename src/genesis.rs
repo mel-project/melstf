@@ -46,7 +46,7 @@ impl GenesisConfig {
                 .map(|v| Ed25519PK(hex::decode(v).unwrap().try_into().unwrap()))
                 .map(|pubkey| {
                     (
-                        tmelcrypt::hash_single(&pubkey.0).into(), // A nonexistent hash
+                        tmelcrypt::hash_single(pubkey.0).into(), // A nonexistent hash
                         StakeDoc {
                             pubkey,
                             e_start: 0,
@@ -80,7 +80,7 @@ impl GenesisConfig {
             .map(|v| Ed25519PK(hex::decode(v).unwrap().try_into().unwrap()))
             .map(|pubkey| {
                 (
-                    tmelcrypt::hash_single(&pubkey.0).into(),
+                    tmelcrypt::hash_single(pubkey.0).into(),
                     StakeDoc {
                         pubkey,
                         e_start: 0,

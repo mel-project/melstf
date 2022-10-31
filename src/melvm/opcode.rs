@@ -148,7 +148,7 @@ impl Display for OpCode {
             OpCode::ItoB => "itob".fmt(f),
             OpCode::BtoI => "btoi".fmt(f),
             OpCode::TypeQ => "typeq".fmt(f),
-            OpCode::PushB(v) => format!("pushb {}", hex::encode(&v)).fmt(f),
+            OpCode::PushB(v) => format!("pushb {}", hex::encode(v)).fmt(f),
             OpCode::PushI(i) => format!("pushi {}", i).fmt(f),
             OpCode::PushIC(i) => format!("pushic {}", i).fmt(f),
             OpCode::Dup => "dup".fmt(f),
@@ -290,9 +290,7 @@ impl OpCode {
                 let bytes_repr = i.to_be_bytes();
                 let leading_zeros = bytes_repr.iter().take_while(|i| **i == 0).count();
                 output.write_all(&[32 - (leading_zeros as u8)]).unwrap();
-                output
-                    .write_all(&bytes_repr[leading_zeros as usize..])
-                    .unwrap();
+                output.write_all(&bytes_repr[leading_zeros..]).unwrap();
             }
             OpCode::Dup => output.write_all(&[OPCODE_DUP]).unwrap(),
         };
