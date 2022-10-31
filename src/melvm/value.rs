@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use catvec::CatVec;
 use ethnum::U256;
 use themelio_structs::{CoinData, CoinDataHeight, CoinID, Denom, Header, Transaction};
@@ -149,8 +150,8 @@ impl From<Denom> for Value {
     }
 }
 
-impl From<Vec<u8>> for Value {
-    fn from(v: Vec<u8>) -> Self {
+impl From<Bytes> for Value {
+    fn from(v: Bytes) -> Self {
         Value::Bytes(v.into())
     }
 }

@@ -10,14 +10,14 @@ fn generate_txx(n: usize) -> Vec<Transaction> {
         covhash: Covenant::always_true().hash(),
         value: 100.into(),
         denom: Denom::Mel,
-        additional_data: vec![],
+        additional_data: vec![].into(),
     };
     let init = Transaction {
         kind: TxKind::Faucet,
         inputs: vec![],
         outputs: vec![fixed_output.clone()],
         fee: 0.into(),
-        data: vec![],
+        data: vec![].into(),
         covenants: vec![],
         sigs: vec![],
     };
@@ -29,8 +29,8 @@ fn generate_txx(n: usize) -> Vec<Transaction> {
             inputs: vec![prev],
             outputs: vec![fixed_output.clone()],
             fee: 0.into(),
-            data: vec![],
-            covenants: vec![Covenant::always_true().0],
+            data: vec![].into(),
+            covenants: vec![Covenant::always_true().0.into()],
             sigs: vec![],
         };
         prev = novyy.output_coinid(0);
@@ -46,7 +46,7 @@ fn zerofee_state() -> State<InMemoryCas> {
             covhash: Address::coin_destroy(),
             value: 0.into(),
             denom: Denom::Mel,
-            additional_data: vec![],
+            additional_data: vec![].into(),
         },
         stakes: Default::default(),
         init_fee_pool: 0.into(),

@@ -39,7 +39,7 @@ impl GenesisConfig {
                 .hash(),
                 value: (1000000 * MICRO_CONVERTER).into(), // 1 million SYM
                 denom: Denom::Sym,
-                additional_data: vec![],
+                additional_data: Default::default(),
             },
             stakes: ["7323dcb65513b84470a76339cdf0062d47d82e205e834f2d7159684a0cb3b5ba"]
                 .iter()
@@ -68,7 +68,7 @@ impl GenesisConfig {
                 covhash: Covenant::always_true().hash(),
                 value: (1 << 32).into(),
                 denom: Denom::Mel,
-                additional_data: vec![],
+                additional_data: Default::default(),
             },
             stakes: [
                 "fae1ff56a62639c7959bf200465f4e06291e4e4dbd751cf4d2c13a8a6bea537c",

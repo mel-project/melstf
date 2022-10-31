@@ -17,7 +17,7 @@ use std::{fmt::Display, io::Write};
 use ethnum::U256;
 use thiserror::Error;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OpCode {
     #[cfg(feature = "print")]
     Print,

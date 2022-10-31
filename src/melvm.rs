@@ -263,7 +263,8 @@ impl Covenant {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use quickcheck_macros::*;
+    use bytes::Bytes;
+
     use tap::Tap;
     fn dontcrash(data: &[u8]) {
         let script = Covenant(data.to_vec());
@@ -336,7 +337,7 @@ mod tests {
         let mut exec = Executor::new(
             ops,
             HashMap::new().tap_mut(|hm| {
-                hm.insert(0, vec![0u8; 4096].into());
+                hm.insert(0, Bytes::from(vec![0u8; 4096]).into());
             }),
         );
         exec.run_to_end();
@@ -359,24 +360,11 @@ mod tests {
         ])
         .unwrap();
         println!("script length is {}", check_sig_script.0.len());
-        let mut tx = Transaction::empty_test().signed_ed25519(sk);
+        let mut tx = Transaction::default().signed_ed25519(sk);
         assert!(check_sig_script.check_opt_env(&tx, None));
-        tx.sigs[0][0] ^= 123;
+        let mut sig = tx.sigs[0].to_vec();
+        sig[0] ^= 123;
+        tx.sigs[0] = sig.into();
         assert!(!check_sig_script.check_opt_env(&tx, None));
-    }
-
-    #[quickcheck]
-    fn deterministic_execution(bitcode: Vec<u8>) -> bool {
-        let ops = Covenant(bitcode).to_ops();
-        let tx = Transaction::empty_test();
-        match ops {
-            Err(_) => true,
-            Ok(ops) => {
-                let orig_script = Covenant::from_ops(&ops).unwrap();
-                let first = orig_script.check_opt_env(&tx, None);
-                let second = orig_script.check_opt_env(&tx, None);
-                first == second
-            }
-        }
     }
 }

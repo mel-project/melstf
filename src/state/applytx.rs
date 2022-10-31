@@ -1,5 +1,6 @@
 use std::{collections::HashMap, hash::BuildHasherDefault, time::Instant};
 
+use bytes::Bytes;
 use melpow::Proof;
 use novasmt::ContentAddrStore;
 use rayon::iter::{
@@ -94,7 +95,7 @@ fn handle_faucet_tx<C: ContentAddrStore>(
                 coin_data: CoinData {
                     denom: Denom::Mel,
                     value: 0.into(),
-                    additional_data: vec![],
+                    additional_data: vec![].into(),
                     covhash: HashVal::default().into(),
                 },
                 height: 0.into(),
@@ -293,7 +294,7 @@ fn validate_tx_scripts(
     tx: &Transaction,
     coin_data: &CoinDataHeight,
     last_header: Header,
-    scripts: HashMap<Address, Vec<u8>>,
+    scripts: HashMap<Address, Bytes>,
     good_scripts: &FxHashSet<Address>,
 ) -> Result<(), StateError> {
     log::trace!(
@@ -307,7 +308,8 @@ fn validate_tx_scripts(
             scripts
                 .get(&coin_data.coin_data.covhash)
                 .ok_or(StateError::NonexistentScript(coin_data.coin_data.covhash))?
-                .clone(),
+                .clone()
+                .into(),
         );
         if !script.check(
             tx,

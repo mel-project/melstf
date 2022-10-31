@@ -269,7 +269,7 @@ impl<C: ContentAddrStore> State<C> {
                 covhash: action.reward_dest,
                 value: base_fees + tips,
                 denom: Denom::Mel,
-                additional_data: vec![],
+                additional_data: Default::default(),
             },
             height: self.height,
         };
@@ -548,9 +548,9 @@ mod tests {
                 covhash: covenant_hash,
                 value: 20000.into(),
                 denom: Denom::Mel,
-                additional_data: vec![],
+                additional_data: vec![].into(),
             }],
-            data: vec![],
+            data: vec![].into(),
             fee: CoinValue(20000),
             covenants: vec![],
             sigs: vec![],
@@ -573,9 +573,12 @@ mod tests {
             kind: TxKind::Normal,
             inputs: vec![first_transaction.output_coinid(0)],
             outputs: vec![],
-            data: vec![],
+            data: vec![].into(),
             fee: CoinValue(1000),
-            covenants: vec![covenant.0, Covenant::std_ed25519_pk_legacy(public_key).0],
+            covenants: vec![
+                covenant.0.into(),
+                Covenant::std_ed25519_pk_legacy(public_key).0.into(),
+            ],
             sigs: vec![],
         };
 
@@ -654,10 +657,12 @@ mod tests {
                         value: MAX_COINVAL,
                         denom: Denom::Mel,
                         covhash: Covenant::always_true().hash(),
-                        additional_data: vec![],
+                        additional_data: vec![].into(),
                     }],
                     // random data so that the transactions are distinct (this avoids a DuplicateTx error)
-                    data: vec![0; 32].tap_mut(|v| rand::thread_rng().fill_bytes(v)),
+                    data: vec![0; 32]
+                        .tap_mut(|v| rand::thread_rng().fill_bytes(v))
+                        .into(),
                     fee: CoinValue(100000),
                     covenants: vec![],
                     sigs: vec![],
@@ -676,12 +681,12 @@ mod tests {
             outputs: vec![CoinData {
                 value: CoinValue(12345), // output is incorrect, but this is intentional. there are too many inputs to fit in a 128. the intention is that in the process of trying to balance the input and output, we want to trigger an overflow panic instead of correctly concluding that the sides do not balance and returning an unbalanced in out error.
                 denom: Denom::Mel,
-                additional_data: vec![],
+                additional_data: vec![].into(),
                 covhash: Covenant::always_true().hash(),
             }],
-            data: vec![],
+            data: vec![].into(),
             fee: CoinValue(0), // Because we are spending so many more coins than we are creating, our transaction is free (since it reduces long-term storage burden to the network).
-            covenants: vec![Covenant::always_true().0],
+            covenants: vec![Covenant::always_true().0.into()],
             sigs: vec![],
         };
 
@@ -706,9 +711,9 @@ mod tests {
                 covhash: covenant_hash,
                 value: 20000.into(),
                 denom: Denom::Mel,
-                additional_data: vec![],
+                additional_data: vec![].into(),
             }],
-            data: vec![],
+            data: vec![].into(),
             fee: CoinValue(20000),
             covenants: vec![],
             sigs: vec![],
@@ -731,9 +736,9 @@ mod tests {
             kind: TxKind::Normal,
             inputs: vec![first_transaction.output_coinid(0)],
             outputs: vec![],
-            data: vec![],
+            data: vec![].into(),
             fee: CoinValue(1000),
-            covenants: vec![covenant.0],
+            covenants: vec![covenant.0.into()],
             sigs: vec![],
         };
 
@@ -753,7 +758,7 @@ mod tests {
             kind: TxKind::Faucet,
             inputs: vec![],
             outputs: vec![],
-            data: vec![],
+            data: vec![].into(),
             fee: CoinValue(1000),
             covenants: vec![],
             sigs: vec![],
@@ -765,7 +770,7 @@ mod tests {
             kind: TxKind::Normal,
             inputs: vec![first_transaction.output_coinid(0)],
             outputs: vec![],
-            data: vec![],
+            data: vec![].into(),
             fee: CoinValue(1000),
             covenants: vec![],
             sigs: vec![],
@@ -794,9 +799,9 @@ mod tests {
             kind: TxKind::Faucet,
             inputs: vec![],
             outputs: vec![],
-            data: vec![],
+            data: vec![].into(),
             fee: CoinValue(1000),
-            covenants: vec![covenant.0],
+            covenants: vec![covenant.0.into()],
             sigs: vec![],
         };
 
@@ -814,7 +819,7 @@ mod tests {
             kind: TxKind::Normal,
             inputs: vec![],
             outputs: vec![],
-            data: vec![],
+            data: vec![].into(),
             fee: CoinValue(1000),
             covenants: vec![],
             sigs: vec![],
@@ -878,7 +883,7 @@ mod tests {
                 kind: TxKind::Faucet,
                 inputs: vec![],
                 outputs: vec![],
-                data: vec![],
+                data: vec![].into(),
                 fee: CoinValue(1000),
                 covenants: vec![],
                 sigs: vec![],
@@ -896,7 +901,7 @@ mod tests {
                 denom: Denom::Mel,
                 covhash: Address(Default::default()),
                 value: CoinValue(100000),
-                additional_data: vec![],
+                additional_data: vec![].into(),
             })
             .fee(CoinValue(20000))
             .build()
@@ -916,7 +921,7 @@ mod tests {
                 denom: Denom::Mel,
                 covhash: Address(Default::default()),
                 value: CoinValue(100000),
-                additional_data: vec![],
+                additional_data: vec![].into(),
             })
             .fee(CoinValue(20000))
             .build()
@@ -940,18 +945,18 @@ mod tests {
                     denom: Denom::Sym,
                     value: CoinValue(1000),
                     covhash: Covenant::always_true().hash(),
-                    additional_data: vec![],
+                    additional_data: vec![].into(),
                 },
                 CoinData {
                     denom: Denom::Mel,
                     value: CoinValue(1000),
                     covhash: Covenant::always_true().hash(),
-                    additional_data: vec![],
+                    additional_data: vec![].into(),
                 },
             ],
             fee: CoinValue(0),
             covenants: vec![],
-            data: vec![],
+            data: vec![].into(),
             sigs: vec![],
         };
         state.apply_tx(&sym_faucet).unwrap();
@@ -961,7 +966,7 @@ mod tests {
             .input(sym_faucet.output_coinid(0), sym_faucet.outputs[0].clone())
             .input(sym_faucet.output_coinid(1), sym_faucet.outputs[1].clone())
             .output(sym_faucet.outputs[0].clone())
-            .covenant(Covenant::always_true().0)
+            .covenant(Covenant::always_true().0.into())
             .output(sym_faucet.outputs[1].clone())
             .data(
                 StakeDoc {
@@ -970,7 +975,8 @@ mod tests {
                     e_post_end: 2,
                     syms_staked: CoinValue(1000),
                 }
-                .stdcode(),
+                .stdcode()
+                .into(),
             )
             .build()
             .unwrap();
@@ -982,9 +988,9 @@ mod tests {
                 denom: Denom::Sym,
                 value: CoinValue(1000),
                 covhash: Covenant::always_true().hash(),
-                additional_data: vec![],
+                additional_data: vec![].into(),
             })
-            .covenant(Covenant::always_true().0)
+            .covenant(Covenant::always_true().0.into())
             .fee(CoinValue(1000))
             .build()
             .unwrap();

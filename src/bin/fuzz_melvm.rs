@@ -1,3 +1,4 @@
+use bytes::Bytes;
 #[cfg(fuzzing)]
 use honggfuzz::fuzz;
 use themelio_stf::melvm::Covenant;
@@ -32,11 +33,10 @@ fn test_once(data: &[u8]) {
     }
     eprintln!("{:?}", covenant.to_ops());
     eprintln!("{:?}", second.len());
-    covenant.debug_run_without_transaction(&[second
-        .iter()
-        .map(|_f| 0u8)
-        .collect::<Vec<_>>()
-        .into()]);
+    covenant.debug_run_without_transaction(&[Bytes::from(
+        second.iter().map(|_f| 0u8).collect::<Vec<_>>(),
+    )
+    .into()]);
     if let Ok(ops) = covenant.to_ops() {
         assert_eq!(Covenant::from_ops(&ops).unwrap(), covenant);
     }

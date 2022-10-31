@@ -128,11 +128,25 @@ fn transactions_for_pool(transactions: &Vec<Transaction>, pool_key: &PoolKey) ->
 fn create_builtins<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
     let mut def = PoolState::new_empty();
     let _ = def.deposit(MICRO_CONVERTER * 1000, MICRO_CONVERTER * 1000);
-    if state.pools.get(&PoolKey::mel_and(Denom::Sym)).0.is_none() {
-        state.pools.insert(PoolKey::mel_and(Denom::Sym), def)
+    if state
+        .pools
+        .get(&PoolKey::new(Denom::Mel, Denom::Sym))
+        .0
+        .is_none()
+    {
+        state
+            .pools
+            .insert(PoolKey::new(Denom::Mel, Denom::Sym), def)
     }
-    if state.pools.get(&PoolKey::mel_and(Denom::Erg)).0.is_none() {
-        state.pools.insert(PoolKey::mel_and(Denom::Erg), def)
+    if state
+        .pools
+        .get(&PoolKey::new(Denom::Mel, Denom::Erg))
+        .0
+        .is_none()
+    {
+        state
+            .pools
+            .insert(PoolKey::new(Denom::Mel, Denom::Erg), def)
     }
     if state.tip_902()
         && state
@@ -159,7 +173,7 @@ fn process_swaps_for_single_pool<C: ContentAddrStore>(
     let total_lefts = swaps
         .iter()
         .map(|tx| {
-            if tx.outputs[0].denom == pool.left {
+            if tx.outputs[0].denom == pool.left() {
                 tx.outputs[0].value
             } else {
                 CoinValue(0)
@@ -169,7 +183,7 @@ fn process_swaps_for_single_pool<C: ContentAddrStore>(
     let total_rights = swaps
         .iter()
         .map(|tx| {
-            if tx.outputs[0].denom == pool.right {
+            if tx.outputs[0].denom == pool.right() {
                 tx.outputs[0].value
             } else {
                 CoinValue(0)
@@ -182,15 +196,15 @@ fn process_swaps_for_single_pool<C: ContentAddrStore>(
     swaps.iter_mut().for_each(|swap| {
         let correct_coinid = swap.output_coinid(0);
 
-        if swap.outputs[0].denom == pool.left {
-            swap.outputs[0].denom = pool.right;
+        if swap.outputs[0].denom == pool.left() {
+            swap.outputs[0].denom = pool.right();
             swap.outputs[0].value = CoinValue(multiply_frac(
                 right_withdrawn,
                 Ratio::new(swap.outputs[0].value.0, total_lefts),
             ))
             .min(MAX_COINVAL);
         } else {
-            swap.outputs[0].denom = pool.left;
+            swap.outputs[0].denom = pool.left();
             swap.outputs[0].value = CoinValue(multiply_frac(
                 left_withdrawn,
                 Ratio::new(swap.outputs[0].value.0, total_rights),
@@ -222,7 +236,7 @@ fn process_swaps<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
             state.coins.get_coin(tx.output_coinid(0))?; // ensure that first output is unspent
             let pool_key = PoolKey::from_bytes(&tx.data)?; // ensure that data contains a pool key
             state.pools.get(&pool_key).0?; // ensure that pool key points to a valid pool
-            (tx.outputs[0].denom == pool_key.left || tx.outputs[0].denom == pool_key.right)
+            (tx.outputs[0].denom == pool_key.left() || tx.outputs[0].denom == pool_key.right())
                 .then(|| ())?; // ensure that the first output is either left or right
             Some(tx)
         })
@@ -323,7 +337,7 @@ fn process_deposits<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
                 && state.coins.get_coin(tx.output_coinid(1)).is_some())
             .then(|| ())?;
             let pool_key = PoolKey::from_bytes(&tx.data)?;
-            (tx.outputs[0].denom == pool_key.left && tx.outputs[1].denom == pool_key.right)
+            (tx.outputs[0].denom == pool_key.left() && tx.outputs[1].denom == pool_key.right())
                 .then(|| tx)
         })
         .collect::<Vec<_>>();
@@ -358,11 +372,11 @@ fn process_withdrawals_for_single_pool<C: ContentAddrStore>(
         let coinid_1 = deposit.output_coinid(1);
 
         let my_liqs = deposit.outputs[0].value.0;
-        deposit.outputs[0].denom = pool.left;
+        deposit.outputs[0].denom = pool.left();
         deposit.outputs[0].value =
             multiply_frac(total_left, Ratio::new(my_liqs, total_liqs)).into();
         let synth = CoinData {
-            denom: pool.right,
+            denom: pool.right(),
             value: multiply_frac(total_write, Ratio::new(my_liqs, total_liqs)).into(),
             covhash: deposit.outputs[0].covhash,
             additional_data: deposit.outputs[0].additional_data.clone(),
@@ -428,14 +442,14 @@ fn process_pegging<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
     } else {
         let x_s = state
             .pools
-            .get(&PoolKey::mel_and(Denom::Sym))
+            .get(&PoolKey::new(Denom::Mel, Denom::Sym))
             .0
             .unwrap()
             .implied_price()
             .recip();
         let x_d = state
             .pools
-            .get(&PoolKey::mel_and(Denom::Erg))
+            .get(&PoolKey::new(Denom::Mel, Denom::Erg))
             .0
             .unwrap()
             .implied_price()
@@ -446,7 +460,11 @@ fn process_pegging<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
     let throttler = if state.tip_902() { 200 } else { 1000 };
 
     // get the right pool
-    let mut sm_pool = state.pools.get(&PoolKey::mel_and(Denom::Sym)).0.unwrap();
+    let mut sm_pool = state
+        .pools
+        .get(&PoolKey::new(Denom::Mel, Denom::Sym))
+        .0
+        .unwrap();
     let konstant = BigInt::from(sm_pool.lefts) * BigInt::from(sm_pool.rights);
     // desired mel and sym
     let desired_x_sm = dosc_inflator(state.height) * x_sd;
@@ -475,7 +493,9 @@ fn process_pegging<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
         let delta = (desired_sym - sm_pool.rights) / throttler;
         let _ = sm_pool.swap_many(0, delta);
     }
-    state.pools.insert(PoolKey::mel_and(Denom::Sym), sm_pool);
+    state
+        .pools
+        .insert(PoolKey::new(Denom::Mel, Denom::Sym), sm_pool);
     // return the state now
     assert!(state.pools.val_iter().count() >= 2);
     state
@@ -516,7 +536,7 @@ mod tests {
                     value: 12000.into(),
                     denom: Denom::Mel,
                     covhash: my_covhash,
-                    additional_data: vec![],
+                    additional_data: vec![].into(),
                 },
                 height: 100.into(),
             },
@@ -534,52 +554,52 @@ mod tests {
                     covhash: my_covhash,
                     value: 10000.into(),
                     denom: Denom::Mel,
-                    additional_data: vec![],
+                    additional_data: vec![].into(),
                 },
                 CoinData {
                     covhash: my_covhash,
                     value: 10000.into(),
                     denom: Denom::NewCoin,
-                    additional_data: vec![],
+                    additional_data: vec![].into(),
                 },
             ],
             fee: 2000.into(),
-            covenants: vec![Covenant::std_ed25519_pk_legacy(my_pk).0],
-            data: vec![],
-            sigs: vec![],
+            covenants: vec![Covenant::std_ed25519_pk_legacy(my_pk).0.into()],
+            data: vec![].into(),
+            sigs: vec![].into(),
         }
         .signed_ed25519(my_sk);
         second_state.apply_tx(&newcoin_tx).unwrap();
-        let pool_key = PoolKey::mel_and(Denom::Custom(newcoin_tx.hash_nosigs()));
+        let pool_key = PoolKey::new(Denom::Mel, Denom::Custom(newcoin_tx.hash_nosigs()));
         let deposit_tx = Transaction {
             kind: TxKind::LiqDeposit,
             inputs: vec![newcoin_tx.output_coinid(0), newcoin_tx.output_coinid(1)],
             outputs: vec![
                 CoinData {
                     covhash: my_covhash,
-                    value: if pool_key.left == Denom::Mel {
+                    value: if pool_key.left() == Denom::Mel {
                         8000.into()
                     } else {
                         10000.into()
                     },
-                    denom: pool_key.left,
-                    additional_data: vec![],
+                    denom: pool_key.left(),
+                    additional_data: vec![].into(),
                 },
                 CoinData {
                     covhash: my_covhash,
-                    value: if pool_key.left == Denom::Mel {
+                    value: if pool_key.left() == Denom::Mel {
                         10000.into()
                     } else {
                         8000.into()
                     },
-                    denom: pool_key.right,
-                    additional_data: vec![],
+                    denom: pool_key.right(),
+                    additional_data: vec![].into(),
                 },
             ],
             fee: 2000.into(),
-            covenants: vec![Covenant::std_ed25519_pk_legacy(my_pk).0],
+            covenants: vec![Covenant::std_ed25519_pk_legacy(my_pk).0.into()],
             data: pool_key.to_bytes(), // this is important, since it "points" to the pool
-            sigs: vec![],
+            sigs: vec![].into(),
         }
         .signed_ed25519(my_sk);
         second_state.apply_tx(&deposit_tx).unwrap();

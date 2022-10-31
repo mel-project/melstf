@@ -38,11 +38,11 @@ pub fn random_valid_txx_count(
                 covhash: covenant.hash(),
                 value: to_spend_data.value - fee,
                 denom: Denom::Mel,
-                additional_data: vec![],
+                additional_data: vec![].into(),
             }],
             fee,
-            covenants: vec![covenant.clone().0, Covenant::always_true().0],
-            data: vec![],
+            covenants: vec![covenant.clone().0.into(), Covenant::always_true().0.into()],
+            data: vec![].into(),
             sigs: vec![],
         };
         new_tx = new_tx.signed_ed25519(signer);

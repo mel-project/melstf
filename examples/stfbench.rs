@@ -14,7 +14,7 @@ fn main() {
         init_coindata: CoinData {
             value: CoinValue(10000),
             denom: Denom::Mel,
-            additional_data: vec![],
+            additional_data: vec![].into(),
             covhash: Covenant::always_true().hash(),
         },
         stakes: Default::default(),
@@ -39,19 +39,19 @@ fn main() {
                 CoinData {
                     value: CoinValue(10000),
                     denom: Denom::Mel,
-                    additional_data: vec![],
+                    additional_data: vec![].into(),
                     covhash: Covenant::always_true().hash(),
                 },
                 CoinData {
                     value: CoinValue(10000),
                     denom: Denom::Mel,
-                    additional_data: vec![],
+                    additional_data: vec![].into(),
                     covhash: Covenant::always_true().hash(),
                 },
             ],
             fee: CoinValue(100000000),
-            covenants: vec![Covenant::always_true().0],
-            data,
+            covenants: vec![Covenant::always_true().0.into()],
+            data: data.into(),
             sigs: vec![],
         };
         if cue.len() > 5000 {
