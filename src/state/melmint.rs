@@ -104,7 +104,7 @@ pub fn preseal_melmint<C: ContentAddrStore>(state: State<C>) -> State<C> {
     process_pegging(state)
 }
 
-fn extract_pool_keys(transactions: &mut [Transaction]) -> Vec<PoolKey> {
+fn extract_pool_keys_sorted(transactions: &mut [Transaction]) -> Vec<PoolKey> {
     transactions
         .iter()
         .filter_map(|tx| PoolKey::from_bytes(&tx.data))
@@ -246,7 +246,7 @@ fn process_swaps<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
     log::trace!("{} swap requests", swap_reqs.len());
 
     // find the pools mentioned
-    let pools = extract_pool_keys(&mut swap_reqs);
+    let pools = extract_pool_keys_sorted(&mut swap_reqs);
 
     // for each pool
     pools.iter().for_each(|pool| {
@@ -348,7 +348,7 @@ fn process_deposits<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
     let mut deposit_reqs = get_deposit_transactions(&state);
     log::trace!("{} deposit reqs", deposit_reqs.len());
     // find the pools mentioned
-    let pools = extract_pool_keys(&mut deposit_reqs);
+    let pools = extract_pool_keys_sorted(&mut deposit_reqs);
     pools.iter().for_each(|pool| {
         let mut relevant_txx: Vec<Transaction> = transactions_for_pool(&deposit_reqs, pool);
         process_deposits_for_single_pool(pool, &mut state, &mut relevant_txx);
@@ -429,7 +429,7 @@ fn process_withdrawals<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
     // find the withdrawal requests
     let mut withdraw_reqs: Vec<Transaction> = get_withdrawal_transactions(&state);
     // find the pools mentioned
-    let pools = extract_pool_keys(&mut withdraw_reqs);
+    let pools = extract_pool_keys_sorted(&mut withdraw_reqs);
     pools.iter().for_each(|pool| {
         let mut relevant_txx: Vec<Transaction> = transactions_for_pool(&withdraw_reqs, pool);
         process_withdrawals_for_single_pool(pool, &mut state, &mut relevant_txx);
