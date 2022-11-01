@@ -386,6 +386,25 @@ impl<C: ContentAddrStore> SealedState<C> {
             proposer_action: self.1,
         }
     }
+
+    fn apply_tip_906_for_next_state(next_state: &mut State<C>) {
+        log::warn!("DOING TIP-906 TRANSITION NOW!");
+        let old_tree = next_state.coins.inner().clone();
+        let mut count = old_tree.count();
+        for (_, v) in old_tree.iter() {
+            let cdh: CoinDataHeight =
+                stdcode::deserialize(&v).expect("pre-tip906 coin tree has non-cdh elements?!");
+            let old_count = next_state.coins.coin_count(cdh.coin_data.covhash);
+            next_state
+                .coins
+                .insert_coin_count(cdh.coin_data.covhash, old_count + 1);
+            if count % 100 == 0 {
+                log::warn!("{} left", count);
+            }
+            count -= 1;
+        }
+    }
+
     /// Creates a new unfinalized state representing the next block.
     pub fn next_state(&self) -> State<C> {
         let mut new = State::clone(self.inner_ref());
@@ -394,25 +413,13 @@ impl<C: ContentAddrStore> SealedState<C> {
         new.height += BlockHeight(1);
         new.stakes.remove_stale((new.height / STAKE_EPOCH).0);
         new.transactions.clear();
+
         // TIP-906 transition
         if new.tip_906() && !self.inner_ref().tip_906() {
-            log::warn!("DOING TIP-906 TRANSITION NOW!");
-            let old_tree = new.coins.inner().clone();
-            let mut count = old_tree.count();
-            for (_, v) in old_tree.iter() {
-                let cdh: CoinDataHeight =
-                    stdcode::deserialize(&v).expect("pre-tip906 coin tree has non-cdh elements?!");
-                let old_count = new.coins.coin_count(cdh.coin_data.covhash);
-                new.coins
-                    .insert_coin_count(cdh.coin_data.covhash, old_count + 1);
-                if count % 100 == 0 {
-                    log::warn!("{} left", count);
-                }
-                count -= 1;
-            }
+            Self::apply_tip_906_for_next_state(&mut new);
         }
+
         new
-        // }
     }
 
     /// Applies a block to this state.
