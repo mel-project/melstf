@@ -221,10 +221,9 @@ fn process_swaps_for_single_pool<C: ContentAddrStore>(
     state.pools.insert(*pool, pool_state);
 }
 
-/// Process swaps.
-fn process_swaps<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
-    // find the swap requests
-    let mut swap_reqs: Vec<Transaction> = state
+/// Extract the swap requests from the given `State`.
+fn get_swap_transactions<C: ContentAddrStore>(state: &State<C>) -> Vec<Transaction> {
+    state
         .transactions
         .values()
         .cloned()
@@ -237,7 +236,12 @@ fn process_swaps<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
                 .then_some(())?; // ensure that the first output is either left or right
             Some(tx)
         })
-        .collect::<Vec<Transaction>>();
+        .collect::<Vec<Transaction>>()
+}
+
+/// Process swaps.
+fn process_swaps<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
+    let mut swap_reqs: Vec<Transaction> = get_swap_transactions(&state);
 
     log::trace!("{} swap requests", swap_reqs.len());
 
@@ -320,10 +324,9 @@ fn process_deposits_for_single_pool<C: ContentAddrStore>(
     });
 }
 
-/// Process deposits.
-fn process_deposits<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
-    // find the deposit requests
-    let mut deposit_reqs = state
+/// Extract the deposit requests from the given `State`.
+fn get_deposit_transactions<C: ContentAddrStore>(state: &State<C>) -> Vec<Transaction> {
+    state
         .transactions
         .values()
         .cloned()
@@ -337,7 +340,12 @@ fn process_deposits<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
             (tx.outputs[0].denom == pool_key.left() && tx.outputs[1].denom == pool_key.right())
                 .then_some(tx)
         })
-        .collect::<Vec<_>>();
+        .collect::<Vec<_>>()
+}
+
+/// Process deposits.
+fn process_deposits<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
+    let mut deposit_reqs = get_deposit_transactions(&state);
     log::trace!("{} deposit reqs", deposit_reqs.len());
     // find the pools mentioned
     let pools = extract_pool_keys(&mut deposit_reqs);
@@ -398,10 +406,9 @@ fn process_withdrawals_for_single_pool<C: ContentAddrStore>(
     });
 }
 
-/// Process deposits.
-fn process_withdrawals<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
-    // find the withdrawal requests
-    let mut withdraw_reqs: Vec<Transaction> = state
+/// Extract the withdrawl requests from the given `State`.
+fn get_withdrawal_transactions<C: ContentAddrStore>(state: &State<C>) -> Vec<Transaction> {
+    state
         .transactions
         .values()
         .cloned()
@@ -414,7 +421,13 @@ fn process_withdrawals<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
             state.pools.get(&pool_key)?;
             (tx.outputs[0].denom == pool_key.liq_token_denom()).then_some(tx)
         })
-        .collect::<Vec<_>>();
+        .collect::<Vec<_>>()
+}
+
+/// Process deposits.
+fn process_withdrawals<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
+    // find the withdrawal requests
+    let mut withdraw_reqs: Vec<Transaction> = get_withdrawal_transactions(&state);
     // find the pools mentioned
     let pools = extract_pool_keys(&mut withdraw_reqs);
     pools.iter().for_each(|pool| {
