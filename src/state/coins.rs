@@ -4,6 +4,9 @@ use stdcode::StdcodeSerializeExt;
 use themelio_structs::{Address, CoinDataHeight, CoinID};
 use tmelcrypt::{HashVal, Hashable};
 
+const COIN_COUNT_STR_AS_BYTES: &[u8] = "coin_count".as_bytes();
+const EMPTY_STR_AS_BYTES: &[u8] = "".as_bytes();
+
 /// A mapping that contains the coins, exposing a safeish API for the rest of the crate.
 #[derive(Debug, Derivative)]
 #[derivative(Clone(bound = ""))]
@@ -34,7 +37,8 @@ impl<C: ContentAddrStore> CoinMapping<C> {
         self.inner
             .insert(tmelcrypt::hash_single(&id).0, &data.stdcode());
         if tip_906 && !preexist {
-            let count_key = tmelcrypt::hash_keyed(b"coin_count", data.coin_data.covhash.0);
+            let count_key =
+                tmelcrypt::hash_keyed(COIN_COUNT_STR_AS_BYTES, data.coin_data.covhash.0);
             let previous_count: u64 = self.coin_count(data.coin_data.covhash);
             self.inner
                 .insert(count_key.0, &(previous_count + 1).stdcode());
@@ -62,12 +66,13 @@ impl<C: ContentAddrStore> CoinMapping<C> {
                 self.insert_coin_count(data.coin_data.covhash, count - 1);
             }
         }
-        self.inner.insert(tmelcrypt::hash_single(&id).0, b"");
+        self.inner
+            .insert(tmelcrypt::hash_single(&id).0, EMPTY_STR_AS_BYTES);
     }
 
     /// Gets the coin count
     pub fn coin_count(&self, covhash: Address) -> u64 {
-        let count_key = tmelcrypt::hash_keyed(b"coin_count", covhash.0);
+        let count_key = tmelcrypt::hash_keyed(COIN_COUNT_STR_AS_BYTES, covhash.0);
         let v = self.inner.get(count_key.0);
         if v.is_empty() {
             0
@@ -77,9 +82,9 @@ impl<C: ContentAddrStore> CoinMapping<C> {
     }
 
     pub fn insert_coin_count(&mut self, covhash: Address, count: u64) {
-        let count_key = tmelcrypt::hash_keyed(b"coin_count", covhash.0);
+        let count_key = tmelcrypt::hash_keyed(COIN_COUNT_STR_AS_BYTES, covhash.0);
         if count == 0 {
-            self.inner.insert(count_key.0, b"");
+            self.inner.insert(count_key.0, EMPTY_STR_AS_BYTES);
         } else {
             self.inner.insert(count_key.0, &count.stdcode())
         }
