@@ -69,7 +69,7 @@ pub struct State<C: ContentAddrStore> {
     /// A sparse Merkle tree that maps a `CoinID` to its associated `CoinDataHeight`, which encapsulates a transaction's associated data, such as the value, denomination (MEL, SYM, etc.), and the `Covenent` constraint hash for the coin.
     pub coins: CoinMapping<C>,
 
-    /// This contains all of the transactiosn within the last block.
+    /// This contains all of the transactions within the last block.
     pub transactions: BTreeMap<TxHash, Transaction>,
 
     /// The accumulated base fees that funds staker rewards. This "belongs" to all stakers.
@@ -155,11 +155,18 @@ impl<C: ContentAddrStore> State<C> {
     }
 
     /// Applies a single transaction.
+    /// Internally, this calls [apply_tx_batch](Self::apply_tx_batch) on a slice with a length of 1.
     pub fn apply_tx(&mut self, tx: &Transaction) -> Result<(), StateError> {
         self.apply_tx_batch(std::slice::from_ref(tx))
     }
 
     /// Applies a whole lot of transactions.
+    /// At a high level, this does the following:
+    /// - Loads the relevant coins from the transaction inputs and outputs
+    /// - Validates the transactions against the given coins and stakes
+    /// - Validates any DOSC mint transactions
+    /// - Applies any new stakes
+    /// - Creates a new state from the incoming transactions
     pub fn apply_tx_batch(&mut self, txx: &[Transaction]) -> Result<(), StateError> {
         let old_hash = HashVal(self.coins.inner().root_hash());
         let new_state = apply_tx_batch_impl(self, txx)?;
@@ -173,7 +180,7 @@ impl<C: ContentAddrStore> State<C> {
         Ok(())
     }
 
-    /// Calculates the "transactions" root hash. Note that this is different depending on whether the block is pre-tip908 or post-tip908.
+    /// Calculates the "transactions" root hash. Note that this is different depending on whether the block is pre-TIP-908 or post-TIP-908.
     pub fn transactions_root_hash(&self) -> HashVal {
         if self.tip_908() {
             HashVal(self.tip908_transactions().root_hash())
@@ -187,7 +194,7 @@ impl<C: ContentAddrStore> State<C> {
         }
     }
 
-    /// Obtains the dense merkle tree (tip-908)
+    /// Obtains the dense merkle tree (TIP-908)
     pub fn tip908_transactions(&self) -> DenseMerkleTree {
         let mut vv = Vec::new();
         for tx in self.transactions.values() {

@@ -23,7 +23,7 @@ use crate::{
 const INFLATION_BUG_TX_HASH: &str =
     "30a60b20830f000f755b70c57c998553a303cc11f8b1f574d5e9f7e26b645d8b";
 
-/// Applies a batch of transactions to the state.
+/// Applies a batch of transactions to the state and returns the new state afterwards.
 pub fn apply_tx_batch_impl<C: ContentAddrStore>(
     this: &State<C>,
     txx: &[Transaction],
@@ -152,7 +152,8 @@ fn create_next_state<C: ContentAddrStore>(
 /// This collects all input and output coins referenced by the given transactions while filtering out any coins set to be destroyed.
 /// This iterates over the given transactions and:
 /// - does some light (incomplete) validation on the transaction
-/// - looks at the outputs and collects coins referenced by the state
+/// - collects the intput and output coins referenced by the state
+///
 ///
 /// NOTE: Coins specified in a transaction's `output` that have a `Address::coin_destroy()` covhash are permanently destroyed.
 fn load_relevant_coins<C: ContentAddrStore>(
