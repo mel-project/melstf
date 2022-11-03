@@ -57,20 +57,37 @@ pub enum StateError {
 /// World state of the Themelio blockchain
 #[derive(Debug)]
 pub struct State<C: ContentAddrStore> {
+    /// The associated network ID for this state. The genesis state has a hardcoded network ID, and can never change afterwards.
     pub network: NetID,
 
+    /// The number of blocks created since the genesis block. This is a type alias for a `u64`.
     pub height: BlockHeight,
+
+    /// A sparse Merkle tree that maps every previous height with a `Header`.
     pub history: SmtMapping<C, BlockHeight, Header>,
+
+    /// A sparse Merkle tree that maps a `CoinID` to its associated `CoinDataHeight`, which encapsulates a transaction's associated data, such as the value, denomination (MEL, SYM, etc.), and the `Covenent` constraint hash for the coin.
     pub coins: CoinMapping<C>,
+
+    /// This contains all of the transactiosn within the last block.
     pub transactions: BTreeMap<TxHash, Transaction>,
 
+    /// The accumulated base fees that funds staker rewards. This "belongs" to all stakers.
     pub fee_pool: CoinValue,
+
+    /// The multiper that scales the amount of fees transactions are required to have.
     pub fee_multiplier: u128,
+
+    /// Fees local to this block that are paid to the block proposer when this `State` is sealed.
     pub tips: CoinValue,
 
+    /// The DOSC speed that measures how much work the fastest processor can do in 24 hours. More details about this mechanism can be found in the formal [specification](https://docs.themelio.org/specifications/tech-melmint/).
     pub dosc_speed: u128,
+
+    /// A sparse Merkle tree that maps token denominations to internal pool states.
     pub pools: PoolMapping<C>,
 
+    /// A sparse Merkle tree that maps transaction hashes to a `StakeDoc`, which contains information on how to verify consensus proofs.
     pub stakes: StakeMapping<C>,
 }
 
@@ -237,7 +254,7 @@ impl<C: ContentAddrStore> State<C> {
             .insert(PoolKey::new(Denom::Erg, Denom::Sym), espool);
     }
 
-    fn move_fee_multiplier_for_action(&mut self, after_tip_901: bool, action: ProposerAction) {
+    fn move_action_fee_multiplier(&mut self, after_tip_901: bool, action: ProposerAction) {
         let max_movement = if after_tip_901 {
             ((self.fee_multiplier >> 7) as i64).max(2)
         } else {
@@ -278,13 +295,15 @@ impl<C: ContentAddrStore> State<C> {
 
     fn apply_proposer_action(&mut self, action: ProposerAction, after_tip_901: bool) {
         // first let's move the fee multiplier
-        self.move_fee_multiplier_for_action(after_tip_901, action);
+        self.move_action_fee_multiplier(after_tip_901, action);
 
         // collect the fees due! We synthesize a coin with 1/65536 of the fee pool and all the tips.
         self.collect_proposer_action_fee(action);
     }
 
     /// Finalizes a state into a block. This consumes the state.
+    /// This does [some pre-processing](crate::melmint::preseal_melmint) and applies the given propose action and creates the new `SealedState`.
+    /// This also means that no more transactions can be applied to this state at the current `BlockHeight`.
     pub fn seal(mut self, action: Option<ProposerAction>) -> SealedState<C> {
         // first apply melmint
         self = crate::melmint::preseal_melmint(self);
@@ -406,6 +425,15 @@ impl<C: ContentAddrStore> SealedState<C> {
     }
 
     /// Creates a new unfinalized state representing the next block.
+    ///
+    /// This is the "main" operation on a `SealedState` used to advance it to a `State` that can start accepting further transactions for the next block.
+    /// ## Usage in Full Nodes
+    ///
+    /// After a block is applied to an Auditor or Staker node, their mempools will update their state like so:
+    /// ```rust
+    /// let next_state = highest_state().next_state();
+    /// mempool_mut().rebase(next_state);
+    /// ```
     pub fn next_state(&self) -> State<C> {
         let mut new = State::clone(self.inner_ref());
         // fee variables
@@ -423,6 +451,13 @@ impl<C: ContentAddrStore> SealedState<C> {
     }
 
     /// Applies a block to this state.
+    ///
+    /// ## Usage in Full Nodes
+    ///
+    /// This functionality is used by full nodes (both Auditors and Stakers) to sync and move the state forward by applying new transactions.
+    ///
+    /// For example, when [Auditor nodes](https://github.com/themeliolabs/themelio-node/blob/master/src/protocols/node.rs) sync with other nodes, they will apply a stream of blocks to persistent storage.
+    /// Every epoch loop, [Staker nodes](https://github.com/themeliolabs/themelio-node/blob/master/src/storage/storage.rs) will call `apply_block` on the latest confirmed block from the consensus algorithm.
     pub fn apply_block(&self, block: &Block) -> Result<SealedState<C>, StateError> {
         let mut basis = self.next_state();
         assert!(basis.pools.val_iter().count() >= 2);

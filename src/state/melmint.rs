@@ -92,6 +92,11 @@ pub fn calculate_reward(my_speed: u128, dosc_speed: u128, difficulty: u32, tip91
 }
 
 /// Presealing function that is called before a state is sealed to apply melmint actions.
+///
+/// Internally, this prepares the given state for sealing:
+/// - create built-in nonzero liquidity pools if they don't exist already
+/// - process any swap, deposit, or withdrawal requests for the state's pools. This consists of finding a subset of transactions and pools and applying swaps on them as needed.
+/// - process pegging for MEL. This includes some nudging of inflation rates, etc. More details can be found [here](https://github.com/themeliolabs/themelio-stf/blob/master/src/state/melmint.rs#L411)
 pub fn preseal_melmint<C: ContentAddrStore>(state: State<C>) -> State<C> {
     let state = create_builtins(state);
     assert!(state.pools.val_iter().count() >= 2);
@@ -621,5 +626,5 @@ mod tests {
 
 use crate::SmtMapping;
 
-/// A pool
+/// A mapping from pool keys to internal pool states.
 pub type PoolMapping<C> = SmtMapping<C, PoolKey, PoolState>;
