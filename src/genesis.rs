@@ -13,10 +13,10 @@ use crate::{melvm::Covenant, CoinMapping, SmtMapping, State};
 /// Configuration of a genesis state. Serializable via serde.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GenesisConfig {
-    /// What kind of network?
+    /// The network identifier for the associated `State`. Once this is set, it cannot be changed by subsequent transactions.
     #[serde(with = "stdcode::asstr")]
     pub network: NetID,
-    /// Initial supply of free money. This will be put at the zero-zero coin ID.
+    /// Initial supply of free money. This will be set to the zero-zero coin ID.
     pub init_coindata: CoinData,
     /// Mapping of initial stakeholders.
     pub stakes: BTreeMap<TxHash, StakeDoc>,

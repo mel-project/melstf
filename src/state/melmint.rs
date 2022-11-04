@@ -34,7 +34,7 @@ fn microergs_per_dosc(height: BlockHeight) -> u128 {
     })
 }
 
-/// Legacy MelPoW hasher
+/// Legacy MelPoW hasher. More details can be found [here](https://github.com/themeliolabs/themelio-node/issues/100).
 pub struct LegacyMelPowHash;
 
 impl HashFunction for LegacyMelPowHash {
@@ -43,7 +43,7 @@ impl HashFunction for LegacyMelPowHash {
     }
 }
 
-/// New (TIP-910) MelPoW hasher
+/// New (TIP-910) MelPoW hasher. More details can be found in [this issue](https://github.com/themeliolabs/themelio-node/issues/100).
 pub struct Tip910MelPowHash;
 
 impl HashFunction for Tip910MelPowHash {
@@ -96,7 +96,7 @@ pub fn calculate_reward(my_speed: u128, dosc_speed: u128, difficulty: u32, tip91
 /// Internally, this prepares the given state for sealing:
 /// - create built-in nonzero liquidity pools if they don't exist already
 /// - process any swap, deposit, or withdrawal requests for the state's pools. This consists of finding a subset of transactions and pools and applying swaps on them as needed.
-/// - process pegging for MEL. This includes some nudging of inflation rates, etc. More details can be found [here](https://github.com/themeliolabs/themelio-stf/blob/master/src/state/melmint.rs#L411)
+/// - process pegging for MEL. This includes some nudging of inflation rates, etc. More details can be found in the [specifications](https://docs.themelio.org/specifications/tech-melmint/).
 pub fn preseal_melmint<C: ContentAddrStore>(state: State<C>) -> State<C> {
     let state = create_builtins(state);
     assert!(state.pools.val_iter().count() >= 2);

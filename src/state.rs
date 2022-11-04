@@ -496,7 +496,7 @@ impl<C: ContentAddrStore> SealedState<C> {
 
     /// Confirms a state with a given consensus proof. If called with a second argument, this function is supposed to be called to *verify* the consensus proof.
     ///
-    /// **TODO**: Right now it DOES NOT check the consensus proof!
+    /// Right now it DOES NOT check the consensus proof!
     #[deprecated]
     pub fn confirm(
         self,
