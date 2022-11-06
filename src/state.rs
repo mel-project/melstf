@@ -22,7 +22,7 @@ use stdcode::StdcodeSerializeExt;
 use tap::Pipe;
 use themelio_structs::{
     Address, Block, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, ConsensusProof,
-    Denom, Header, NetID, PoolKey, ProposerAction, Transaction, TxHash, STAKE_EPOCH,
+    Denom, Header, NetID, PoolKey, ProposerAction, StakeDoc, Transaction, TxHash, STAKE_EPOCH,
 };
 use thiserror::Error;
 use tmelcrypt::{HashVal, Hashable};
@@ -192,6 +192,16 @@ impl<C: ContentAddrStore> State<C> {
             .enumerate()
             .find(|(_, k)| k == &&txhash)
             .map(|(i, _)| i)
+    }
+
+    /// Helper function that returns all the StakeDocs for a particular height, given the stakes in this state.
+    pub fn stake_docs_for_height(
+        &self,
+        height: BlockHeight,
+    ) -> impl Iterator<Item = StakeDoc> + '_ {
+        self.stakes
+            .val_iter()
+            .filter(move |sd| height.epoch() >= sd.e_start && height.epoch() < sd.e_post_end)
     }
 
     /// Finalizes a state into a block. This consumes the state.
@@ -481,8 +491,8 @@ mod tests {
         testing::functions::{create_state, valid_txx},
         State, StateError,
         StateError::{
-            InsufficientFees, MalformedTx, NonexistentCoin, NonexistentScript,
-            UnbalancedInOut, ViolatesScript,
+            InsufficientFees, MalformedTx, NonexistentCoin, NonexistentScript, UnbalancedInOut,
+            ViolatesScript,
         },
     };
 
@@ -619,29 +629,31 @@ mod tests {
         let mut state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
 
         // We attempt to cause an overflow by creating a ton of coins, all with the maximum allowed value, then trying to spend them in one transaction.
-        let faucet_coin_ids: Vec<CoinID> = (0..300).into_iter().map(|_index| {
-            // Every iteration, we make a faucet that creates a max-value coin that any transaction can spend.
-            let faucet_transaction: Transaction = Transaction {
-                kind: TxKind::Faucet,
-                inputs: vec![],
-                outputs: vec![CoinData {
-                    value: MAX_COINVAL,
-                    denom: Denom::Mel,
-                    covhash: Covenant::always_true().hash(),
-                    additional_data: vec![],
-                }],
-                // random data so that the transactions are distinct (this avoids a DuplicateTx error)
-                data: vec![0; 32].tap_mut(|v| rand::thread_rng().fill_bytes(v)),
-                fee: CoinValue(100000),
-                covenants: vec![],
-                sigs: vec![],
-            };
+        let faucet_coin_ids: Vec<CoinID> = (0..300)
+            .into_iter()
+            .map(|_index| {
+                // Every iteration, we make a faucet that creates a max-value coin that any transaction can spend.
+                let faucet_transaction: Transaction = Transaction {
+                    kind: TxKind::Faucet,
+                    inputs: vec![],
+                    outputs: vec![CoinData {
+                        value: MAX_COINVAL,
+                        denom: Denom::Mel,
+                        covhash: Covenant::always_true().hash(),
+                        additional_data: vec![],
+                    }],
+                    // random data so that the transactions are distinct (this avoids a DuplicateTx error)
+                    data: vec![0; 32].tap_mut(|v| rand::thread_rng().fill_bytes(v)),
+                    fee: CoinValue(100000),
+                    covenants: vec![],
+                    sigs: vec![],
+                };
 
-            let _first_transaction_result: () = state.apply_tx(&faucet_transaction).unwrap();
+                let _first_transaction_result: () = state.apply_tx(&faucet_transaction).unwrap();
 
-            faucet_transaction.output_coinid(0)
-        }).collect();
-
+                faucet_transaction.output_coinid(0)
+            })
+            .collect();
 
         // Try to spend them all.
         let second_transaction: Transaction = Transaction {
@@ -658,7 +670,6 @@ mod tests {
             covenants: vec![Covenant::always_true().0],
             sigs: vec![],
         };
-
 
         // Print out the error. There needs to be an error!
         dbg!(state.apply_tx(&second_transaction).unwrap_err());
