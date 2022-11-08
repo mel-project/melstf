@@ -34,6 +34,8 @@ fn main() -> anyhow::Result<()> {
         "replay complete -- the state is now at height: {}",
         state.header().height,
     );
+
+    assert_eq!(state.header().height.0 as usize, block_proofs.len());
     Ok(())
 }
 
@@ -46,7 +48,7 @@ fn genesis_config(path: PathBuf) -> anyhow::Result<GenesisConfig> {
 /// Arguments for replaying history
 pub struct Args {
     #[argh(option)]
-    /// path to the history directory.
+    /// path to the history directory containing stdcode-encoded `.blk` files.
     history_path: PathBuf,
 
     #[argh(option)]
