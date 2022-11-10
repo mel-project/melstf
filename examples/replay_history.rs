@@ -6,7 +6,7 @@ use themelio_structs::{Block, ConsensusProof};
 
 fn main() -> anyhow::Result<()> {
     let args: Args = argh::from_env();
-    let blk_files = read_dir(args.history_path)?;
+    let blk_files = read_dir(&args.history_path)?;
     let mut block_proofs: Vec<(Block, ConsensusProof)> = blk_files
         .map(|entry_result| {
             let path: PathBuf = entry_result.unwrap().path();
@@ -19,7 +19,11 @@ fn main() -> anyhow::Result<()> {
         .collect();
     block_proofs.sort_by(|a, b| a.0.header.height.cmp(&b.0.header.height));
 
-    println!("about to apply {} historical blocks", block_proofs.len());
+    println!(
+        "about to apply {} historical blocks from {:?}",
+        block_proofs.len(),
+        &args.history_path
+    );
 
     let db = Database::new(InMemoryCas::default());
     let mut state = genesis_config(args.override_genesis)?

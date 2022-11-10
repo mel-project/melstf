@@ -5,6 +5,8 @@ use once_cell::sync::Lazy;
 use themelio_stf::{melvm::Covenant, GenesisConfig, State};
 use themelio_structs::{Address, CoinData, Denom, NetID, Transaction, TxKind};
 
+use argh::FromArgs;
+
 fn generate_txx(n: usize) -> Vec<Transaction> {
     let fixed_output = CoinData {
         covhash: Covenant::always_true().hash(),
@@ -73,3 +75,11 @@ fn criterion_benchmark(c: &mut Criterion) {
 
 criterion_group!(benches, criterion_benchmark);
 criterion_main!(benches);
+
+#[derive(FromArgs)]
+/// parameters for this benchmark
+struct Args {
+    #[argh(option)]
+    /// number of threads to use
+    threads: Option<u64>,
+}
