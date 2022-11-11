@@ -86,7 +86,7 @@ serde_yaml = "0.9.14"
 dirs = "4.0.0"
 
 [[bench]]
-name = "bench"
+name = "apply_tx"
 harness = false
 
 [features]
