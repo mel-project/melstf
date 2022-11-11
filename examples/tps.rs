@@ -12,19 +12,13 @@ use themelio_structs::{Address, CoinData, Denom, NetID, Transaction, TxKind};
 
 fn main() {
     let mut init = zerofee_state();
-    let start = Instant::now();
-    println!("about to apply {} tx", TEST_INPUT.len());
     for (i, tx) in TEST_INPUT.iter().enumerate() {
         // println!("applying tx {:?}", i);
         // let tx_start = Instant::now();
         init.apply_tx(tx).unwrap();
         // let elapsed = tx_start.elapsed();
-        // tx_apply_total_time = tx_apply_total_time.add(elapsed);
         // println!("time taken to apply tx {:?} = {:?}", i, tx_start.elapsed());
     }
-    let duration = start.elapsed();
-    println!("Time taken to apply 10k tx: {:?}", duration);
-    println!("TPS: {:?}", TEST_INPUT.len() / duration.as_secs() as usize);
 }
 
 fn generate_txx(n: usize) -> Vec<Transaction> {
@@ -81,7 +75,7 @@ fn zerofee_state() -> State<MeshaCas> {
     state
 }
 
-static TEST_INPUT: Lazy<Vec<Transaction>> = Lazy::new(|| generate_txx(2000));
+static TEST_INPUT: Lazy<Vec<Transaction>> = Lazy::new(|| generate_txx(20000));
 
 /// A meshanina-backed autosmt backend
 pub struct MeshaCas {
