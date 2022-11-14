@@ -1,8 +1,4 @@
-use std::{
-    ops::Add,
-    path::Path,
-    time::{Duration, Instant},
-};
+use std::path::Path;
 
 use ethnum::U256;
 use novasmt::ContentAddrStore;
@@ -11,13 +7,9 @@ use themelio_stf::{melvm::Covenant, GenesisConfig, State};
 use themelio_structs::{Address, CoinData, Denom, NetID, Transaction, TxKind};
 
 fn main() {
-    let mut init = zerofee_state();
-    for (i, tx) in TEST_INPUT.iter().enumerate() {
-        // println!("applying tx {:?}", i);
-        // let tx_start = Instant::now();
-        init.apply_tx(tx).unwrap();
-        // let elapsed = tx_start.elapsed();
-        // println!("time taken to apply tx {:?} = {:?}", i, tx_start.elapsed());
+    let mut state = zerofee_state().seal(None).next_state();
+    for tx in TEST_INPUT.iter() {
+        state.apply_tx(tx).unwrap();
     }
 }
 
