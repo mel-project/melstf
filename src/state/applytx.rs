@@ -52,6 +52,8 @@ pub fn apply_tx_batch_impl<C: ContentAddrStore>(
         .try_reduce(|| this.dosc_speed, |a, b| Ok(a.max(b)))?;
 
     // great, now we create the new state from the transactions
+
+    // // NOTE: cloning transactions in the state is expensive!!
     let mut next_state = create_next_state(this.clone(), txx, &relevant_coins, this.tip_906())?;
 
     // dosc
@@ -144,7 +146,7 @@ fn create_next_state<C: ContentAddrStore>(
             next_state.tips.0 = next_state.tips.0.saturating_add(tips.0);
             next_state.fee_pool.0 = next_state.fee_pool.0.saturating_add(min_fee.0);
         }
-        next_state.transactions.insert(txhash, tx.clone());
+        next_state.transactions.inner.insert(txhash, tx.clone());
     }
     Ok(next_state)
 }

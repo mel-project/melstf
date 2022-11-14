@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, time::Instant};
 
 use ethnum::U256;
 use novasmt::ContentAddrStore;
@@ -8,8 +8,10 @@ use themelio_structs::{Address, CoinData, Denom, NetID, Transaction, TxKind};
 
 fn main() {
     let mut state = zerofee_state().seal(None).next_state();
-    for tx in TEST_INPUT.iter() {
+    for (i, tx) in TEST_INPUT.iter().enumerate() {
+        let tx_start = Instant::now();
         state.apply_tx(tx).unwrap();
+        println!("apply tx {} took: {:?}", i, tx_start.elapsed());
     }
 }
 
@@ -67,7 +69,7 @@ fn zerofee_state() -> State<MeshaCas> {
     state
 }
 
-static TEST_INPUT: Lazy<Vec<Transaction>> = Lazy::new(|| generate_txx(20000));
+static TEST_INPUT: Lazy<Vec<Transaction>> = Lazy::new(|| generate_txx(200000));
 
 /// A meshanina-backed autosmt backend
 pub struct MeshaCas {

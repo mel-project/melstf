@@ -230,6 +230,7 @@ fn process_swaps_for_single_pool<C: ContentAddrStore>(
 fn get_swap_transactions<C: ContentAddrStore>(state: &State<C>) -> Vec<Transaction> {
     state
         .transactions
+        .inner
         .values()
         .cloned()
         .filter_map(|tx| {
@@ -333,6 +334,7 @@ fn process_deposits_for_single_pool<C: ContentAddrStore>(
 fn get_deposit_transactions<C: ContentAddrStore>(state: &State<C>) -> Vec<Transaction> {
     state
         .transactions
+        .inner
         .values()
         .cloned()
         .filter_map(|tx| {
@@ -415,6 +417,7 @@ fn process_withdrawals_for_single_pool<C: ContentAddrStore>(
 fn get_withdrawal_transactions<C: ContentAddrStore>(state: &State<C>) -> Vec<Transaction> {
     state
         .transactions
+        .inner
         .values()
         .cloned()
         .filter_map(|tx| {
