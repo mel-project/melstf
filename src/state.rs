@@ -55,7 +55,7 @@ pub enum StateError {
 
 #[derive(Default, Debug)]
 pub struct TransactionSet {
-    inner: imbl::HashMap<TxHash, Transaction>,
+    inner: imbl::OrdMap<TxHash, Transaction>,
 }
 
 impl Clone for TransactionSet {

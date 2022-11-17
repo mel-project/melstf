@@ -12,6 +12,7 @@ fn main() {
         let tx_start = Instant::now();
         state.apply_tx(tx).unwrap();
         println!("apply tx {} took: {:?}", i, tx_start.elapsed());
+        println!("state now {}", state.coins.root_hash());
     }
 }
 
