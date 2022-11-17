@@ -146,7 +146,7 @@ fn create_next_state<C: ContentAddrStore>(
             next_state.tips.0 = next_state.tips.0.saturating_add(tips.0);
             next_state.fee_pool.0 = next_state.fee_pool.0.saturating_add(min_fee.0);
         }
-        next_state.transactions.inner.insert(txhash, tx.clone());
+        next_state.transactions.insert(tx.clone());
     }
     Ok(next_state)
 }

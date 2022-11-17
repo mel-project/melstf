@@ -230,8 +230,7 @@ fn process_swaps_for_single_pool<C: ContentAddrStore>(
 fn get_swap_transactions<C: ContentAddrStore>(state: &State<C>) -> Vec<Transaction> {
     state
         .transactions
-        .inner
-        .values()
+        .iter()
         .cloned()
         .filter_map(|tx| {
             (!tx.outputs.is_empty()).then_some(())?; // ensure not empty
@@ -334,8 +333,7 @@ fn process_deposits_for_single_pool<C: ContentAddrStore>(
 fn get_deposit_transactions<C: ContentAddrStore>(state: &State<C>) -> Vec<Transaction> {
     state
         .transactions
-        .inner
-        .values()
+        .iter()
         .cloned()
         .filter_map(|tx| {
             (tx.kind == TxKind::LiqDeposit
@@ -417,8 +415,7 @@ fn process_withdrawals_for_single_pool<C: ContentAddrStore>(
 fn get_withdrawal_transactions<C: ContentAddrStore>(state: &State<C>) -> Vec<Transaction> {
     state
         .transactions
-        .inner
-        .values()
+        .iter()
         .cloned()
         .filter_map(|tx| {
             (tx.kind == TxKind::LiqWithdraw

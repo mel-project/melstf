@@ -1,6 +1,7 @@
 mod applytx;
 mod coins;
 pub(crate) mod melmint;
+pub(crate) mod txset;
 
 pub use crate::stake::*;
 use crate::tip_heights::TIP_902_HEIGHT;
@@ -27,6 +28,7 @@ use thiserror::Error;
 use tmelcrypt::{HashVal, Hashable};
 
 pub use self::coins::CoinMapping;
+use self::txset::TransactionSet;
 
 #[derive(Error, Debug, PartialEq, Eq)]
 /// A error that happens while applying a transaction to a state
@@ -53,19 +55,6 @@ pub enum StateError {
     DuplicateTx,
 }
 
-#[derive(Default, Debug)]
-pub struct TransactionSet {
-    inner: imbl::OrdMap<TxHash, Transaction>,
-}
-
-impl Clone for TransactionSet {
-    fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-        }
-    }
-}
-
 /// World state of the Themelio blockchain
 #[derive(Debug)]
 pub struct State<C: ContentAddrStore> {
@@ -83,7 +72,7 @@ pub struct State<C: ContentAddrStore> {
 
     /// This contains all of the transactions within the last block.
     // pub transactions: BTreeMap<TxHash, Transaction>,
-    pub transactions: TransactionSet,
+    pub(crate) transactions: TransactionSet,
 
     /// The accumulated base fees that funds staker rewards. This "belongs" to all stakers.
     pub fee_pool: CoinValue,
@@ -200,8 +189,8 @@ impl<C: ContentAddrStore> State<C> {
         } else {
             let db = Database::new(InMemoryCas::default());
             let mut smt = SmtMapping::new(db.get_tree(Default::default()).unwrap());
-            for (k, v) in self.transactions.inner.iter() {
-                smt.insert(*k, v.clone());
+            for txn in self.transactions.iter() {
+                smt.insert(txn.hash_nosigs(), txn.clone());
             }
             smt.root_hash()
         }
@@ -210,7 +199,7 @@ impl<C: ContentAddrStore> State<C> {
     /// Obtains the dense merkle tree (TIP-908)
     pub fn tip908_transactions(&self) -> DenseMerkleTree {
         let mut vv = Vec::new();
-        for tx in self.transactions.inner.values() {
+        for tx in self.transactions.iter() {
             let complex = tx.hash_nosigs().pipe(|nosigs_hash| {
                 let mut v = nosigs_hash.0.to_vec();
                 v.extend_from_slice(&tx.stdcode().hash().0);
@@ -225,10 +214,9 @@ impl<C: ContentAddrStore> State<C> {
     /// Obtains the sorted position of the given transaction within this state.
     pub fn transaction_sorted_posn(&self, txhash: TxHash) -> Option<usize> {
         self.transactions
-            .inner
-            .keys()
+            .iter_hashes()
             .enumerate()
-            .find(|(_, k)| k == &&txhash)
+            .find(|(_, k)| k == &txhash)
             .map(|(i, _)| i)
     }
 
@@ -357,13 +345,7 @@ impl<C: ContentAddrStore> SealedState<C> {
         let history = SmtMapping::new(db.get_tree(blk.header.history_hash.0).unwrap());
         let stakes = SmtMapping::new(db.get_tree(blk.header.stakes_hash.0).unwrap());
         let pools = SmtMapping::new(db.get_tree(blk.header.pools_hash.0).unwrap());
-        let transactions = TransactionSet {
-            inner: blk
-                .transactions
-                .iter()
-                .map(|tx| (tx.hash_nosigs(), tx.clone()))
-                .collect(),
-        };
+        let transactions = blk.transactions.iter().cloned().collect();
         let state = State {
             network: blk.header.network,
             height: blk.header.height,
@@ -392,7 +374,7 @@ impl<C: ContentAddrStore> SealedState<C> {
 
     /// Returns whether or not it's empty.
     pub fn is_empty(&self) -> bool {
-        self.1.is_none() && self.inner_ref().transactions.inner.is_empty()
+        self.1.is_none() && self.inner_ref().transactions.is_empty()
     }
 
     /// Returns the block header represented by the finalized state.
@@ -425,13 +407,7 @@ impl<C: ContentAddrStore> SealedState<C> {
     pub fn to_block(&self) -> Block {
         Block {
             header: self.header(),
-            transactions: self
-                .inner_ref()
-                .transactions
-                .inner
-                .values()
-                .cloned()
-                .collect(),
+            transactions: self.inner_ref().transactions.iter().cloned().collect(),
             proposer_action: self.1,
         }
     }
@@ -470,7 +446,7 @@ impl<C: ContentAddrStore> SealedState<C> {
         new.history.insert(self.0.height, self.header());
         new.height += BlockHeight(1);
         new.stakes.remove_stale((new.height / STAKE_EPOCH).0);
-        new.transactions.inner.clear();
+        new.transactions = Default::default();
 
         // TIP-906 transition
         if new.tip_906() && !self.inner_ref().tip_906() {

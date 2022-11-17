@@ -10,11 +10,11 @@ fn main() -> anyhow::Result<()> {
     let mut block_proofs: Vec<(Block, ConsensusProof)> = blk_files
         .map(|entry_result| {
             let path: PathBuf = entry_result.unwrap().path();
-            let blk_proof = match std::fs::read(&path) {
+
+            match std::fs::read(&path) {
                 Ok(bytes) => stdcode::deserialize(&bytes).unwrap(),
                 _ => panic!(),
-            };
-            blk_proof
+            }
         })
         .collect();
     block_proofs.sort_by(|a, b| a.0.header.height.cmp(&b.0.header.height));
@@ -48,7 +48,7 @@ fn genesis_config(path: PathBuf) -> anyhow::Result<GenesisConfig> {
     Ok(serde_yaml::from_slice(&genesis_yaml)?)
 }
 
-#[derive(FromArgs, PartialEq, Debug)]
+#[derive(FromArgs, PartialEq, Eq, Debug)]
 /// Arguments for replaying history
 pub struct Args {
     #[argh(option)]
