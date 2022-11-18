@@ -19,6 +19,7 @@ fn main() {
         },
         stakes: Default::default(),
         init_fee_pool: CoinValue(0),
+        init_fee_multiplier: 0,
     }
     .realize(&Database::new(meshacas))
     .seal(None)
@@ -61,7 +62,7 @@ fn main() {
         cue.push(test_tx.output_coinid(0));
         cue.push(test_tx.output_coinid(1));
         test_state.apply_tx(&test_tx).unwrap();
-        test_state.coins.inner().database().storage().flush();
+        // test_state.coins.inner().database().storage().flush();
         eprintln!("iteration {} took {:?}", iter, start.elapsed());
         println!("iteration,interval");
         println!("{},{}", iter, start.elapsed().as_secs_f64());

@@ -22,7 +22,8 @@ use stdcode::StdcodeSerializeExt;
 use tap::Pipe;
 use themelio_structs::{
     Address, Block, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, ConsensusProof,
-    Denom, Header, NetID, PoolKey, ProposerAction, StakeDoc, Transaction, TxHash, STAKE_EPOCH,
+    Denom, Header, NetID, PoolKey, PoolState, ProposerAction, StakeDoc, Transaction, TxHash,
+    STAKE_EPOCH,
 };
 use thiserror::Error;
 use tmelcrypt::{HashVal, Hashable};
@@ -55,63 +56,42 @@ pub enum StateError {
     DuplicateTx,
 }
 
-/// World state of the Themelio blockchain
-#[derive(Debug)]
+/// An "unsealed" world state of the Themelio blockchain.
+#[derive(Debug, Derivative)]
+#[derivative(Clone(bound = ""))]
 pub struct State<C: ContentAddrStore> {
     /// The associated network ID for this state. The genesis state has a hardcoded network ID, and can never change afterwards.
-    pub network: NetID,
+    pub(crate) network: NetID,
 
     /// The number of blocks created since the genesis block. This is a type alias for a `u64`.
-    pub height: BlockHeight,
+    pub(crate) height: BlockHeight,
 
     /// A sparse Merkle tree that maps every previous height with a `Header`.
-    pub history: SmtMapping<C, BlockHeight, Header>,
+    pub(crate) history: SmtMapping<C, BlockHeight, Header>,
 
     /// A sparse Merkle tree that maps a `CoinID` to its associated `CoinDataHeight`, which encapsulates a transaction's associated data, such as the value, denomination (MEL, SYM, etc.), and the `Covenent` constraint hash for the coin.
-    pub coins: CoinMapping<C>,
+    pub(crate) coins: CoinMapping<C>,
 
     /// This contains all of the transactions within the last block.
-    // pub transactions: BTreeMap<TxHash, Transaction>,
     pub(crate) transactions: TransactionSet,
 
     /// The accumulated base fees that funds staker rewards. This "belongs" to all stakers.
-    pub fee_pool: CoinValue,
+    pub(crate) fee_pool: CoinValue,
 
     /// The multiper that scales the amount of fees transactions are required to have.
-    pub fee_multiplier: u128,
+    pub(crate) fee_multiplier: u128,
 
     /// Fees local to this block that are paid to the block proposer when this `State` is sealed.
-    pub tips: CoinValue,
+    pub(crate) tips: CoinValue,
 
     /// The DOSC speed that measures how much work the fastest processor can do in 24 hours. More details about this mechanism can be found in the formal [specification](https://docs.themelio.org/specifications/tech-melmint/).
-    pub dosc_speed: u128,
+    pub(crate) dosc_speed: u128,
 
     /// A sparse Merkle tree that maps token denominations to internal pool states.
-    pub pools: PoolMapping<C>,
+    pub(crate) pools: PoolMapping<C>,
 
     /// A sparse Merkle tree that maps transaction hashes to a `StakeDoc`, which contains information on how to verify consensus proofs.
-    pub stakes: StakeMapping<C>,
-}
-
-impl<C: ContentAddrStore> Clone for State<C> {
-    fn clone(&self) -> Self {
-        Self {
-            network: self.network,
-
-            height: self.height,
-            history: self.history.clone(),
-            coins: self.coins.clone(),
-            transactions: self.transactions.clone(),
-
-            fee_pool: self.fee_pool,
-            fee_multiplier: self.fee_multiplier,
-            tips: self.tips,
-
-            dosc_speed: self.dosc_speed,
-            pools: self.pools.clone(),
-            stakes: self.stakes.clone(),
-        }
-    }
+    pub(crate) stakes: StakeMapping<C>,
 }
 
 impl<C: ContentAddrStore> State<C> {
@@ -127,32 +107,32 @@ impl<C: ContentAddrStore> State<C> {
     }
 
     /// Returns true iff TIP 901 rule changes apply.
-    pub fn tip_901(&self) -> bool {
+    pub(crate) fn tip_901(&self) -> bool {
         self.tip_condition(TIP_901_HEIGHT)
     }
 
     /// Returns true iff TIP 902 rule changes apply.
-    pub fn tip_902(&self) -> bool {
+    pub(crate) fn tip_902(&self) -> bool {
         self.tip_condition(TIP_902_HEIGHT)
     }
 
     /// Returns true iff TIP 906 rule changes apply.
-    pub fn tip_906(&self) -> bool {
+    pub(crate) fn tip_906(&self) -> bool {
         self.tip_condition(TIP_906_HEIGHT)
     }
 
     /// Returns true iff TIP 908 rule changes apply.
-    pub fn tip_908(&self) -> bool {
+    pub(crate) fn tip_908(&self) -> bool {
         self.tip_condition(TIP_908_HEIGHT) || self.network == NetID::Custom08
     }
 
     /// Returns true iff TIP 909 rule changes apply.
-    pub fn tip_909(&self) -> bool {
+    pub(crate) fn tip_909(&self) -> bool {
         self.tip_condition(TIP_909_HEIGHT)
     }
 
     /// Returns true iff TIP 909a rule changes apply.
-    pub fn tip_909a(&self) -> bool {
+    pub(crate) fn tip_909a(&self) -> bool {
         self.tip_condition(TIP_909A_HEIGHT)
     }
 
@@ -339,6 +319,46 @@ impl<C: ContentAddrStore> State<C> {
 pub struct SealedState<C: ContentAddrStore>(State<C>, Option<ProposerAction>);
 
 impl<C: ContentAddrStore> SealedState<C> {
+    /// Obtains an unspent coin in the state.
+    pub fn get_coin(&self, id: CoinID) -> Option<CoinDataHeight> {
+        self.0.coins.get_coin(id)
+    }
+
+    /// Obtains the raw sparse Merkle tree containing the coin mapping.
+    pub fn raw_coins_smt(&self) -> novasmt::Tree<C> {
+        self.0.coins.inner().clone()
+    }
+
+    /// Obtains a past header from the state.
+    pub fn get_history(&self, height: BlockHeight) -> Option<Header> {
+        self.0.history.get(&height)
+    }
+
+    /// Obtains the raw sparse Merkle tree containing the history of block headers.
+    pub fn raw_history_smt(&self) -> novasmt::Tree<C> {
+        self.0.history.mapping.clone()
+    }
+
+    /// Obtains information about a particular Melswap pool.
+    pub fn get_pool(&self, key: PoolKey) -> Option<PoolState> {
+        self.0.pools.get(&key)
+    }
+
+    /// Obtains the raw sparse Merkle tree containing all the pools.
+    pub fn raw_pools_smt(&self) -> novasmt::Tree<C> {
+        self.0.pools.mapping.clone()
+    }
+
+    /// Obtains information about a particular stake, identified by the txhash of the transaction that locked up the SYM.
+    pub fn get_stake(&self, key: TxHash) -> Option<StakeDoc> {
+        self.0.stakes.get(&key)
+    }
+
+    /// Obtains the raw sparse Merkle tree containing all the stakes.
+    pub fn raw_stakes_smt(&self) -> novasmt::Tree<C> {
+        self.0.stakes.mapping.clone()
+    }
+
     /// Regenerate from a block, given a database to get the SMTs out of.
     pub fn from_block(blk: &Block, db: &Database<C>) -> Self {
         let coins = CoinMapping::new(db.get_tree(blk.header.coins_hash.0).unwrap());
@@ -367,20 +387,14 @@ impl<C: ContentAddrStore> SealedState<C> {
         Self(state, prop_action)
     }
 
-    /// Returns a reference to the State finalized within.
-    pub fn inner_ref(&self) -> &State<C> {
-        &self.0
-    }
-
     /// Returns whether or not it's empty.
     pub fn is_empty(&self) -> bool {
-        self.1.is_none() && self.inner_ref().transactions.is_empty()
+        self.1.is_none() && self.0.transactions.is_empty()
     }
 
     /// Returns the block header represented by the finalized state.
     pub fn header(&self) -> Header {
         let inner = &self.0;
-        // panic!()
         Header {
             network: inner.network,
             previous: (inner.height.0.checked_sub(1))
@@ -407,7 +421,7 @@ impl<C: ContentAddrStore> SealedState<C> {
     pub fn to_block(&self) -> Block {
         Block {
             header: self.header(),
-            transactions: self.inner_ref().transactions.iter().cloned().collect(),
+            transactions: self.0.transactions.iter().cloned().collect(),
             proposer_action: self.1,
         }
     }
@@ -433,15 +447,8 @@ impl<C: ContentAddrStore> SealedState<C> {
     /// Creates a new unfinalized state representing the next block.
     ///
     /// This is the "main" operation on a `SealedState` used to advance it to a `State` that can start accepting further transactions for the next block.
-    /// ## Usage in Full Nodes
-    ///
-    /// After a block is applied to an Auditor or Staker node, their mempools will update their state like so:
-    /// ```rust
-    /// let next_state = highest_state().next_state();
-    /// mempool_mut().rebase(next_state);
-    /// ```
     pub fn next_state(&self) -> State<C> {
-        let mut new = State::clone(self.inner_ref());
+        let mut new = self.0.clone();
         // fee variables
         new.history.insert(self.0.height, self.header());
         new.height += BlockHeight(1);
@@ -449,7 +456,7 @@ impl<C: ContentAddrStore> SealedState<C> {
         new.transactions = Default::default();
 
         // TIP-906 transition
-        if new.tip_906() && !self.inner_ref().tip_906() {
+        if new.tip_906() && !self.0.tip_906() {
             Self::apply_tip_906_for_next_state(&mut new);
         }
 
@@ -471,7 +478,7 @@ impl<C: ContentAddrStore> SealedState<C> {
         basis.apply_tx_batch(&transactions)?;
         assert!(basis.pools.val_iter().count() >= 2);
         let basis = basis.seal(block.proposer_action);
-        assert!(basis.inner_ref().pools.val_iter().count() >= 2);
+        assert!(basis.0.pools.val_iter().count() >= 2);
 
         if basis.header() != block.header {
             log::warn!(
@@ -493,19 +500,46 @@ impl<C: ContentAddrStore> SealedState<C> {
         }
     }
 
-    /// Confirms a state with a given consensus proof. If called with a second argument, this function is supposed to be called to *verify* the consensus proof.
+    /// Confirms a state with a given consensus proof. If the proof is not valid, returns an error.
     ///
-    /// Right now it DOES NOT check the consensus proof!
-    #[deprecated]
-    pub fn confirm(
-        self,
-        cproof: ConsensusProof,
-        _previous_state: Option<&State<C>>,
-    ) -> Option<ConfirmedState<C>> {
-        Some(ConfirmedState {
-            state: self,
-            cproof,
-        })
+    /// **Note**: The consensus proof is checked against the stakers contained in the state itself. This seems at first glance to be obviously incorrect --- how can we trust the stakers listed by an unconfirmed state?
+    ///
+    /// But that is actually fine. When we want to trust a state at a given height, we're interested in two things:
+    /// - Is its a **valid** state? That is, did it come from valid applications of `apply_block` starting from the genesis state?
+    /// - Is it **confirmed** by signatures from enough stakers?
+    ///
+    /// By the time we end up calling this, we already know that we have a valid state, since otherwise we couldn't have constructed this SealedState successfully. And when we check the second one, it's okay to use the stakers in the state itself, because if it were actually valid, the voting power of the stakers must be correct in the current state.
+    ///
+    /// This is because there's no transaction that can change the correct voting power distribution of stakers *within the same block*. Thus, the list of stakers that applies to this state here must be the same as the previous, trusted state that we created this state from.
+    pub fn confirm(&self, cproof: ConsensusProof) -> Option<ConfirmedState<C>> {
+        // first check all the signatures
+        for (k, sig) in cproof.iter() {
+            if !k.verify(&self.header().hash(), sig) {
+                return None;
+            }
+        }
+        // then check that we have enough signatures
+        let my_epoch = self.0.height.epoch();
+        let relevant_stakes = self
+            .0
+            .stakes
+            .val_iter()
+            .filter(|doc| doc.e_start <= my_epoch && doc.e_post_end > my_epoch)
+            .collect::<Vec<_>>();
+        let total_votes: u128 = relevant_stakes.iter().map(|doc| doc.syms_staked.0).sum();
+        let present_votes: u128 = relevant_stakes
+            .iter()
+            .filter(|doc| cproof.contains_key(&doc.pubkey))
+            .map(|doc| doc.syms_staked.0)
+            .sum();
+        if total_votes > present_votes / 2 * 3 {
+            Some(ConfirmedState {
+                state: self.clone(),
+                cproof,
+            })
+        } else {
+            None
+        }
     }
 }
 
@@ -1058,12 +1092,9 @@ mod tests {
         }
         let sealed = test_state.seal(None);
         let header = sealed.header();
-        let dmt = sealed.inner_ref().tip908_transactions();
+        let dmt = sealed.0.tip908_transactions();
         for tx in txx_to_insert.iter() {
-            let posn = sealed
-                .inner_ref()
-                .transaction_sorted_posn(tx.hash_nosigs())
-                .unwrap();
+            let posn = sealed.0.transaction_sorted_posn(tx.hash_nosigs()).unwrap();
             let proof = dmt.proof(posn);
             assert!(novasmt::dense::verify_dense(
                 &proof,

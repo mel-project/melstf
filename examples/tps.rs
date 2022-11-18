@@ -12,7 +12,6 @@ fn main() {
         let tx_start = Instant::now();
         state.apply_tx(tx).unwrap();
         println!("apply tx {} took: {:?}", i, tx_start.elapsed());
-        println!("state now {}", state.coins.root_hash());
     }
 }
 
@@ -62,12 +61,11 @@ fn zerofee_state() -> State<MeshaCas> {
         },
         stakes: Default::default(),
         init_fee_pool: 0.into(),
+        init_fee_multiplier: 0,
     };
 
     let meshacas = MeshaCas::new(meshanina::Mapping::open(Path::new("test.db")).unwrap());
-    let mut state = cfg.realize(&novasmt::Database::new(meshacas));
-    state.fee_multiplier = 0;
-    state
+    cfg.realize(&novasmt::Database::new(meshacas))
 }
 
 static TEST_INPUT: Lazy<Vec<Transaction>> = Lazy::new(|| generate_txx(200000));

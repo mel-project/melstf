@@ -52,10 +52,9 @@ fn zerofee_state() -> State<InMemoryCas> {
         },
         stakes: Default::default(),
         init_fee_pool: 0.into(),
+        init_fee_multiplier: 0,
     };
-    let mut state = cfg.realize(&novasmt::Database::new(InMemoryCas::default()));
-    state.fee_multiplier = 0;
-    state
+    cfg.realize(&novasmt::Database::new(InMemoryCas::default()))
 }
 
 static TEST_INPUT: Lazy<Vec<Transaction>> = Lazy::new(|| generate_txx(1000));

@@ -614,13 +614,6 @@ mod tests {
         }
         .signed_ed25519(my_sk);
         second_state.apply_tx(&deposit_tx).unwrap();
-        let second_sealed = second_state.seal(None);
-
-        second_sealed.inner_ref().pools.val_iter().for_each(|pool| {
-            dbg!(pool);
-        });
-
-        dbg!(second_sealed.inner_ref().pools.get(&pool_key).unwrap());
     }
 }
 

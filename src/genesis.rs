@@ -22,6 +22,8 @@ pub struct GenesisConfig {
     pub stakes: BTreeMap<TxHash, StakeDoc>,
     /// Initial fee pool. Half-life is approximately 15 days.
     pub init_fee_pool: CoinValue,
+    /// Initial fee multipliier
+    pub init_fee_multiplier: u128,
 }
 
 impl GenesisConfig {
@@ -57,6 +59,7 @@ impl GenesisConfig {
                 })
                 .collect(),
             init_fee_pool: CoinValue::from_millions(6553600u64), // subsidy, decreasing rapidly
+            init_fee_multiplier: MICRO_CONVERTER,
         }
     }
 
@@ -91,6 +94,7 @@ impl GenesisConfig {
             })
             .collect(),
             init_fee_pool: (1 << 64).into(),
+            init_fee_multiplier: MICRO_CONVERTER,
         }
     }
 
@@ -104,7 +108,7 @@ impl GenesisConfig {
             coins: CoinMapping::new(empty_tree.clone()),
             transactions: Default::default(),
             fee_pool: self.init_fee_pool,
-            fee_multiplier: MICRO_CONVERTER,
+            fee_multiplier: self.init_fee_multiplier,
             tips: 0.into(),
 
             dosc_speed: MICRO_CONVERTER,
