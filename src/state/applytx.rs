@@ -469,7 +469,7 @@ fn validate_and_get_doscmint_speed<C: ContentAddrStore>(
     tx: &Transaction,
 ) -> Result<u128, StateError> {
     // TODO: handle without panicking?
-    let coin_id = *tx.inputs.get(0).unwrap();
+    let coin_id = *tx.inputs.get(0).expect("this cannot happen, since by the time we get here we've checked that transactions have inputs");
     let coin_data = relevant_coins
         .get(&coin_id)
         .ok_or(StateError::NonexistentCoin(coin_id))?;
