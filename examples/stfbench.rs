@@ -1,6 +1,6 @@
 use std::{collections::BinaryHeap, path::Path, time::Instant};
 
-use novasmt::Database;
+use novasmt::{ContentAddrStore, Database};
 use rand::RngCore;
 use themelio_stf::{melvm::Covenant, GenesisConfig};
 use themelio_structs::{CoinData, CoinValue, Denom, NetID, Transaction, TxKind};
@@ -69,9 +69,6 @@ fn main() {
     }
 }
 
-use ethnum::U256;
-use novasmt::ContentAddrStore;
-
 /// A meshanina-backed autosmt backend
 pub struct MeshaCas {
     inner: meshanina::Mapping,
@@ -91,12 +88,12 @@ impl MeshaCas {
 
 impl ContentAddrStore for MeshaCas {
     fn get<'a>(&'a self, key: &[u8]) -> Option<std::borrow::Cow<'a, [u8]>> {
-        self.inner
-            .get(U256::from_le_bytes(tmelcrypt::hash_single(key).0))
+        Some(std::borrow::Cow::Owned(
+            self.inner.get(tmelcrypt::hash_single(key).0)?.to_vec(),
+        ))
     }
 
     fn insert(&self, key: &[u8], value: &[u8]) {
-        self.inner
-            .insert(U256::from_le_bytes(tmelcrypt::hash_single(key).0), value)
+        self.inner.insert(tmelcrypt::hash_single(key).0, value);
     }
 }

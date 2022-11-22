@@ -52,8 +52,6 @@ pub fn apply_tx_batch_impl<C: ContentAddrStore>(
         .try_reduce(|| this.dosc_speed, |a, b| Ok(a.max(b)))?;
 
     // great, now we create the new state from the transactions
-
-    // // NOTE: cloning transactions in the state is expensive!!
     let mut next_state = create_next_state(this.clone(), txx, &relevant_coins, this.tip_906())?;
 
     // dosc
@@ -155,7 +153,6 @@ fn create_next_state<C: ContentAddrStore>(
 /// This iterates over the given transactions and:
 /// - does some light (incomplete) validation on the transaction
 /// - collects the intput and output coins referenced by the state
-///
 ///
 /// NOTE: Coins specified in a transaction's `output` that have a `Address::coin_destroy()` covhash are permanently destroyed.
 fn load_relevant_coins<C: ContentAddrStore>(
@@ -468,7 +465,6 @@ fn validate_and_get_doscmint_speed<C: ContentAddrStore>(
     relevant_coins: &FxHashMap<CoinID, CoinDataHeight>,
     tx: &Transaction,
 ) -> Result<u128, StateError> {
-    // TODO: handle without panicking?
     let coin_id = *tx.inputs.get(0).expect("this cannot happen, since by the time we get here we've checked that transactions have inputs");
     let coin_data = relevant_coins
         .get(&coin_id)
@@ -492,7 +488,16 @@ fn validate_and_get_doscmint_speed<C: ContentAddrStore>(
             log::warn!("rejecting doscmint due to malformed proof: {:?}", e);
             StateError::InvalidMelPoW
         })?;
-    let proof = melpow::Proof::from_bytes(&proof_bytes).unwrap();
+    let proof = match melpow::Proof::from_bytes(&proof_bytes) {
+        Some(p) => p,
+        None => {
+            log::warn!(
+                "failed to deserialize MEL PoW proof from transaction {:?}",
+                tx
+            );
+            return Err(StateError::MalformedTx);
+        }
+    };
     let is_tip910 = proof_is_tip910(proof, &puzzle, difficulty)?;
 
     let my_speed = compute_doscmint_speed(is_tip910, difficulty, this.height, coin_data.height);

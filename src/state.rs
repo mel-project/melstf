@@ -137,7 +137,7 @@ impl<C: ContentAddrStore> State<C> {
     }
 
     /// Applies a single transaction.
-    /// Internally, this calls [apply_tx_batch](Self::apply_tx_batch) on a slice with a length of 1.
+    /// Internally, this calls [`apply_tx_batch`](Self::apply_tx_batch) on a slice with a length of 1.
     pub fn apply_tx(&mut self, tx: &Transaction) -> Result<(), StateError> {
         self.apply_tx_batch(std::slice::from_ref(tx))
     }
@@ -149,6 +149,8 @@ impl<C: ContentAddrStore> State<C> {
     /// - Validates any DOSC mint transactions
     /// - Applies any new stakes
     /// - Creates a new state from the incoming transactions
+    ///
+    /// **NOTE**: This only inserts incoming transactions into the `State` and does NOT actually process them. They are processed later when [`seal`](Self::seal) is called.
     pub fn apply_tx_batch(&mut self, txx: &[Transaction]) -> Result<(), StateError> {
         let old_hash = HashVal(self.coins.inner().root_hash());
         let new_state = apply_tx_batch_impl(self, txx)?;
@@ -290,9 +292,10 @@ impl<C: ContentAddrStore> State<C> {
         self.collect_proposer_action_fee(action);
     }
 
-    /// Finalizes a state into a block. This consumes the state.
-    /// This does [some pre-processing](crate::melmint::preseal_melmint) and applies the given propose action and creates the new `SealedState`.
-    /// This also means that no more transactions can be applied to this state at the current `BlockHeight`.
+    /// Finalizes a state into a block, consuming the state.
+    /// Transactions stored in the `State` are [processed](crate::melmint::preseal_melmint). This also applies the given `ProposerAction` and creates the new `SealedState`.
+    ///
+    /// **NOTE**: This also means that no more transactions can be applied to this state at the current `BlockHeight`.
     pub fn seal(mut self, action: Option<ProposerAction>) -> SealedState<C> {
         // first apply melmint
         self = crate::melmint::preseal_melmint(self);
