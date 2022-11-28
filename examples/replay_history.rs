@@ -7,21 +7,18 @@ use themelio_structs::{Block, ConsensusProof};
 fn main() -> anyhow::Result<()> {
     let args: Args = argh::from_env();
     let blk_files = read_dir(&args.history_path)?;
-    let mut block_proofs: Vec<(Block, ConsensusProof)> = blk_files
-        .map(|entry_result| {
-            let path: PathBuf = entry_result.unwrap().path();
-
-            match std::fs::read(&path) {
-                Ok(bytes) => stdcode::deserialize(&bytes).unwrap(),
-                _ => panic!(),
-            }
-        })
-        .collect();
-    block_proofs.sort_by(|a, b| a.0.header.height.cmp(&b.0.header.height));
-
+    // get the filenames first, in sorted order
+    let filenames = {
+        let raw_filenames: anyhow::Result<Vec<String>> = blk_files
+            .map(|entry| anyhow::Ok(entry?.file_name().to_string_lossy().to_string()))
+            .collect();
+        let mut buf = raw_filenames?;
+        buf.sort_unstable();
+        buf
+    };
     println!(
         "about to apply {} historical blocks from {:?}",
-        block_proofs.len(),
+        filenames.len(),
         &args.history_path
     );
 
@@ -30,22 +27,27 @@ fn main() -> anyhow::Result<()> {
         .realize(&db)
         .seal(None);
 
-    for blk_proof in block_proofs.iter() {
-        state = state.apply_block(&blk_proof.0).unwrap();
-        println!("applied block {:?}", blk_proof.0.header.height);
+    for blk_proof in filenames {
+        let mut fpath = args.history_path.clone();
+        fpath.push(blk_proof);
+        let (blk, proof): (Block, ConsensusProof) = stdcode::deserialize(&std::fs::read(&fpath)?)?;
+        state = state.apply_block(&blk).unwrap();
+        println!("applied block {}", blk.header.height);
     }
     println!(
         "replay complete -- the state is now at height: {}",
         state.header().height,
     );
-
-    assert_eq!(state.header().height.0 as usize, block_proofs.len());
     Ok(())
 }
 
-fn genesis_config(path: PathBuf) -> anyhow::Result<GenesisConfig> {
-    let genesis_yaml = std::fs::read(&path)?;
-    Ok(serde_yaml::from_slice(&genesis_yaml)?)
+fn genesis_config(path: Option<PathBuf>) -> anyhow::Result<GenesisConfig> {
+    if let Some(path) = path {
+        let genesis_yaml = std::fs::read(&path)?;
+        Ok(serde_yaml::from_slice(&genesis_yaml)?)
+    } else {
+        Ok(GenesisConfig::std_mainnet())
+    }
 }
 
 #[derive(FromArgs, PartialEq, Eq, Debug)]
@@ -57,5 +59,5 @@ pub struct Args {
 
     #[argh(option)]
     /// genesis config path
-    override_genesis: PathBuf,
+    override_genesis: Option<PathBuf>,
 }
