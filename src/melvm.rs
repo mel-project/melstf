@@ -109,50 +109,13 @@ impl Covenant {
             Ok(ops) => {
                 let mut executor: Executor = Executor::new(ops, hashmap);
 
-                while !executor.at_end() {
-                    if executor.stack.is_empty() {
-                        eprintln!("Stack (step) is empty.");
-                    } else {
-                        eprintln!("Stack (step): {:?}", &executor.stack);
-                    }
-
-                    if executor.heap.is_empty() {
-                        eprintln!("Heap (step) is empty.");
-                    } else {
-                        eprintln!("Heap (step): {:?}", &executor.heap);
-                    }
-
-                    if executor.step().is_none() {
-                        return false;
-                    }
-                }
-
-                if executor.stack.is_empty() {
-                    eprintln!("Stack (final) is empty.");
-                } else {
-                    eprintln!("Stack (final): {:?}", &executor.stack);
-                }
-
-                if executor.heap.is_empty() {
-                    eprintln!("Heap (final) is empty.");
-                } else {
-                    eprintln!("Heap (final): {:?}", &executor.heap);
-                }
-
                 executor
                     .stack
                     .pop()
                     .map(|f| f.into_bool())
                     .unwrap_or_default()
             }
-            Err(error) => {
-                eprintln!(
-                    "While converting inputs to OpCodes, we hit a decode error: {}",
-                    error
-                );
-
-                false
-            }
+            Err(_) => false,
         }
     }
 

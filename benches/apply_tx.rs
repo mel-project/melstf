@@ -74,11 +74,3 @@ fn criterion_benchmark(c: &mut Criterion) {
 
 criterion_group!(benches, criterion_benchmark);
 criterion_main!(benches);
-
-#[derive(FromArgs)]
-/// parameters for this benchmark
-struct Args {
-    #[argh(option)]
-    /// number of threads to use
-    threads: Option<u64>,
-}

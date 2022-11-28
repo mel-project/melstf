@@ -57,6 +57,8 @@ pub enum StateError {
 }
 
 /// An "unsealed" world state of the Themelio blockchain.
+///
+/// We intentionally do not expose the internal details of the state from this type. Instead, use the [SealedState] type, which can be constructed from a [State] through [State::seal], which represents a "sealed" state at a definite block height that can be queried for sparse Merkle trees and such.
 #[derive(Debug, Derivative)]
 #[derivative(Clone(bound = ""))]
 pub struct State<C: ContentAddrStore> {
@@ -149,8 +151,6 @@ impl<C: ContentAddrStore> State<C> {
     /// - Validates any DOSC mint transactions
     /// - Applies any new stakes
     /// - Creates a new state from the incoming transactions
-    ///
-    /// **NOTE**: This only inserts incoming transactions into the `State` and does NOT actually process them. They are processed later when [`seal`](Self::seal) is called.
     pub fn apply_tx_batch(&mut self, txx: &[Transaction]) -> Result<(), StateError> {
         let old_hash = HashVal(self.coins.inner().root_hash());
         let new_state = apply_tx_batch_impl(self, txx)?;
@@ -165,7 +165,7 @@ impl<C: ContentAddrStore> State<C> {
     }
 
     /// Calculates the "transactions" root hash. Note that this is different depending on whether the block is pre-TIP-908 or post-TIP-908.
-    pub fn transactions_root_hash(&self) -> HashVal {
+    pub(crate) fn transactions_root_hash(&self) -> HashVal {
         if self.tip_908() {
             HashVal(self.tip908_transactions().root_hash())
         } else {
@@ -179,7 +179,7 @@ impl<C: ContentAddrStore> State<C> {
     }
 
     /// Obtains the dense merkle tree (TIP-908)
-    pub fn tip908_transactions(&self) -> DenseMerkleTree {
+    pub(crate) fn tip908_transactions(&self) -> DenseMerkleTree {
         let mut vv = Vec::new();
         for tx in self.transactions.iter() {
             let complex = tx.hash_nosigs().pipe(|nosigs_hash| {
@@ -194,7 +194,7 @@ impl<C: ContentAddrStore> State<C> {
     }
 
     /// Obtains the sorted position of the given transaction within this state.
-    pub fn transaction_sorted_posn(&self, txhash: TxHash) -> Option<usize> {
+    pub(crate) fn transaction_sorted_posn(&self, txhash: TxHash) -> Option<usize> {
         self.transactions
             .iter_hashes()
             .enumerate()
@@ -317,6 +317,8 @@ impl<C: ContentAddrStore> State<C> {
 
 /// SealedState represents an immutable state at a finalized block height.
 /// It cannot be constructed except through sealing a State or restoring from persistent storage.
+///
+/// It also exposes all the internal state of the blockchain (sparse Merkle trees and such) through methods.
 #[derive(Derivative, Debug)]
 #[derivative(Clone(bound = ""))]
 pub struct SealedState<C: ContentAddrStore>(State<C>, Option<ProposerAction>);
@@ -472,8 +474,8 @@ impl<C: ContentAddrStore> SealedState<C> {
     ///
     /// This functionality is used by full nodes (both Auditors and Stakers) to sync and move the state forward by applying new transactions.
     ///
-    /// For example, when [Auditor nodes](https://github.com/themeliolabs/themelio-node/blob/master/src/protocols/node.rs) sync with other nodes, they will apply a stream of blocks to persistent storage.
-    /// Every epoch loop, [Staker nodes](https://github.com/themeliolabs/themelio-node/blob/master/src/storage/storage.rs) will call `apply_block` on the latest confirmed block from the consensus algorithm.
+    /// For example, when [auditor nodes](https://github.com/themeliolabs/themelio-node/blob/master/src/protocols/node.rs) sync with other nodes, they will apply a stream of blocks to persistent storage.
+    /// Every epoch loop, [stakers nodes](https://github.com/themeliolabs/themelio-node/blob/master/src/storage/storage.rs) will call `apply_block` on the latest confirmed block from the consensus algorithm.
     pub fn apply_block(&self, block: &Block) -> Result<SealedState<C>, StateError> {
         let mut basis = self.next_state();
         assert!(basis.pools.val_iter().count() >= 2);
