@@ -202,16 +202,6 @@ impl<C: ContentAddrStore> State<C> {
             .map(|(i, _)| i)
     }
 
-    /// Helper function that returns all the StakeDocs for a particular height, given the stakes in this state.
-    pub fn stake_docs_for_height(
-        &self,
-        height: BlockHeight,
-    ) -> impl Iterator<Item = StakeDoc> + '_ {
-        self.stakes
-            .val_iter()
-            .filter(move |sd| height.epoch() >= sd.e_start && height.epoch() < sd.e_post_end)
-    }
-
     fn apply_tip_909(&mut self) {
         let divider = self.height.0.saturating_sub(TIP_909_HEIGHT.0) / 1_000_000;
         let reward = (1u128 << 20) >> divider;
@@ -362,6 +352,17 @@ impl<C: ContentAddrStore> SealedState<C> {
     /// Obtains the raw sparse Merkle tree containing all the stakes.
     pub fn raw_stakes_smt(&self) -> novasmt::Tree<C> {
         self.0.stakes.mapping.clone()
+    }
+
+    /// Helper function that returns all the StakeDocs for a particular height, given the stakes in this state.
+    pub fn stake_docs_for_height(
+        &self,
+        height: BlockHeight,
+    ) -> impl Iterator<Item = StakeDoc> + '_ {
+        self.0
+            .stakes
+            .val_iter()
+            .filter(move |sd| height.epoch() >= sd.e_start && height.epoch() < sd.e_post_end)
     }
 
     /// Regenerate from a block, given a database to get the SMTs out of.
