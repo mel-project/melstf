@@ -128,7 +128,7 @@ impl From<CoinID> for Value {
 
 impl From<Covenant> for Value {
     fn from(c: Covenant) -> Self {
-        Value::Bytes(c.0.into())
+        Value::Bytes(c.to_bytes().into())
     }
 }
 

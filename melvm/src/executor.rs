@@ -137,14 +137,14 @@ impl Executor {
     }
 
     /// Execute to the end
-    pub fn run_to_end(&mut self) -> bool {
+    pub fn run_to_end(&mut self) -> Option<Value> {
         while self.pc < self.instrs.len() {
             if self.step().is_none() {
-                return false;
+                return None;
             }
         }
 
-        self.stack.pop().map(|f| f.into_bool()).unwrap_or_default()
+        self.stack.pop()
     }
 
     /// Execute to the end, without popping.
@@ -191,42 +191,26 @@ impl Executor {
                 OpCode::Print => self.do_monop(|x| {
                     println!("{x:?}");
                     Some(x)
-                    //Some(Value::Int(1u64.into()))
                 })?,
                 OpCode::Noop => {
                     log::trace!("NoOp");
                 }
                 // arithmetic
                 OpCode::Add => self.do_binop(|x, y| {
-                    log::trace!("Addition, First: {:?}", &x);
-                    log::trace!("Addition, Second: {:?}", &y);
-
                     Some(Value::Int(x.into_int()?.overflowing_add(y.into_int()?).0))
                 })?,
                 OpCode::Sub => self.do_binop(|x, y| {
-                    log::trace!("Subtraction, First: {:?}", &x);
-                    log::trace!("Subtraction, Second: {:?}", &y);
-
                     Some(Value::Int(x.into_int()?.overflowing_sub(y.into_int()?).0))
                 })?,
                 OpCode::Mul => self.do_binop(|x, y| {
-                    log::trace!("Multiplication, First: {:?}", &x);
-                    log::trace!("Multiplication, Second: {:?}", &y);
-
                     Some(Value::Int(x.into_int()?.overflowing_mul(y.into_int()?).0))
                 })?,
                 OpCode::Div => self
                     .do_binop(|x, y| {
-                        log::trace!("Division, First: {:?}", &x);
-                        log::trace!("Division, Second: {:?}", &y);
-
                         Some(Value::Int(x.into_int()?.checked_div(y.into_int()?)?))
                     })?,
                 OpCode::Exp(k) => self
                     .do_binop(|b, e| {
-                        log::trace!("Exponentiation, Base: {:?}", &b);
-                        log::trace!("Exponentiation, Exponent: {:?}", &e);
-
                         let mut e = e.into_int()?;
                         let mut b = b.into_int()?;
 
@@ -251,9 +235,6 @@ impl Executor {
                     })?,
                 OpCode::Rem => self
                     .do_binop(|x, y| {
-                        log::trace!("Remainder, First: {:?}", &x);
-                        log::trace!("Remainder, Second: {:?}", &y);
-
                         Some(Value::Int(x.into_int()?.checked_rem(y.into_int()?)?))
                     })?,
                 // logic
@@ -277,8 +258,6 @@ impl Executor {
                 })?,
                 OpCode::Eql => self.do_binop(|x, y| match (x, y) {
                     (Value::Int(x), Value::Int(y)) => {
-                        log::trace!("Equality, First: {}", &x);
-                        log::trace!("Equality, Second: {}", &y);
                         if x == y {
                             Some(Value::Int(1u32.into()))
                         } else {
@@ -288,9 +267,6 @@ impl Executor {
                     _ => None,
                 })?,
                 OpCode::Lt => self.do_binop(|x, y| {
-                    log::trace!("Less than, First: {:?}", &x);
-                    log::trace!("Less than, Second: {:?}", &y);
-
                     let x = x.into_int()?;
                     let y = y.into_int()?;
                     if x < y {
@@ -300,9 +276,6 @@ impl Executor {
                     }
                 })?,
                 OpCode::Gt => self.do_binop(|x, y| {
-                    log::trace!("Greater than, First: {:?}", &x);
-                    log::trace!("Greater than, Second: {:?}", &y);
-
                     let x = x.into_int()?;
                     let y = y.into_int()?;
                     if x > y {
@@ -339,9 +312,7 @@ impl Executor {
                     Some(Value::from_bytes(&hash.0))
                 })?,
                 OpCode::SigEOk(n) => self.do_triop(|message, public_key, signature| {
-                    log::trace!("SIGEOK({:?}, {:?}, {:?})", message, public_key, signature);
                     let public_key_bytes: CatVec<u8, 256> = public_key.into_bytes()?;
-                    log::trace!("GOT PK");
                     if public_key_bytes.len() > 32 {
                         return Some(Value::from_bool(false));
                     }
@@ -372,29 +343,22 @@ impl Executor {
                     let address: u16 = self.stack.pop()?.into_u16()?;
                     let value: Value = self.stack.pop()?;
 
-                    log::trace!("Storing {:?} at address: {:?} on the heap.", &value, &address);
-
                     self.heap.insert(address, value);
                 }
                 OpCode::Load => {
                     let address: u16 = self.stack.pop()?.into_u16()?;
                     let res: Value = self.heap.get(&address)?.clone();
 
-                    log::trace!("Loading {:?} from address: {:?} from the heap.", &res, &address);
-
                     self.stack.push(res)
                 }
                 OpCode::StoreImm(idx) => {
                     let value: Value = self.stack.pop()?;
 
-                    log::trace!("Storing {:?} at index {:?} immutably on the heap.", &value, &idx);
 
                     self.heap.insert(idx, value);
                 }
                 OpCode::LoadImm(idx) => {
                     let res = self.heap.get(&idx)?.clone();
-
-                    log::trace!("Loading {:?} from index {:?} immutably from the heap.", &res, &idx);
 
                     self.stack.push(res)
                 }
@@ -402,15 +366,11 @@ impl Executor {
                 OpCode::VRef => self.do_binop(|vec, idx| {
                     let idx: usize = idx.into_u16()? as usize;
 
-                    log::trace!("Loading index {:?} from VM vector containing {:?} onto the stack.", &idx, &vec);
-
                     Some(vec.into_vector()?.get(idx)?.clone())
                 })?,
                 OpCode::VSet => self.do_triop(|vec, idx, value| {
                     let idx: usize = idx.into_u16()? as usize;
                     let mut vec: CatVec<Value, 32> = vec.into_vector()?;
-
-                    log::trace!("Overwriting index {:?} of a VM vector containing {:?} with {:?}", &idx, &vec, &value);
 
                     *vec.get_mut(idx)? = value;
 
@@ -419,8 +379,6 @@ impl Executor {
                 OpCode::VAppend => self.do_binop(|v1, v2| {
                     let mut v1 = v1.into_vector()?;
                     let v2 = v2.into_vector()?;
-
-                    log::trace!("Appending a vector that contains {:?} to a vector that contains {:?}", &v2, &v1);
 
                     v1.append(v2);
 
@@ -434,18 +392,12 @@ impl Executor {
                         Value::Vector(vec) => {
 
                             if end > vec.len() || end < beginning {
-                                log::trace!("Tried to create a VM slice with invalid bounds. Returning an empty VM vector.");
-
                                 Some(Value::Vector(Default::default()))
                             } else {
-                                log::trace!("Returning a slice from {:?} to {:?} from the VM vector containing: {:?}", beginning, end, &vec);
-
                                 Some(Value::Vector(vec.tap_mut(|vec| vec.slice_into(beginning..end))))
                             }
                         }
                         _ => {
-                            log::trace!("Tried to call VSlice on something that was not a VM vector (Value::Vector).");
-
                             None
                         },
                     }
@@ -453,61 +405,40 @@ impl Executor {
                 OpCode::VLength => self.do_monop(|vec| match vec {
                     Value::Vector(vec) => {
                         let length: usize = vec.len();
-
-                        log::trace!("VM vector is of length: {}", length);
-
                         Some(Value::Int(U256::from(length as u64)))
                     },
                     _ => {
-                        log::trace!("Tried to call VLength on something that was not a VM vector (Value::Vector).");
-
                         None
                     },
                 })?,
                 OpCode::VEmpty => {
-                    log::trace!("Creating a new empty vector on the stack.");
-
                     self.stack.push(Value::Vector(Default::default()))
                 },
                 OpCode::VPush => self.do_binop(|vec, item| {
                     let mut vec: CatVec<Value, 32> = vec.into_vector()?;
-
-                    log::trace!("Pushing: {:?} into a VM vector that contains: {:?}.", &item, &vec);
-
                     vec.push_back(item);
 
                     Some(Value::Vector(vec))
                 })?,
                 OpCode::VCons => self.do_binop(|item, vec| {
                     let mut vec: CatVec<Value, 32> = vec.into_vector()?;
-
-                    log::trace!("Inserting: {:?} at index 0 of a VM vector that contains: {:?}", &item, &vec);
-
                     vec.insert(0, item);
 
                     Some(Value::Vector(vec))
                 })?,
                 // bit stuff
                 OpCode::BEmpty => {
-                    log::trace!("Creating a new empty byte vector on the stack.");
-
                     self.stack.push(Value::Bytes(Default::default()))
                 },
                 OpCode::BPush => self.do_binop(|vec, val| {
                     let mut vec: CatVec<u8, 256> = vec.into_bytes()?;
                     let val: U256 = val.into_int()?;
-
-                    log::trace!("Pushing: {} into a byte vector containing: {:?}", &val, &vec);
-
                     vec.push_back(*val.low() as u8);
 
                     Some(Value::Bytes(vec))
                 })?,
                 OpCode::BCons => self.do_binop(|item, vec| {
                     let mut vec: CatVec<u8, 256> = vec.into_bytes()?;
-
-                    log::trace!("Inserting: {:?} at index 0 of a byte vector that contains: {:?}", &item, &vec);
-
                     vec.insert(0, item.into_truncated_u8()?);
 
                     Some(Value::Bytes(vec))

@@ -8,7 +8,7 @@ use themelio_structs::{
 };
 use tmelcrypt::{Ed25519PK, HashVal};
 
-use crate::{melvm::Covenant, CoinMapping, SmtMapping, State};
+use crate::{CoinMapping, SmtMapping, State};
 
 /// Configuration of a genesis state. Serializable via serde.
 #[derive(Clone, Debug, Serialize, Deserialize)]

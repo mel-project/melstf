@@ -10,6 +10,9 @@ description = "Core state-transition function and data structures for Themelio"
 license = "MPL-2.0"
 repository = "https://github.com/themeliolabs/themelio-stf"
 
+[workspace]
+members = ["melvm"]
+
 [dependencies.arbitrary]
 version = "1.0.3"
 features = ["derive"]
@@ -59,6 +62,8 @@ fastrand = "1.7.0"
 serde_with = "1"
 bytes = { version = "1.2.1", features = ["serde"] }
 imbl = "2.0.0"
+
+melvm  = {path="./melvm"}
 
 [target.'cfg(fuzzing)'.dependencies]
 honggfuzz = "0.5.54"

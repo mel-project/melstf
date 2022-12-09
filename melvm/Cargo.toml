@@ -1,0 +1,23 @@
+[package]
+name = "melvm"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bytes = "1.3.0"
+catvec = "0.1.6"
+ethnum = "1.3.2"
+hex = "0.4.3"
+log = "0.4.17"
+serde = {version="1.0.149", features=["derive"]}
+stdcode = "0.1.13"
+tap = "1.0.1"
+
+thiserror = "1.0.37"
+tmelcrypt = "0.2.6"
+themelio-structs= "0.3.0-beta.4"
+
+[dev-dependencies]
+env_logger="0.9"
