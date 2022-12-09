@@ -1,7 +1,7 @@
 use bytes::Bytes;
 #[cfg(fuzzing)]
 use honggfuzz::fuzz;
-use themelio_stf::melvm::Covenant;
+use melvm::Covenant;
 
 #[cfg(fuzzing)]
 fn main() {
@@ -25,20 +25,17 @@ fn main() {
 #[allow(dead_code)]
 fn test_once(data: &[u8]) {
     let (first, second) = data.split_at(data.len() / 2);
-    let covenant = Covenant(first.to_vec());
-    if let Ok(weight) = covenant.weight() {
-        if weight > 10000000 {
+    let covenant = Covenant::from_bytes(first);
+    if let Ok(covenant) = covenant {
+        if covenant.weight() > 10000000 {
             return;
         }
-    }
-    eprintln!("{:?}", covenant.to_ops());
-    eprintln!("{:?}", second.len());
-    covenant.debug_run_without_transaction(&[Bytes::from(
-        second.iter().map(|_f| 0u8).collect::<Vec<_>>(),
-    )
-    .into()]);
-    if let Ok(ops) = covenant.to_ops() {
-        assert_eq!(Covenant::from_ops(&ops).unwrap(), covenant);
+
+        eprintln!("{:?}", covenant.to_ops());
+        eprintln!("{:?}", second.len());
+        covenant
+            .debug_execute(&[Bytes::from(second.iter().map(|_f| 0u8).collect::<Vec<_>>()).into()]);
+        assert_eq!(Covenant::from_ops(&covenant.to_ops()), covenant);
     }
 }
 

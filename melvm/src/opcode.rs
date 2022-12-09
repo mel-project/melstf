@@ -499,12 +499,10 @@ fn opcodes_car_weight(opcodes: &[OpCode]) -> (u128, &[OpCode]) {
 #[allow(clippy::bool_assert_comparison)]
 mod tests {
     use crate::opcode::OpCode;
-    use crate::{Covenant, Value};
+    use crate::Covenant;
 
-    use std::collections::HashMap;
     use std::str::FromStr;
 
-    use catvec::CatVec;
     use ethnum::{u256, U256};
     use log::LevelFilter;
     use tmelcrypt::{ed25519_keygen, Ed25519PK, Ed25519SK};

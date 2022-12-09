@@ -1,11 +1,10 @@
+use melvm::Covenant;
 use novasmt::InMemoryCas;
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use once_cell::sync::Lazy;
-use themelio_stf::{melvm::Covenant, GenesisConfig, State};
+use themelio_stf::{GenesisConfig, State};
 use themelio_structs::{Address, CoinData, Denom, NetID, Transaction, TxKind};
-
-use argh::FromArgs;
 
 fn generate_txx(n: usize) -> Vec<Transaction> {
     let fixed_output = CoinData {
@@ -32,7 +31,7 @@ fn generate_txx(n: usize) -> Vec<Transaction> {
             outputs: vec![fixed_output.clone()],
             fee: 0.into(),
             data: vec![].into(),
-            covenants: vec![Covenant::always_true().0.into()],
+            covenants: vec![Covenant::always_true().to_bytes()],
             sigs: vec![],
         };
         prev = novyy.output_coinid(0);

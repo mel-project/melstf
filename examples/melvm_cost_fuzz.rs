@@ -1,8 +1,8 @@
+use melvm::{opcode::OpCode, Covenant};
 use once_cell::sync::Lazy;
 use ordered_float::OrderedFloat;
 use quanta::Clock;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
-use themelio_stf::melvm::{opcode::OpCode, Covenant};
 
 type OF64 = OrderedFloat<f64>;
 
@@ -10,25 +10,22 @@ static CLOCK: Lazy<Clock> = Lazy::new(Clock::new);
 
 /// Computes the fitness of the input
 fn eval_fitness(input: &[u8]) -> OF64 {
-    let val = Covenant(input.to_vec());
-    if val.to_ops().is_err() {
+    let val = if let Ok(cov) = Covenant::from_bytes(input) {
+        cov
+    } else {
         return 0.0.into();
-    }
+    };
+
     let mut runtime = f64::MAX;
     for _ in 0..10 {
         let start = CLOCK.start();
-        val.debug_run_without_transaction(&[]);
+        val.debug_execute(&[]);
         runtime = runtime.min((CLOCK.end() - start) as f64);
     }
-    if val
-        .to_ops()
-        .unwrap_or_default()
-        .iter()
-        .any(|f| matches!(f, OpCode::Noop))
-    {
+    if val.to_ops().iter().any(|f| matches!(f, OpCode::Noop)) {
         return 0.0.into();
     };
-    let _weight = val.weight().unwrap() as f64;
+    let _weight = val.weight() as f64;
     let ilen = input.len() as f64;
     if ilen == 0.0 {
         return 0.0.into();
@@ -71,9 +68,9 @@ fn main() {
                 population.last().unwrap().0.len()
             );
             if population.last().unwrap().1 > 0.0.into() {
-                let ops = Covenant(population.last().unwrap().0.clone())
-                    .to_ops()
-                    .unwrap();
+                let ops = Covenant::from_bytes(&population.last().unwrap().0.clone())
+                    .unwrap()
+                    .to_ops();
                 eprintln!("{:?}", ops);
             }
         }

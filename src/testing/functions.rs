@@ -11,7 +11,7 @@ use crate::{
 // const GENESIS_STAKER_WEIGHT: u128 = 100;
 // pub const SEND_MEL_AMOUNT: u128 = 30_000_000_000;
 
-use crate::melvm::Covenant;
+use melvm::Covenant;
 
 use std::collections::HashMap;
 

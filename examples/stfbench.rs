@@ -1,8 +1,9 @@
 use std::{collections::BinaryHeap, path::Path, time::Instant};
 
+use melvm::Covenant;
 use novasmt::{ContentAddrStore, Database};
 use rand::RngCore;
-use themelio_stf::{melvm::Covenant, GenesisConfig};
+use themelio_stf::GenesisConfig;
 use themelio_structs::{CoinData, CoinValue, Denom, NetID, Transaction, TxKind};
 
 fn main() {
@@ -51,7 +52,7 @@ fn main() {
                 },
             ],
             fee: CoinValue(100000000),
-            covenants: vec![Covenant::always_true().0.into()],
+            covenants: vec![Covenant::always_true().to_bytes()],
             data: data.into(),
             sigs: vec![],
         };

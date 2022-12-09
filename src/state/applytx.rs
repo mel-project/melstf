@@ -2,6 +2,7 @@ use std::{collections::HashMap, hash::BuildHasherDefault, time::Instant};
 
 use bytes::Bytes;
 use melpow::Proof;
+use melvm::{covenant_weight_from_bytes, Covenant, CovenantEnv};
 use novasmt::ContentAddrStore;
 use rayon::iter::{
     IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
@@ -13,11 +14,7 @@ use themelio_structs::{
 };
 use tmelcrypt::HashVal;
 
-use crate::{
-    melmint,
-    melvm::{Covenant, CovenantEnv},
-    LegacyMelPowHash, State, StateError, Tip910MelPowHash,
-};
+use crate::{melmint, LegacyMelPowHash, State, StateError, Tip910MelPowHash};
 
 // TODO: add proper description of this exploit
 const INFLATION_BUG_TX_HASH: &str =
@@ -135,7 +132,7 @@ fn create_next_state<C: ContentAddrStore>(
 
         // fees
         let min_fee = tx.base_fee(next_state.fee_multiplier, 0, |c| {
-            Covenant(c.to_vec()).weight().unwrap_or(0)
+            covenant_weight_from_bytes(c)
         });
         if tx.fee < min_fee {
             return Err(StateError::InsufficientFees(min_fee));
@@ -309,22 +306,26 @@ fn validate_tx_scripts(
         tx.hash_nosigs()
     );
     if !good_scripts.contains(&coin_data.coin_data.covhash) {
-        let script = Covenant(
-            scripts
+        let script = Covenant::from_bytes(
+            &scripts
                 .get(&coin_data.coin_data.covhash)
                 .ok_or(StateError::NonexistentScript(coin_data.coin_data.covhash))?
-                .clone()
-                .into(),
-        );
-        if !script.check(
-            tx,
-            CovenantEnv {
-                parent_coinid: *coin_id,
-                parent_cdh: coin_data.clone(),
-                spender_index: spend_idx as u8,
-                last_header,
-            },
-        ) {
+                .clone(),
+        )
+        .map_err(|_| StateError::MalformedTx)?;
+        if !script
+            .execute(
+                tx,
+                Some(CovenantEnv {
+                    parent_coinid: *coin_id,
+                    parent_cdh: coin_data.clone(),
+                    spender_index: spend_idx as u8,
+                    last_header,
+                }),
+            )
+            .map(|v| v.into_bool())
+            .unwrap_or(false)
+        {
             return Err(StateError::ViolatesScript(coin_data.coin_data.covhash));
         }
     }

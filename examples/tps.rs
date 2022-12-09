@@ -1,9 +1,9 @@
 use std::{borrow::Cow, path::Path, time::Instant};
 
-use ethnum::U256;
+use melvm::Covenant;
 use novasmt::ContentAddrStore;
 use once_cell::sync::Lazy;
-use themelio_stf::{melvm::Covenant, GenesisConfig, State};
+use themelio_stf::{GenesisConfig, State};
 use themelio_structs::{Address, CoinData, Denom, NetID, Transaction, TxKind};
 
 fn main() {
@@ -41,7 +41,7 @@ fn generate_txx(n: usize) -> Vec<Transaction> {
             outputs: vec![fixed_output.clone()],
             fee: 0.into(),
             data: vec![].into(),
-            covenants: vec![Covenant::always_true().0.into()],
+            covenants: vec![Covenant::always_true().to_bytes()],
             sigs: vec![],
         };
         prev = novyy.output_coinid(0);

@@ -30,7 +30,7 @@ fn main() -> anyhow::Result<()> {
     for blk_proof in filenames {
         let mut fpath = args.history_path.clone();
         fpath.push(blk_proof);
-        let (blk, proof): (Block, ConsensusProof) = stdcode::deserialize(&std::fs::read(&fpath)?)?;
+        let (blk, _proof): (Block, ConsensusProof) = stdcode::deserialize(&std::fs::read(&fpath)?)?;
         state = state.apply_block(&blk).unwrap();
         println!("applied block {}", blk.header.height);
     }

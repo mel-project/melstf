@@ -573,6 +573,7 @@ impl<C: ContentAddrStore> ConfirmedState<C> {
 mod tests {
     use std::collections::HashMap;
 
+    use melvm::{opcode::OpCode, Covenant};
     use novasmt::InMemoryCas;
     use rand::prelude::SliceRandom;
     use rand::RngCore;
@@ -586,8 +587,6 @@ mod tests {
     use tmelcrypt::Hashable;
 
     use crate::{
-        melvm::opcode::OpCode,
-        melvm::Covenant,
         testing::functions::{create_state, valid_txx},
         State, StateError,
         StateError::{
@@ -644,16 +643,13 @@ mod tests {
 
         state.apply_tx(&first_transaction).unwrap();
 
-        let mut covenant: Covenant = Covenant::from_ops(&[
+        let covenant: Covenant = Covenant::from_ops(&[
             OpCode::PushI(1_u8.into()),
             OpCode::PushI(2_u8.into()),
             OpCode::Add,
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
-        ])
-        .expect("Failed to create a Add covenant.");
-
-        covenant.0 = vec![1];
+        ]);
 
         let second_transaction: Transaction = Transaction {
             kind: TxKind::Normal,
@@ -662,8 +658,8 @@ mod tests {
             data: vec![].into(),
             fee: CoinValue(1000),
             covenants: vec![
-                covenant.0.into(),
-                Covenant::std_ed25519_pk_legacy(public_key).0.into(),
+                covenant.to_bytes(),
+                Covenant::std_ed25519_pk_legacy(public_key).to_bytes(),
             ],
             sigs: vec![],
         };
@@ -772,7 +768,7 @@ mod tests {
             }],
             data: vec![].into(),
             fee: CoinValue(0), // Because we are spending so many more coins than we are creating, our transaction is free (since it reduces long-term storage burden to the network).
-            covenants: vec![Covenant::always_true().0.into()],
+            covenants: vec![Covenant::always_true().to_bytes()],
             sigs: vec![],
         };
 
@@ -807,16 +803,13 @@ mod tests {
 
         state.apply_tx(&first_transaction).unwrap();
 
-        let mut covenant: Covenant = Covenant::from_ops(&[
+        let _covenant: Covenant = Covenant::from_ops(&[
             OpCode::PushI(1_u8.into()),
             OpCode::PushI(2_u8.into()),
             OpCode::Add,
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
-        ])
-        .expect("Failed to create an Add covenant.");
-
-        covenant.0 = vec![1];
+        ]);
 
         let second_transaction: Transaction = Transaction {
             kind: TxKind::Normal,
@@ -824,7 +817,7 @@ mod tests {
             outputs: vec![],
             data: vec![].into(),
             fee: CoinValue(1000),
-            covenants: vec![covenant.0.into()],
+            covenants: vec![],
             sigs: vec![],
         };
 
@@ -878,8 +871,7 @@ mod tests {
             OpCode::Add,
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
-        ])
-        .expect("Failed to create a Add covenant.");
+        ]);
 
         let transaction: Transaction = Transaction {
             kind: TxKind::Faucet,
@@ -887,7 +879,7 @@ mod tests {
             outputs: vec![],
             data: vec![].into(),
             fee: CoinValue(1000),
-            covenants: vec![covenant.0.into()],
+            covenants: vec![covenant.to_bytes()],
             sigs: vec![],
         };
 
@@ -1052,7 +1044,7 @@ mod tests {
             .input(sym_faucet.output_coinid(0), sym_faucet.outputs[0].clone())
             .input(sym_faucet.output_coinid(1), sym_faucet.outputs[1].clone())
             .output(sym_faucet.outputs[0].clone())
-            .covenant(Covenant::always_true().0.into())
+            .covenant(Covenant::always_true().to_bytes())
             .output(sym_faucet.outputs[1].clone())
             .data(
                 StakeDoc {
@@ -1076,7 +1068,7 @@ mod tests {
                 covhash: Covenant::always_true().hash(),
                 additional_data: vec![].into(),
             })
-            .covenant(Covenant::always_true().0.into())
+            .covenant(Covenant::always_true().to_bytes())
             .fee(CoinValue(1000))
             .build()
             .unwrap();

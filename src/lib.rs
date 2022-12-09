@@ -2,7 +2,7 @@
 #![doc = include_str!("../README.md")]
 
 mod genesis;
-pub mod melvm;
+
 mod smtmapping;
 mod stake;
 mod state;

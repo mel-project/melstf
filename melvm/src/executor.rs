@@ -139,9 +139,7 @@ impl Executor {
     /// Execute to the end
     pub fn run_to_end(&mut self) -> Option<Value> {
         while self.pc < self.instrs.len() {
-            if self.step().is_none() {
-                return None;
-            }
+            self.step()?;
         }
 
         self.stack.pop()

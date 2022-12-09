@@ -521,12 +521,10 @@ fn multiply_frac(x: u128, frac: Ratio<u128>) -> u128 {
 #[cfg(test)]
 mod tests {
 
+    use melvm::Covenant;
     use themelio_structs::CoinID;
 
-    use crate::{
-        melvm::Covenant,
-        testing::functions::{genesis_mel_coin_id, genesis_state},
-    };
+    use crate::testing::functions::{genesis_mel_coin_id, genesis_state};
 
     use super::*;
 
@@ -575,7 +573,7 @@ mod tests {
                 },
             ],
             fee: 2000.into(),
-            covenants: vec![Covenant::std_ed25519_pk_legacy(my_pk).0.into()],
+            covenants: vec![Covenant::std_ed25519_pk_legacy(my_pk).to_bytes()],
             data: vec![].into(),
             sigs: vec![],
         }
@@ -608,7 +606,7 @@ mod tests {
                 },
             ],
             fee: 2000.into(),
-            covenants: vec![Covenant::std_ed25519_pk_legacy(my_pk).0.into()],
+            covenants: vec![Covenant::std_ed25519_pk_legacy(my_pk).to_bytes()],
             data: pool_key.to_bytes(), // this is important, since it "points" to the pool
             sigs: vec![],
         }
