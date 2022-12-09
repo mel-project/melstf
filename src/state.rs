@@ -285,7 +285,8 @@ impl<C: ContentAddrStore> State<C> {
     /// Finalizes a state into a block, consuming the state.
     /// Transactions stored in the `State` are [processed](crate::melmint::preseal_melmint). This also applies the given `ProposerAction` and creates the new `SealedState`.
     ///
-    /// **NOTE**: This also means that no more transactions can be applied to this state at the current `BlockHeight`.
+    /// **NOTE**: Calling this means that no more transactions can be applied to this state at the current `BlockHeight`.
+    /// Be sure to clone the `State` and call [`State::seal`] with `None` as the [`ProposerAction`]. This will give you a [`SealedState`] that *does* do have APIs to do so will enable read-only access to the state's internals.
     pub fn seal(mut self, action: Option<ProposerAction>) -> SealedState<C> {
         // first apply melmint
         self = crate::melmint::preseal_melmint(self);
@@ -324,7 +325,7 @@ impl<C: ContentAddrStore> SealedState<C> {
         self.0.coins.inner().clone()
     }
 
-    /// Obtains a past header from the state.
+    /// Obtains a past header from the state for a given height.
     pub fn get_history(&self, height: BlockHeight) -> Option<Header> {
         self.0.history.get(&height)
     }
@@ -388,11 +389,6 @@ impl<C: ContentAddrStore> SealedState<C> {
         Self(state, blk.proposer_action)
     }
 
-    /// From raw parts
-    pub fn from_parts(state: State<C>, prop_action: Option<ProposerAction>) -> Self {
-        Self(state, prop_action)
-    }
-
     /// Returns whether or not it's empty.
     pub fn is_empty(&self) -> bool {
         self.1.is_none() && self.0.transactions.is_empty()
@@ -424,6 +420,7 @@ impl<C: ContentAddrStore> SealedState<C> {
     }
 
     /// Returns the final state represented as a "block" (header + transactions).
+    /// This should be used to access the associated [`Transaction`]s.
     pub fn to_block(&self) -> Block {
         Block {
             header: self.header(),
