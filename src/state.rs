@@ -642,8 +642,7 @@ mod tests {
 
         let covenant: Covenant = Covenant::from_ops(&[
             OpCode::PushI(1_u8.into()),
-            OpCod
-e::PushI(2_u8.into()),
+            OpCode::PushI(2_u8.into()),
             OpCode::Add,
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
