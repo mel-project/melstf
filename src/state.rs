@@ -286,7 +286,7 @@ impl<C: ContentAddrStore> State<C> {
     /// Transactions stored in the `State` are [processed](crate::melmint::preseal_melmint). This also applies the given `ProposerAction` and creates the new `SealedState`.
     ///
     /// **NOTE**: Calling this means that no more transactions can be applied to this state at the current `BlockHeight`.
-    /// Be sure to clone the `State` and call [`State::seal`] with `None` as the [`ProposerAction`]. This will give you a [`SealedState`] that *does* do have APIs to do so will enable read-only access to the state's internals.
+    ///  If you want read-only access to the state's internals, be sure to clone the `State` and call [`State::seal`] with `None` as the [`ProposerAction`]. This will give you a [`SealedState`] that *does* do have APIs to do so.
     pub fn seal(mut self, action: Option<ProposerAction>) -> SealedState<C> {
         // first apply melmint
         self = crate::melmint::preseal_melmint(self);
@@ -642,7 +642,8 @@ mod tests {
 
         let covenant: Covenant = Covenant::from_ops(&[
             OpCode::PushI(1_u8.into()),
-            OpCode::PushI(2_u8.into()),
+            OpCod
+e::PushI(2_u8.into()),
             OpCode::Add,
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
