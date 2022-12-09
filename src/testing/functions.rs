@@ -86,7 +86,7 @@ pub fn create_state(
         .enumerate()
         .for_each(|(index, (sk, syms_staked))| {
             state.stakes.insert(
-                tmelcrypt::hash_single(&(index as u128).to_be_bytes()).into(),
+                tmelcrypt::hash_single((index as u128).to_be_bytes()).into(),
                 StakeDoc {
                     pubkey: sk.to_public(),
                     e_start: epoch_start,
@@ -122,7 +122,7 @@ pub fn genesis_state(
     // Insert stake holders
     for (i, (&keypair, &syms_staked)) in genesis_stakeholders.iter().enumerate() {
         state.stakes.insert(
-            tmelcrypt::hash_single(&(i as u64).to_be_bytes()).into(),
+            tmelcrypt::hash_single((i as u64).to_be_bytes()).into(),
             StakeDoc {
                 pubkey: keypair.0,
                 e_start: GENESIS_EPOCH_START,
