@@ -61,7 +61,7 @@ pub enum StateError {
 /// We intentionally do not expose the internal details of the state from this type. Instead, use the [SealedState] type, which can be constructed from a [State] through [State::seal], which represents a "sealed" state at a definite block height that can be queried for sparse Merkle trees and such.
 #[derive(Debug, Derivative)]
 #[derivative(Clone(bound = ""))]
-pub struct State<C: ContentAddrStore> {
+pub struct UnsealedState<C: ContentAddrStore> {
     /// The associated network ID for this state. The genesis state has a hardcoded network ID, and can never change afterwards.
     pub(crate) network: NetID,
 
@@ -96,7 +96,7 @@ pub struct State<C: ContentAddrStore> {
     pub(crate) stakes: StakeMapping<C>,
 }
 
-impl<C: ContentAddrStore> State<C> {
+impl<C: ContentAddrStore> UnsealedState<C> {
     fn tip_condition(&self, activation: BlockHeight) -> bool {
         if self.network == NetID::Mainnet {
             // incomplete things are always
@@ -191,15 +191,6 @@ impl<C: ContentAddrStore> State<C> {
         }
         vv.sort_unstable();
         DenseMerkleTree::new(&vv)
-    }
-
-    /// Obtains the sorted position of the given transaction within this state.
-    pub(crate) fn transaction_sorted_posn(&self, txhash: TxHash) -> Option<usize> {
-        self.transactions
-            .iter_hashes()
-            .enumerate()
-            .find(|(_, k)| k == &txhash)
-            .map(|(i, _)| i)
     }
 
     fn apply_tip_909(&mut self) {
@@ -312,11 +303,11 @@ impl<C: ContentAddrStore> State<C> {
 /// It also exposes all the internal state of the blockchain (sparse Merkle trees and such) through methods.
 #[derive(Derivative, Debug)]
 #[derivative(Clone(bound = ""))]
-pub struct SealedState<C: ContentAddrStore>(State<C>, Option<ProposerAction>);
+pub struct SealedState<C: ContentAddrStore>(UnsealedState<C>, Option<ProposerAction>);
 
 impl<C: ContentAddrStore> SealedState<C> {
     /// Obtains an unspent coin in the state.
-    pub fn get_coin(&self, id: CoinID) -> Option<CoinDataHeight> {
+    pub fn coin(&self, id: CoinID) -> Option<CoinDataHeight> {
         self.0.coins.get_coin(id)
     }
 
@@ -326,7 +317,7 @@ impl<C: ContentAddrStore> SealedState<C> {
     }
 
     /// Obtains a past header from the state for a given height.
-    pub fn get_history(&self, height: BlockHeight) -> Option<Header> {
+    pub fn history(&self, height: BlockHeight) -> Option<Header> {
         self.0.history.get(&height)
     }
 
@@ -336,7 +327,7 @@ impl<C: ContentAddrStore> SealedState<C> {
     }
 
     /// Obtains information about a particular Melswap pool.
-    pub fn get_pool(&self, key: PoolKey) -> Option<PoolState> {
+    pub fn pool(&self, key: PoolKey) -> Option<PoolState> {
         self.0.pools.get(&key)
     }
 
@@ -346,7 +337,7 @@ impl<C: ContentAddrStore> SealedState<C> {
     }
 
     /// Obtains information about a particular stake, identified by the txhash of the transaction that locked up the SYM.
-    pub fn get_stake(&self, key: TxHash) -> Option<StakeDoc> {
+    pub fn stake(&self, key: TxHash) -> Option<StakeDoc> {
         self.0.stakes.get(&key)
     }
 
@@ -373,7 +364,7 @@ impl<C: ContentAddrStore> SealedState<C> {
         let stakes = SmtMapping::new(db.get_tree(blk.header.stakes_hash.0).unwrap());
         let pools = SmtMapping::new(db.get_tree(blk.header.pools_hash.0).unwrap());
         let transactions = blk.transactions.iter().cloned().collect();
-        let state = State {
+        let state = UnsealedState {
             network: blk.header.network,
             height: blk.header.height,
             history,
@@ -420,7 +411,6 @@ impl<C: ContentAddrStore> SealedState<C> {
     }
 
     /// Returns the final state represented as a "block" (header + transactions).
-    /// This should be used to access the associated [`Transaction`]s.
     pub fn to_block(&self) -> Block {
         Block {
             header: self.header(),
@@ -429,7 +419,12 @@ impl<C: ContentAddrStore> SealedState<C> {
         }
     }
 
-    fn apply_tip_906_for_next_state(next_state: &mut State<C>) {
+    /// Returns the transactions that were sealed at this block height.
+    pub fn transactions(&self) -> impl Iterator<Item = &Transaction> {
+        self.0.transactions.iter()
+    }
+
+    fn apply_tip_906_for_next_state(next_state: &mut UnsealedState<C>) {
         log::warn!("DOING TIP-906 TRANSITION NOW!");
         let old_tree = next_state.coins.inner().clone();
         let mut count = old_tree.count();
@@ -450,7 +445,7 @@ impl<C: ContentAddrStore> SealedState<C> {
     /// Creates a new unfinalized state representing the next block.
     ///
     /// This is the "main" operation on a `SealedState` used to advance it to a `State` that can start accepting further transactions for the next block.
-    pub fn next_state(&self) -> State<C> {
+    pub fn next_unsealed(&self) -> UnsealedState<C> {
         let mut new = self.0.clone();
         // fee variables
         new.history.insert(self.0.height, self.header());
@@ -475,7 +470,7 @@ impl<C: ContentAddrStore> SealedState<C> {
     /// For example, when [auditor nodes](https://github.com/themeliolabs/themelio-node/blob/master/src/protocols/node.rs) sync with other nodes, they will apply a stream of blocks to persistent storage.
     /// Every epoch loop, [stakers nodes](https://github.com/themeliolabs/themelio-node/blob/master/src/storage/storage.rs) will call `apply_block` on the latest confirmed block from the consensus algorithm.
     pub fn apply_block(&self, block: &Block) -> Result<SealedState<C>, StateError> {
-        let mut basis = self.next_state();
+        let mut basis = self.next_unsealed();
         assert!(basis.pools.val_iter().count() >= 2);
         let transactions = block.transactions.iter().cloned().collect::<Vec<_>>();
         basis.apply_tx_batch(&transactions)?;
@@ -544,6 +539,16 @@ impl<C: ContentAddrStore> SealedState<C> {
             None
         }
     }
+
+    /// Obtains the sorted position of the given transaction within this state.
+    pub fn transaction_sorted_posn(&self, txhash: TxHash) -> Option<usize> {
+        self.0
+            .transactions
+            .iter_hashes()
+            .enumerate()
+            .find(|(_, k)| k == &txhash)
+            .map(|(i, _)| i)
+    }
 }
 
 /// ConfirmedState represents a fully confirmed state with a consensus proof.
@@ -585,16 +590,17 @@ mod tests {
 
     use crate::{
         testing::functions::{create_state, valid_txx},
-        State, StateError,
+        StateError,
         StateError::{
             InsufficientFees, MalformedTx, NonexistentCoin, NonexistentScript, UnbalancedInOut,
             ViolatesScript,
         },
+        UnsealedState,
     };
 
     #[test]
     fn apply_batch_exceed_maximum_coin_value() {
-        let state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
+        let state: UnsealedState<InMemoryCas> = create_state(&HashMap::new(), 0);
 
         let maximum_coin_value_exceeded: CoinValue =
             themelio_structs::MAX_COINVAL + themelio_structs::CoinValue(1);
@@ -615,7 +621,7 @@ mod tests {
 
     #[test]
     fn script_violation() {
-        let mut state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
+        let mut state: UnsealedState<InMemoryCas> = create_state(&HashMap::new(), 0);
 
         let (public_key, _secret_key): (tmelcrypt::Ed25519PK, tmelcrypt::Ed25519SK) =
             tmelcrypt::ed25519_keygen();
@@ -722,7 +728,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn overflow_coins() {
-        let mut state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
+        let mut state: UnsealedState<InMemoryCas> = create_state(&HashMap::new(), 0);
 
         // We attempt to cause an overflow by creating a ton of coins, all with the maximum allowed value, then trying to spend them in one transaction.
         let faucet_coin_ids: Vec<CoinID> = (0..300)
@@ -775,7 +781,7 @@ mod tests {
 
     #[test]
     fn nonexistent_script() {
-        let mut state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
+        let mut state: UnsealedState<InMemoryCas> = create_state(&HashMap::new(), 0);
 
         let (public_key, _secret_key): (tmelcrypt::Ed25519PK, tmelcrypt::Ed25519SK) =
             tmelcrypt::ed25519_keygen();
@@ -828,7 +834,7 @@ mod tests {
 
     #[test]
     fn nonexistant_coin() {
-        let state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
+        let state: UnsealedState<InMemoryCas> = create_state(&HashMap::new(), 0);
 
         let first_transaction: Transaction = Transaction {
             kind: TxKind::Faucet,
@@ -860,7 +866,7 @@ mod tests {
 
     #[test]
     fn insufficient_fees() {
-        let state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
+        let state: UnsealedState<InMemoryCas> = create_state(&HashMap::new(), 0);
 
         let covenant: Covenant = Covenant::from_ops(&[
             OpCode::PushI(1_u8.into()),
@@ -888,7 +894,7 @@ mod tests {
 
     #[test]
     fn unbalanced_input_and_output() {
-        let state: State<InMemoryCas> = create_state(&HashMap::new(), 0);
+        let state: UnsealedState<InMemoryCas> = create_state(&HashMap::new(), 0);
 
         let spend_nonexistant_coins_transaction: Transaction = Transaction {
             kind: TxKind::Normal,
@@ -1002,7 +1008,7 @@ mod tests {
             .build()
             .unwrap();
         state.apply_tx(&faucet).unwrap();
-        state = state.seal(None).next_state();
+        state = state.seal(None).next_unsealed();
         assert_eq!(state.apply_tx(&faucet), Err(StateError::DuplicateTx))
     }
 
@@ -1010,7 +1016,7 @@ mod tests {
     fn staked_coin_cannot_spend() {
         let mut state = create_state(&HashMap::new(), 0);
         state.fee_multiplier = 0;
-        state = state.seal(None).next_state();
+        state = state.seal(None).next_unsealed();
         // create some syms
         let sym_faucet = Transaction {
             kind: TxKind::Faucet,
@@ -1089,7 +1095,7 @@ mod tests {
         let header = sealed.header();
         let dmt = sealed.0.tip908_transactions();
         for tx in txx_to_insert.iter() {
-            let posn = sealed.0.transaction_sorted_posn(tx.hash_nosigs()).unwrap();
+            let posn = sealed.transaction_sorted_posn(tx.hash_nosigs()).unwrap();
             let proof = dmt.proof(posn);
             assert!(novasmt::dense::verify_dense(
                 &proof,

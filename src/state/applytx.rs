@@ -14,7 +14,7 @@ use themelio_structs::{
 };
 use tmelcrypt::HashVal;
 
-use crate::{melmint, LegacyMelPowHash, State, StateError, Tip910MelPowHash};
+use crate::{melmint, LegacyMelPowHash, StateError, Tip910MelPowHash, UnsealedState};
 
 // TODO: add proper description of this exploit
 const INFLATION_BUG_TX_HASH: &str =
@@ -22,9 +22,9 @@ const INFLATION_BUG_TX_HASH: &str =
 
 /// Applies a batch of transactions to the state and returns the new state afterwards.
 pub fn apply_tx_batch_impl<C: ContentAddrStore>(
-    this: &State<C>,
+    this: &UnsealedState<C>,
     txx: &[Transaction],
-) -> Result<State<C>, StateError> {
+) -> Result<UnsealedState<C>, StateError> {
     // we first obtain *all* the relevant coins
     let relevant_coins = load_relevant_coins(this, txx)?;
 
@@ -62,7 +62,7 @@ pub fn apply_tx_batch_impl<C: ContentAddrStore>(
 }
 
 fn handle_faucet_tx<C: ContentAddrStore>(
-    state: &mut State<C>,
+    state: &mut UnsealedState<C>,
     tx: &Transaction,
 ) -> Result<(), StateError> {
     // dedup faucet
@@ -105,11 +105,11 @@ fn handle_faucet_tx<C: ContentAddrStore>(
 }
 
 fn create_next_state<C: ContentAddrStore>(
-    mut next_state: State<C>,
+    mut next_state: UnsealedState<C>,
     transactions: &[Transaction],
     relevant_coins: &FxHashMap<CoinID, CoinDataHeight>,
     is_tip_906: bool,
-) -> Result<State<C>, StateError> {
+) -> Result<UnsealedState<C>, StateError> {
     for tx in transactions {
         let txhash = tx.hash_nosigs();
 
@@ -153,7 +153,7 @@ fn create_next_state<C: ContentAddrStore>(
 ///
 /// NOTE: Coins specified in a transaction's `output` that have a `Address::coin_destroy()` covhash are permanently destroyed.
 fn load_relevant_coins<C: ContentAddrStore>(
-    this: &State<C>,
+    this: &UnsealedState<C>,
     txx: &[Transaction],
 ) -> Result<FxHashMap<CoinID, CoinDataHeight>, StateError> {
     let mut accum: FxHashMap<CoinID, CoinDataHeight> = FxHashMap::default();
@@ -188,7 +188,7 @@ fn load_relevant_coins<C: ContentAddrStore>(
 
 fn extract_input_coins<C: ContentAddrStore>(
     transactions: &[Transaction],
-    state: &State<C>,
+    state: &UnsealedState<C>,
     coins_so_far: &FxHashMap<CoinID, CoinDataHeight>,
 ) -> Result<FxHashMap<CoinID, CoinDataHeight>, StateError> {
     let mut accum: FxHashMap<CoinID, CoinDataHeight> = FxHashMap::default();
@@ -253,7 +253,7 @@ fn stake_is_consistent(stake_doc: &StakeDoc, curr_epoch: u64, coin: &CoinData) -
 }
 
 fn load_stake_info<C: ContentAddrStore>(
-    this: &State<C>,
+    this: &UnsealedState<C>,
     txx: &[Transaction],
 ) -> Result<FxHashMap<TxHash, StakeDoc>, StateError> {
     let mut accum = FxHashMap::default();
@@ -370,7 +370,7 @@ fn check_tx_coins_balanced(
 }
 
 fn check_tx_validity<C: ContentAddrStore>(
-    this: &State<C>,
+    this: &UnsealedState<C>,
     tx: &Transaction,
     relevant_coins: &FxHashMap<CoinID, CoinDataHeight>,
     new_stakes: &FxHashMap<TxHash, StakeDoc>,
@@ -462,7 +462,7 @@ fn check_dosc_total_output(tx: &Transaction, reward_nom: CoinValue) -> Result<()
 
 /// Checks a doscmint transaction, and returns the implicit speed.
 fn validate_and_get_doscmint_speed<C: ContentAddrStore>(
-    this: &State<C>,
+    this: &UnsealedState<C>,
     relevant_coins: &FxHashMap<CoinID, CoinDataHeight>,
     tx: &Transaction,
 ) -> Result<u128, StateError> {

@@ -3,7 +3,7 @@ use novasmt::InMemoryCas;
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use once_cell::sync::Lazy;
-use themelio_stf::{GenesisConfig, State};
+use themelio_stf::{GenesisConfig, UnsealedState};
 use themelio_structs::{Address, CoinData, Denom, NetID, Transaction, TxKind};
 
 fn generate_txx(n: usize) -> Vec<Transaction> {
@@ -40,7 +40,7 @@ fn generate_txx(n: usize) -> Vec<Transaction> {
     toret
 }
 
-fn zerofee_state() -> State<InMemoryCas> {
+fn zerofee_state() -> UnsealedState<InMemoryCas> {
     let cfg = GenesisConfig {
         network: NetID::Testnet,
         init_coindata: CoinData {

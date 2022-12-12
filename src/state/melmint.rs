@@ -1,4 +1,4 @@
-use crate::State;
+use crate::UnsealedState;
 
 use std::{cell::RefCell, convert::TryInto};
 
@@ -97,7 +97,7 @@ pub fn calculate_reward(my_speed: u128, dosc_speed: u128, difficulty: u32, tip91
 /// - create built-in nonzero liquidity pools if they don't exist already
 /// - process any swap, deposit, or withdrawal requests for the state's pools. This consists of finding a subset of transactions and pools and applying swaps on them as needed.
 /// - process pegging for MEL. This includes some nudging of inflation rates, etc. More details can be found in the [specifications](https://docs.themelio.org/specifications/tech-melmint/).
-pub fn preseal_melmint<C: ContentAddrStore>(state: State<C>) -> State<C> {
+pub fn preseal_melmint<C: ContentAddrStore>(state: UnsealedState<C>) -> UnsealedState<C> {
     let state = create_builtins(state);
     assert!(state.pools.val_iter().count() >= 2);
     let state = process_swaps(state);
@@ -130,7 +130,7 @@ fn transactions_for_pool(transactions: &[Transaction], pool_key: &PoolKey) -> Ve
 }
 
 /// Creates the built-in pools if they don't exist. The built-in pools start out with nonzero liq, so that they can never be completely depleted. This ensures that built-in pools will always exist in the state.
-fn create_builtins<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
+fn create_builtins<C: ContentAddrStore>(mut state: UnsealedState<C>) -> UnsealedState<C> {
     let mut def = PoolState::new_empty();
     let _ = def.deposit(MICRO_CONVERTER * 1000, MICRO_CONVERTER * 1000);
     if state
@@ -166,7 +166,7 @@ fn create_builtins<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
 
 fn process_swaps_for_single_pool<C: ContentAddrStore>(
     pool: &PoolKey,
-    state: &mut State<C>,
+    state: &mut UnsealedState<C>,
     swaps: &mut Vec<Transaction>,
 ) {
     log::trace!("{} relevant swaps for pool {:?}", swaps.len(), pool);
@@ -227,7 +227,7 @@ fn process_swaps_for_single_pool<C: ContentAddrStore>(
 }
 
 /// Extract the swap requests from the given `State`.
-fn get_swap_transactions<C: ContentAddrStore>(state: &State<C>) -> Vec<Transaction> {
+fn get_swap_transactions<C: ContentAddrStore>(state: &UnsealedState<C>) -> Vec<Transaction> {
     state
         .transactions
         .iter()
@@ -245,7 +245,7 @@ fn get_swap_transactions<C: ContentAddrStore>(state: &State<C>) -> Vec<Transacti
 }
 
 /// Process swaps.
-fn process_swaps<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
+fn process_swaps<C: ContentAddrStore>(mut state: UnsealedState<C>) -> UnsealedState<C> {
     let mut swap_reqs: Vec<Transaction> = get_swap_transactions(&state);
 
     log::trace!("{} swap requests", swap_reqs.len());
@@ -264,7 +264,7 @@ fn process_swaps<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
 
 fn process_deposits_for_single_pool<C: ContentAddrStore>(
     pool: &PoolKey,
-    state: &mut State<C>,
+    state: &mut UnsealedState<C>,
     deposits: &mut [Transaction],
 ) {
     // sum up total lefts and rights
@@ -330,7 +330,7 @@ fn process_deposits_for_single_pool<C: ContentAddrStore>(
 }
 
 /// Extract the deposit requests from the given `State`.
-fn get_deposit_transactions<C: ContentAddrStore>(state: &State<C>) -> Vec<Transaction> {
+fn get_deposit_transactions<C: ContentAddrStore>(state: &UnsealedState<C>) -> Vec<Transaction> {
     state
         .transactions
         .iter()
@@ -349,7 +349,7 @@ fn get_deposit_transactions<C: ContentAddrStore>(state: &State<C>) -> Vec<Transa
 }
 
 /// Process deposits.
-fn process_deposits<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
+fn process_deposits<C: ContentAddrStore>(mut state: UnsealedState<C>) -> UnsealedState<C> {
     let mut deposit_reqs = get_deposit_transactions(&state);
     log::trace!("{} deposit reqs", deposit_reqs.len());
     // find the pools mentioned
@@ -364,7 +364,7 @@ fn process_deposits<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
 
 fn process_withdrawals_for_single_pool<C: ContentAddrStore>(
     pool: &PoolKey,
-    state: &mut State<C>,
+    state: &mut UnsealedState<C>,
     relevant_txx: &mut [Transaction],
 ) {
     // sum up total liqs
@@ -412,7 +412,7 @@ fn process_withdrawals_for_single_pool<C: ContentAddrStore>(
 }
 
 /// Extract the withdrawl requests from the given `State`.
-fn get_withdrawal_transactions<C: ContentAddrStore>(state: &State<C>) -> Vec<Transaction> {
+fn get_withdrawal_transactions<C: ContentAddrStore>(state: &UnsealedState<C>) -> Vec<Transaction> {
     state
         .transactions
         .iter()
@@ -430,7 +430,7 @@ fn get_withdrawal_transactions<C: ContentAddrStore>(state: &State<C>) -> Vec<Tra
 }
 
 /// Process deposits.
-fn process_withdrawals<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
+fn process_withdrawals<C: ContentAddrStore>(mut state: UnsealedState<C>) -> UnsealedState<C> {
     // find the withdrawal requests
     let mut withdraw_reqs: Vec<Transaction> = get_withdrawal_transactions(&state);
     // find the pools mentioned
@@ -444,7 +444,7 @@ fn process_withdrawals<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
 }
 
 /// Process pegging.
-fn process_pegging<C: ContentAddrStore>(mut state: State<C>) -> State<C> {
+fn process_pegging<C: ContentAddrStore>(mut state: UnsealedState<C>) -> UnsealedState<C> {
     // first calculate the implied sym/Erg exchange rate
     let x_sd = if state.tip_902() {
         state
@@ -553,7 +553,7 @@ mod tests {
         );
         start_state.fee_multiplier = 1;
         // test sealing
-        let mut second_state = start_state.seal(None).next_state();
+        let mut second_state = start_state.seal(None).next_unsealed();
         // deposit the genesis as a custom-token pool
         let newcoin_tx = Transaction {
             kind: TxKind::Normal,

@@ -3,11 +3,11 @@ use std::{borrow::Cow, path::Path, time::Instant};
 use melvm::Covenant;
 use novasmt::ContentAddrStore;
 use once_cell::sync::Lazy;
-use themelio_stf::{GenesisConfig, State};
+use themelio_stf::{GenesisConfig, UnsealedState};
 use themelio_structs::{Address, CoinData, Denom, NetID, Transaction, TxKind};
 
 fn main() {
-    let mut state = zerofee_state().seal(None).next_state();
+    let mut state = zerofee_state().seal(None).next_unsealed();
     for (i, tx) in TEST_INPUT.iter().enumerate() {
         let tx_start = Instant::now();
         state.apply_tx(tx).unwrap();
@@ -50,7 +50,7 @@ fn generate_txx(n: usize) -> Vec<Transaction> {
     toret
 }
 
-fn zerofee_state() -> State<MeshaCas> {
+fn zerofee_state() -> UnsealedState<MeshaCas> {
     let cfg = GenesisConfig {
         network: NetID::Testnet,
         init_coindata: CoinData {

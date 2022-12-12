@@ -1,7 +1,7 @@
 use crate::GenesisConfig;
 use crate::{
     testing::constants::{DB, GENESIS_EPOCH_POST_END, GENESIS_EPOCH_START},
-    State,
+    UnsealedState,
 };
 
 // const GENESIS_MEL_SUPPLY: u128 = 21_000_000;
@@ -52,7 +52,7 @@ pub fn valid_txx(keypair: (Ed25519PK, Ed25519SK)) -> Vec<Transaction> {
 pub fn create_state(
     stakers: &HashMap<Ed25519SK, CoinValue>,
     epoch_start: u64,
-) -> State<InMemoryCas> {
+) -> UnsealedState<InMemoryCas> {
     // Create emtpy state
     let db = Database::new(InMemoryCas::default());
     let mut state = GenesisConfig::std_testnet()
@@ -108,7 +108,7 @@ pub fn genesis_state(
     genesis_mel_coin_id: CoinID,
     genesis_mel_coin_data_height: CoinDataHeight,
     genesis_stakeholders: HashMap<(Ed25519PK, Ed25519SK), u128>,
-) -> State<InMemoryCas> {
+) -> UnsealedState<InMemoryCas> {
     // Init empty state with db reference
     let mut state = GenesisConfig::std_testnet().realize(&DB);
 

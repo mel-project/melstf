@@ -24,12 +24,12 @@ fn main() {
     }
     .realize(&Database::new(meshacas))
     .seal(None)
-    .next_state();
+    .next_unsealed();
     // test basic transactions
     let mut cue = BinaryHeap::new();
     for iter in 0.. {
         if iter % 10000 == 0 {
-            test_state = test_state.seal(None).next_state();
+            test_state = test_state.seal(None).next_unsealed();
         }
         let start = Instant::now();
         let mut data = vec![0; 1024];

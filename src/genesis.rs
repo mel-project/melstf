@@ -9,7 +9,7 @@ use themelio_structs::{
 };
 use tmelcrypt::{Ed25519PK, HashVal};
 
-use crate::{CoinMapping, SmtMapping, State};
+use crate::{CoinMapping, SmtMapping, UnsealedState};
 
 /// Configuration of a genesis state. Serializable via serde.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -100,9 +100,9 @@ impl GenesisConfig {
     }
 
     /// Creates a [State] from this configuration.
-    pub fn realize<C: ContentAddrStore>(self, db: &novasmt::Database<C>) -> State<C> {
+    pub fn realize<C: ContentAddrStore>(self, db: &novasmt::Database<C>) -> UnsealedState<C> {
         let empty_tree = db.get_tree(HashVal::default().0).unwrap();
-        let mut new_state = State {
+        let mut new_state = UnsealedState {
             network: self.network,
             height: 0.into(),
             history: SmtMapping::new(empty_tree.clone()),

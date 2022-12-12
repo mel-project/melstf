@@ -145,28 +145,6 @@ impl Executor {
         self.stack.pop()
     }
 
-    /// Execute to the end, without popping.
-    pub fn run_to_end_preserve_stack(&mut self) -> bool {
-        self.run_discerning_to_end_preserve_stack().unwrap_or(false)
-    }
-
-    /// Execute to the end, without popping.
-    pub fn run_discerning_to_end_preserve_stack(&mut self) -> Option<bool> {
-        while self.pc < self.instrs.len() {
-            self.step()?;
-        }
-        Some(
-            self.stack
-                .last()
-                .map(|f| f.clone().into_bool())
-                .unwrap_or_default(),
-        )
-    }
-
-    /// Checks whether or not the execution has come to an end.
-    pub fn at_end(&self) -> bool {
-        self.pc == self.instrs.len()
-    }
 
     /// Execute an instruction, modifying state and program counter.
     pub fn step(&mut self) -> Option<()> {
