@@ -286,7 +286,6 @@ impl<C: ContentAddrStore> State<C> {
     /// Transactions stored in the `State` are [processed](crate::melmint::preseal_melmint). This also applies the given `ProposerAction` and creates the new `SealedState`.
     ///
     /// **NOTE**: Calling this means that no more transactions can be applied to this state at the current `BlockHeight`.
-    ///  If you want read-only access to the state's internals, be sure to clone the `State` and call [`State::seal`] with `None` as the [`ProposerAction`]. This will give you a [`SealedState`] that *does* do have APIs to do so.
     pub fn seal(mut self, action: Option<ProposerAction>) -> SealedState<C> {
         // first apply melmint
         self = crate::melmint::preseal_melmint(self);
@@ -473,7 +472,7 @@ impl<C: ContentAddrStore> SealedState<C> {
     /// This functionality is used by full nodes (both Auditors and Stakers) to sync and move the state forward by applying new transactions.
     ///
     /// For example, when [auditor nodes](https://github.com/themeliolabs/themelio-node/blob/master/src/protocols/node.rs) sync with other nodes, they will apply a stream of blocks to persistent storage.
-    /// Every epoch loop, [stakers nodes](https://github.com/themeliolabs/themelio-node/blob/master/src/storage/storage.rs) will call `apply_block` on the latest confirmed block from the consensus algorithm.
+    /// Every epoch loop, [stakers nodes](https://github.com/themeliolabs/themelio-node/blob/master/src/storage/storage.rs#L161) will call `apply_block` on the latest confirmed block from the consensus algorithm.
     pub fn apply_block(&self, block: &Block) -> Result<SealedState<C>, StateError> {
         let mut basis = self.next_state();
         assert!(basis.pools.val_iter().count() >= 2);
