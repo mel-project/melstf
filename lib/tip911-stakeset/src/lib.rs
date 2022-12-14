@@ -1,7 +1,7 @@
 use novasmt::{dense::DenseMerkleTree, ContentAddrStore, Database, InMemoryCas};
 use stdcode::StdcodeSerializeExt;
 use themelio_structs::{CoinID, CoinValue, StakeDoc, TxHash};
-use tmelcrypt::{Ed25519PK, Hashable};
+use tmelcrypt::{Ed25519PK, HashVal, Hashable};
 
 /// Keeps track of all the active stakes in the blockchain. Abstracts over the pre-TIP911 and post-TIP911 representations.
 pub struct StakeSet {
@@ -16,7 +16,7 @@ impl StakeSet {
 
     /// Checks whether a particular CoinID is frozen due to it containing an active stake.
     pub fn is_frozen(&self, coin: CoinID) -> bool {
-        self.stakes.contains_key(&coin.txhash)
+        self.stakes.contains_key(&coin.txhash) && coin.index == 0
     }
 
     /// Checks how many votes a particular staker has, in the given epoch.
@@ -78,17 +78,16 @@ pub struct Tip911 {
 }
 
 impl Tip911 {
-    /// Calculates a dense merkle tree where each element is the hash of the stdcode of (current_total, next_total, txhash, stakedoc).
+    /// Calculates a dense merkle tree where the kth element is the hash of a stdcode'ed vector of the first k(current_total, next_total, txhash, stakedoc).
     pub fn calculate_merkle(&self) -> DenseMerkleTree {
         let vec = self
             .stakes
             .iter()
-            .map(|(txhash, sdoc)| {
-                (self.current_total, self.next_total, txhash, sdoc)
-                    .stdcode()
-                    .hash()
-            })
+            .map(|(txhash, sdoc)| (self.current_total, self.next_total, txhash, sdoc))
             .collect::<Vec<_>>();
-        DenseMerkleTree::new(&vec)
+        let upto_vec: Vec<HashVal> = (0..vec.len())
+            .map(|k| vec[..k].to_vec().stdcode().hash())
+            .collect();
+        DenseMerkleTree::new(&upto_vec)
     }
 }
