@@ -11,7 +11,7 @@ license = "MPL-2.0"
 repository = "https://github.com/themeliolabs/themelio-stf"
 
 [workspace]
-members = ["melvm"]
+members = ["lib/*"]
 
 [dependencies.arbitrary]
 version = "1.0.3"
@@ -63,7 +63,7 @@ serde_with = "1"
 bytes = { version = "1.2.1", features = ["serde"] }
 imbl = "2.0.0"
 
-melvm  = {path="./melvm"}
+melvm  = {path="./lib/melvm"}
 
 [target.'cfg(fuzzing)'.dependencies]
 honggfuzz = "0.5.54"
