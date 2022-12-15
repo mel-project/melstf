@@ -79,15 +79,26 @@ pub struct Tip911 {
 
 impl Tip911 {
     /// Calculates a dense merkle tree where the kth element is the hash of a stdcode'ed vector of the first k(current_total, next_total, txhash, stakedoc).
-    pub fn calculate_merkle(&self) -> DenseMerkleTree {
+    pub fn to_datablocks(&self) -> Vec<Vec<u8>> {
         let vec = self
             .stakes
             .iter()
             .map(|(txhash, sdoc)| (self.current_total, self.next_total, txhash, sdoc))
             .collect::<Vec<_>>();
-        let upto_vec: Vec<HashVal> = (0..vec.len())
-            .map(|k| vec[..k].to_vec().stdcode().hash())
+        let upto_vec: Vec<Vec<u8>> = (0..vec.len())
+            .map(|k| vec[..k].to_vec().stdcode())
             .collect();
-        DenseMerkleTree::new(&upto_vec)
+
+        upto_vec
+    }
+
+    pub fn to_tree(&self) -> DenseMerkleTree {
+        let leaves: Vec<HashVal> = self
+            .to_datablocks()
+            .iter()
+            .map(|datablock| datablock.hash())
+            .collect();
+
+        DenseMerkleTree::new(&leaves)
     }
 }
