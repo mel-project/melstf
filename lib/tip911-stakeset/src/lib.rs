@@ -78,6 +78,33 @@ pub struct Tip911 {
 }
 
 impl Tip911 {
+    /// Creates a Tip911 from a vector of stakedoc tuples and a given epoch.
+    pub fn new(stakes: Vec<(TxHash, StakeDoc)>, epoch: u64) -> Tip911 {
+        let (current_total, next_total) = stakes
+            .iter()
+            .fold((CoinValue(0), CoinValue(0)), |accum, elem| {
+                let current = if elem.1.e_start <= epoch && elem.1.e_post_end > epoch {
+                    elem.1.syms_staked
+                } else {
+                    CoinValue(0)
+                };
+
+                let next = if elem.1.e_start <= epoch + 1 && elem.1.e_post_end > epoch + 1 {
+                    elem.1.syms_staked
+                } else {
+                    CoinValue(0)
+                };
+
+                (accum.0 + current, accum.1 + next)
+            });
+
+        Tip911 {
+            current_total,
+            next_total,
+            stakes
+        }
+    }
+
     /// Calculates a dense merkle tree where the kth element is the hash of a stdcode'ed vector of the first k(current_total, next_total, txhash, stakedoc).
     pub fn calculate_merkle(&self) -> DenseMerkleTree {
         let vec = self
