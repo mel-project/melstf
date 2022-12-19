@@ -58,7 +58,7 @@ pub fn create_state(
     let mut state = GenesisConfig::std_testnet()
         .tap_mut(|g| g.network = NetID::Custom02)
         .realize(&db);
-    state.stakes.clear();
+    state.stakes.unlock_old(u64::MAX);
 
     // Insert a mel coin into state so we can transact
     let start_micromels: CoinValue = CoinValue(MICRO_CONVERTER * 10000);
@@ -85,7 +85,7 @@ pub fn create_state(
         .iter()
         .enumerate()
         .for_each(|(index, (sk, syms_staked))| {
-            state.stakes.insert(
+            state.stakes.add_stake(
                 tmelcrypt::hash_single((index as u128).to_be_bytes()).into(),
                 StakeDoc {
                     pubkey: sk.to_public(),
@@ -121,7 +121,7 @@ pub fn genesis_state(
 
     // Insert stake holders
     for (i, (&keypair, &syms_staked)) in genesis_stakeholders.iter().enumerate() {
-        state.stakes.insert(
+        state.stakes.add_stake(
             tmelcrypt::hash_single((i as u64).to_be_bytes()).into(),
             StakeDoc {
                 pubkey: keypair.0,

@@ -7,6 +7,7 @@ use themelio_structs::{
     BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc, TxHash,
     MICRO_CONVERTER,
 };
+use tip911_stakeset::StakeSet;
 use tmelcrypt::{Ed25519PK, HashVal};
 
 use crate::{CoinMapping, SmtMapping, UnsealedState};
@@ -99,7 +100,7 @@ impl GenesisConfig {
         }
     }
 
-    /// Creates a [State] from this configuration.
+    /// Creates an [UnsealedState] from this configuration.
     pub fn realize<C: ContentAddrStore>(self, db: &novasmt::Database<C>) -> UnsealedState<C> {
         let empty_tree = db.get_tree(HashVal::default().0).unwrap();
         let mut new_state = UnsealedState {
@@ -114,15 +115,7 @@ impl GenesisConfig {
 
             dosc_speed: MICRO_CONVERTER,
             pools: SmtMapping::new(empty_tree.clone()),
-            stakes: {
-                let mut stakes = SmtMapping::new(empty_tree);
-
-                self.stakes.iter().for_each(|(key, value)| {
-                    stakes.insert(*key, *value);
-                });
-
-                stakes
-            },
+            stakes: StakeSet::new(self.stakes.into_iter()),
         };
         // init micromels etc
         new_state.coins.insert_coin(

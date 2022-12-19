@@ -1,17 +1,30 @@
-use novasmt::{dense::DenseMerkleTree, ContentAddrStore, Database, InMemoryCas};
+use novasmt::{dense::DenseMerkleTree, Database, InMemoryCas};
 use stdcode::StdcodeSerializeExt;
 use themelio_structs::{CoinID, CoinValue, StakeDoc, TxHash};
 use tmelcrypt::{Ed25519PK, HashVal, Hashable};
 
 /// Keeps track of all the active stakes in the blockchain. Abstracts over the pre-TIP911 and post-TIP911 representations.
+#[derive(Clone, Debug)]
 pub struct StakeSet {
     stakes: imbl::HashMap<TxHash, StakeDoc>,
 }
 
 impl StakeSet {
+    /// Creates a new StakeSet, from a mapping from the [TxHash] that created a stake, to the [StakeDoc] describing the stake.
+    pub fn new(stakes: impl Iterator<Item = (TxHash, StakeDoc)>) -> Self {
+        Self {
+            stakes: stakes.collect(),
+        }
+    }
+
     /// Adds another stake to the set. The transaction hash of the staking transaction, as well as the parsed [StakeDoc], must be given.
     pub fn add_stake(&mut self, txhash: TxHash, stake: StakeDoc) {
         self.stakes.insert(txhash, stake);
+    }
+
+    /// Gets information about a particular stake, identified by the [TxHash] of the transaction that created it.
+    pub fn get_stake(&self, txhash: TxHash) -> Option<StakeDoc> {
+        self.stakes.get(&txhash).cloned()
     }
 
     /// Checks whether a particular CoinID is frozen due to it containing an active stake.

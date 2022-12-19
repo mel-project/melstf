@@ -9,5 +9,6 @@ edition = "2021"
 imbl = "2.0.0"
 novasmt = "0.2.19"
 stdcode = "0.1.13"
-themelio-structs = "0.2.12"
+
 tmelcrypt = "0.2.6"
+themelio-structs= "0.3.0-beta.4"

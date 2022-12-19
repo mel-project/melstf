@@ -56,7 +56,7 @@ pub fn apply_tx_batch_impl<C: ContentAddrStore>(
 
     // apply stakes
     for (k, v) in new_stakes {
-        next_state.stakes.insert(k, v);
+        next_state.stakes.add_stake(k, v);
     }
     Ok(next_state)
 }
@@ -390,7 +390,8 @@ fn check_tx_validity<C: ContentAddrStore>(
     for (spend_idx, coin_id) in tx.inputs.iter().enumerate() {
         // Workaround for BUGGY old code!
         // TODO: add some details for this
-        if (new_stakes.contains_key(&coin_id.txhash) || this.stakes.get(&coin_id.txhash).is_some())
+        if (new_stakes.contains_key(&coin_id.txhash)
+            || this.stakes.get_stake(coin_id.txhash).is_some())
             && !((this.network == NetID::Mainnet || this.network == NetID::Testnet)
                 && this.height.0 < 900000)
         {

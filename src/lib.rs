@@ -4,7 +4,6 @@
 mod genesis;
 
 mod smtmapping;
-mod stake;
 mod state;
 pub mod stats;
 mod testing;

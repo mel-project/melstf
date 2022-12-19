@@ -3,7 +3,6 @@ mod coins;
 pub(crate) mod melmint;
 pub(crate) mod txset;
 
-pub use crate::stake::*;
 use crate::tip_heights::TIP_902_HEIGHT;
 use crate::{
     smtmapping::*,
@@ -26,6 +25,7 @@ use themelio_structs::{
     STAKE_EPOCH,
 };
 use thiserror::Error;
+use tip911_stakeset::StakeSet;
 use tmelcrypt::{HashVal, Hashable};
 
 pub use self::coins::CoinMapping;
@@ -93,7 +93,7 @@ pub struct UnsealedState<C: ContentAddrStore> {
     pub(crate) pools: PoolMapping<C>,
 
     /// A sparse Merkle tree that maps transaction hashes to a `StakeDoc`, which contains information on how to verify consensus proofs.
-    pub(crate) stakes: StakeMapping<C>,
+    pub(crate) stakes: StakeSet,
 }
 
 impl<C: ContentAddrStore> UnsealedState<C> {
@@ -337,30 +337,18 @@ impl<C: ContentAddrStore> SealedState<C> {
 
     /// Obtains information about a particular stake, identified by the txhash of the transaction that locked up the SYM.
     pub fn stake(&self, key: TxHash) -> Option<StakeDoc> {
-        self.0.stakes.get(&key)
+        self.0.stakes.get_stake(key)
     }
 
-    /// Obtains the raw sparse Merkle tree containing all the stakes.
-    pub fn raw_stakes_smt(&self) -> novasmt::Tree<C> {
-        self.0.stakes.mapping.clone()
+    /// Obtains the raw store containing all the stakes.
+    pub fn raw_stakes(&self) -> StakeSet {
+        self.0.stakes.clone()
     }
 
-    /// Helper function that returns all the StakeDocs for a particular height, given the stakes in this state.
-    pub fn stake_docs_for_height(
-        &self,
-        height: BlockHeight,
-    ) -> impl Iterator<Item = StakeDoc> + '_ {
-        self.0
-            .stakes
-            .val_iter()
-            .filter(move |sd| height.epoch() >= sd.e_start && height.epoch() < sd.e_post_end)
-    }
-
-    /// Regenerate from a block, given a database to get the SMTs out of.
-    pub fn from_block(blk: &Block, db: &Database<C>) -> Self {
+    /// Regenerate from a block, given a database to get the SMTs out of, as well as the stake set.
+    pub fn from_block(blk: &Block, stakes: &StakeSet, db: &Database<C>) -> Self {
         let coins = CoinMapping::new(db.get_tree(blk.header.coins_hash.0).unwrap());
         let history = SmtMapping::new(db.get_tree(blk.header.history_hash.0).unwrap());
-        let stakes = SmtMapping::new(db.get_tree(blk.header.stakes_hash.0).unwrap());
         let pools = SmtMapping::new(db.get_tree(blk.header.pools_hash.0).unwrap());
         let transactions = blk.transactions.iter().cloned().collect();
         let state = UnsealedState {
@@ -374,7 +362,7 @@ impl<C: ContentAddrStore> SealedState<C> {
             tips: CoinValue(0),
             dosc_speed: blk.header.dosc_speed,
             pools,
-            stakes,
+            stakes: stakes.clone(),
         };
         Self(state, blk.proposer_action)
     }
@@ -400,7 +388,7 @@ impl<C: ContentAddrStore> SealedState<C> {
             fee_multiplier: inner.fee_multiplier,
             dosc_speed: inner.dosc_speed,
             pools_hash: inner.pools.root_hash(),
-            stakes_hash: inner.stakes.root_hash(),
+            stakes_hash: HashVal(inner.stakes.pre_tip911().root_hash()),
         }
     }
 
@@ -449,7 +437,7 @@ impl<C: ContentAddrStore> SealedState<C> {
         // fee variables
         new.history.insert(self.0.height, self.header());
         new.height += BlockHeight(1);
-        new.stakes.remove_stale((new.height / STAKE_EPOCH).0);
+        new.stakes.unlock_old((new.height / STAKE_EPOCH).0);
         new.transactions = Default::default();
 
         // TIP-906 transition
@@ -517,17 +505,11 @@ impl<C: ContentAddrStore> SealedState<C> {
         }
         // then check that we have enough signatures
         let my_epoch = self.0.height.epoch();
-        let relevant_stakes = self
-            .0
-            .stakes
-            .val_iter()
-            .filter(|doc| doc.e_start <= my_epoch && doc.e_post_end > my_epoch)
-            .collect::<Vec<_>>();
-        let total_votes: u128 = relevant_stakes.iter().map(|doc| doc.syms_staked.0).sum();
-        let present_votes: u128 = relevant_stakes
-            .iter()
-            .filter(|doc| cproof.contains_key(&doc.pubkey))
-            .map(|doc| doc.syms_staked.0)
+
+        let total_votes: u128 = self.0.stakes.total_votes(my_epoch);
+        let present_votes: u128 = cproof
+            .keys()
+            .map(|k| self.0.stakes.votes(my_epoch, *k))
             .sum();
         if total_votes > present_votes / 2 * 3 {
             Some(ConfirmedState {
