@@ -96,10 +96,17 @@ impl Tip911 {
         let vec = self
             .stakes
             .iter()
-            .map(|(txhash, sdoc)| (self.current_total, self.next_total, txhash, sdoc))
+            .map(|(txhash, sdoc)| (txhash, sdoc))
             .collect::<Vec<_>>();
-        let upto_vec: Vec<HashVal> = (0..vec.len())
-            .map(|k| vec[..k].to_vec().stdcode().hash())
+        let upto_vec: Vec<Vec<u8>> = (0..vec.len())
+            .map(|k| {
+                (
+                    self.current_total,
+                    self.next_total,
+                    vec[..k].to_vec().stdcode().hash(),
+                )
+                    .stdcode()
+            })
             .collect();
         DenseMerkleTree::new(&upto_vec)
     }

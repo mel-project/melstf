@@ -31,7 +31,8 @@ fn main() -> anyhow::Result<()> {
         let mut fpath = args.history_path.clone();
         fpath.push(blk_proof);
         let (blk, _proof): (Block, ConsensusProof) = stdcode::deserialize(&std::fs::read(&fpath)?)?;
-        state = state.apply_block(&blk).unwrap();
+        println!("read block {}", blk.header.height);
+        state = state.apply_block(&blk)?;
         println!("applied block {}", blk.header.height);
     }
     println!(
