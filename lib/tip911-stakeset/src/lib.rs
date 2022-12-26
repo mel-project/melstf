@@ -103,7 +103,7 @@ impl Tip911 {
                 (
                     self.current_total,
                     self.next_total,
-                    vec[..k].to_vec(),
+                    vec[..=k].to_vec(),
                 )
                     .stdcode()
             })
