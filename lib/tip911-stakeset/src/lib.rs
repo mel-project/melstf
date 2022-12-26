@@ -81,7 +81,7 @@ impl StakeSet {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Tip911 {
     /// Tally of all the SYM that can vote in this epoch.
     pub current_total: CoinValue,
