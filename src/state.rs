@@ -31,7 +31,8 @@ use tmelcrypt::{HashVal, Hashable};
 pub use self::coins::CoinMapping;
 use self::txset::TransactionSet;
 
-#[derive(Error, Debug, PartialEq, Eq)]
+#[derive(Error, Debug, PartialEq, Eq, Clone, Copy)]
+#[allow(clippy::large_enum_variant)]
 /// A error that happens while applying a transaction to a state
 pub enum StateError {
     #[error("malformed transaction")]
@@ -48,8 +49,8 @@ pub enum StateError {
     ViolatesScript(Address),
     #[error("invalid sequential proof of work")]
     InvalidMelPoW,
-    #[error("block has wrong header after applying to previous block")]
-    WrongHeader,
+    #[error("block has wrong header after applying to previous block: post-apply {:?}, declared {:?}", .0, .1)]
+    WrongHeader(Header, Header),
     #[error("tried to spend locked coin")]
     CoinLocked,
     #[error("duplicate transaction")]
@@ -479,7 +480,7 @@ impl<C: ContentAddrStore> SealedState<C> {
             log::warn!("pre-apply header: {:#?}", self.header());
             log::warn!("block: {:#?}", block);
 
-            Err(StateError::WrongHeader)
+            Err(StateError::WrongHeader(basis.header(), block.header))
         } else {
             Ok(basis)
         }
