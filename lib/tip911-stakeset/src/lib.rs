@@ -81,6 +81,7 @@ impl StakeSet {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct Tip911 {
     /// Tally of all the SYM that can vote in this epoch.
     pub current_total: CoinValue,
@@ -93,13 +94,15 @@ pub struct Tip911 {
 impl Tip911 {
     /// Calculates a dense merkle tree where the kth element is the hash of a stdcode'ed vector of the first k(current_total, next_total, txhash, stakedoc).
     pub fn calculate_merkle(&self) -> DenseMerkleTree {
-        let vec = self
-            .stakes
-            .iter()
-            .map(|(txhash, sdoc)| (self.current_total, self.next_total, txhash, sdoc))
-            .collect::<Vec<_>>();
-        let upto_vec: Vec<HashVal> = (0..vec.len())
-            .map(|k| vec[..k].to_vec().stdcode().hash())
+        let upto_vec: Vec<Vec<u8>> = (0..self.stakes.len())
+            .map(|k| {
+                (
+                    self.current_total,
+                    self.next_total,
+                    self.stakes[..=k].to_vec(),
+                )
+                .stdcode()
+            })
             .collect();
         DenseMerkleTree::new(&upto_vec)
     }

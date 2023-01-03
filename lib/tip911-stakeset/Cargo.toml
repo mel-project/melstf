@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 imbl = "2.0.0"
-novasmt = "0.2.19"
+novasmt = { git = "https://github.com/themeliolabs/novasmt", branch = "tip-911"}
 stdcode = "0.1.13"
 
 tmelcrypt = "0.2.6"
