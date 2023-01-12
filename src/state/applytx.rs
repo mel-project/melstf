@@ -355,7 +355,7 @@ fn check_tx_coins_balanced(
             };
 
             if *value != CoinValue(in_value) {
-                eprintln!(
+                log::debug!(
                     "unbalanced: {} {:?} in, {} {:?} out",
                     CoinValue(in_value),
                     currency,
@@ -403,16 +403,19 @@ fn check_tx_validity<C: ContentAddrStore>(
         match coin_data {
             None => return Err(StateError::NonexistentCoin(*coin_id)),
             Some(coin_data) => {
-                validate_tx_scripts(
-                    spend_idx,
-                    coin_id,
-                    tx,
-                    coin_data,
-                    last_header,
-                    scripts.clone(),
-                    &good_scripts,
-                )?;
-                good_scripts.insert(coin_data.coin_data.covhash);
+                if !good_scripts.contains(&coin_data.coin_data.covhash) {
+                    validate_tx_scripts(
+                        spend_idx,
+                        coin_id,
+                        tx,
+                        coin_data,
+                        last_header,
+                        scripts.clone(),
+                        &good_scripts,
+                    )?;
+                    eprintln!("INSERTING GOOD SCRIPT {}", coin_data.coin_data.covhash);
+                    good_scripts.insert(coin_data.coin_data.covhash);
+                }
 
                 let amount = in_coins.get(&coin_data.coin_data.denom).unwrap_or(&0)
                     + coin_data.coin_data.value.0;

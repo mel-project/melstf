@@ -1,7 +1,7 @@
 use novasmt::{dense::DenseMerkleTree, Database, InMemoryCas};
 use stdcode::StdcodeSerializeExt;
 use themelio_structs::{CoinID, CoinValue, StakeDoc, TxHash};
-use tmelcrypt::{Ed25519PK, HashVal, Hashable};
+use tmelcrypt::{Ed25519PK, Hashable};
 
 /// Keeps track of all the active stakes in the blockchain. Abstracts over the pre-TIP911 and post-TIP911 representations.
 #[derive(Clone, Debug)]
@@ -101,7 +101,7 @@ impl Tip911 {
                     self.next_total,
                     self.stakes[..=k].to_vec(),
                 )
-                .stdcode()
+                    .stdcode()
             })
             .collect();
         DenseMerkleTree::new(&upto_vec)
