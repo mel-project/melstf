@@ -413,7 +413,10 @@ fn check_tx_validity<C: ContentAddrStore>(
                         scripts.clone(),
                         &good_scripts,
                     )?;
-                    eprintln!("INSERTING GOOD SCRIPT {}", coin_data.coin_data.covhash);
+                    eprintln!(
+                        "INSERTING GOOD SCRIPT {} for {}",
+                        coin_data.coin_data.covhash, txhash
+                    );
                     good_scripts.insert(coin_data.coin_data.covhash);
                 }
 
