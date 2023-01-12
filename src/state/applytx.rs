@@ -387,6 +387,7 @@ fn check_tx_validity<C: ContentAddrStore>(
         .get(&(this.height.0.saturating_sub(1).into()))
         .unwrap_or_else(|| this.clone().seal(None).header());
 
+    let mut good_scripts: FxHashSet<Address> = FxHashSet::default();
     for (spend_idx, coin_id) in tx.inputs.iter().enumerate() {
         // Workaround for BUGGY old code!
         // TODO: add some details for this
@@ -397,8 +398,6 @@ fn check_tx_validity<C: ContentAddrStore>(
         {
             return Err(StateError::CoinLocked);
         }
-
-        let mut good_scripts: FxHashSet<Address> = FxHashSet::default();
         let coin_data = relevant_coins.get(coin_id);
         match coin_data {
             None => return Err(StateError::NonexistentCoin(*coin_id)),
@@ -414,7 +413,7 @@ fn check_tx_validity<C: ContentAddrStore>(
                         &good_scripts,
                     )?;
                     eprintln!(
-                        "INSERTING GOOD SCRIPT {} for {}",
+                        "INSERTING GOOD SCRIPT {} for {} / {spend_idx}",
                         coin_data.coin_data.covhash, txhash
                     );
                     good_scripts.insert(coin_data.coin_data.covhash);
