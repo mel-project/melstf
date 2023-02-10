@@ -67,10 +67,10 @@ fn handle_faucet_tx<C: ContentAddrStore>(
 ) -> Result<(), StateError> {
     // dedup faucet
     if tx.kind == TxKind::Faucet {
-        let bug_compatible_with_inflation_exploit = state.network == NetID::Mainnet
-            && tx.hash_nosigs().to_string() != INFLATION_BUG_TX_HASH;
+        let bug_compatible_with_inflation_exploit =
+            tx.hash_nosigs().to_string() == INFLATION_BUG_TX_HASH;
         // exception to be bug-compatible with the one guy who exploited the inflation bug
-        if bug_compatible_with_inflation_exploit {
+        if state.network == NetID::Mainnet && !bug_compatible_with_inflation_exploit {
             log::error!(
                 "rejecting mainnet faucet with hash {:?}",
                 tx.hash_nosigs().to_string()
