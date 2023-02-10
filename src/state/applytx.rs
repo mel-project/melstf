@@ -67,9 +67,10 @@ fn handle_faucet_tx<C: ContentAddrStore>(
 ) -> Result<(), StateError> {
     // dedup faucet
     if tx.kind == TxKind::Faucet {
+        let bug_compatible_with_inflation_exploit = state.network == NetID::Mainnet
+            && tx.hash_nosigs().to_string() != INFLATION_BUG_TX_HASH;
         // exception to be bug-compatible with the one guy who exploited the inflation bug
-        if state.network == NetID::Mainnet && tx.hash_nosigs().to_string() != INFLATION_BUG_TX_HASH
-        {
+        if bug_compatible_with_inflation_exploit {
             log::error!(
                 "rejecting mainnet faucet with hash {:?}",
                 tx.hash_nosigs().to_string()
@@ -86,19 +87,23 @@ fn handle_faucet_tx<C: ContentAddrStore>(
         if state.coins.get_coin(pseudocoin).is_some() {
             return Err(StateError::DuplicateTx);
         }
-        state.coins.insert_coin(
-            pseudocoin,
-            CoinDataHeight {
-                coin_data: CoinData {
-                    denom: Denom::Mel,
-                    value: 0.into(),
-                    additional_data: vec![].into(),
-                    covhash: HashVal::default().into(),
+        // We do not insert the pseudocoin if this transaction is the one transaction that was buggy, in block 1214212, on the mainnet.
+        // Back then, we were buggy in two ways: we allowed mainnet faucets accidentally, and we didn't insert the dedup pseudocoin properly!
+        if !bug_compatible_with_inflation_exploit {
+            state.coins.insert_coin(
+                pseudocoin,
+                CoinDataHeight {
+                    coin_data: CoinData {
+                        denom: Denom::Mel,
+                        value: 0.into(),
+                        additional_data: vec![].into(),
+                        covhash: HashVal::default().into(),
+                    },
+                    height: 0.into(),
                 },
-                height: 0.into(),
-            },
-            state.tip_906(),
-        );
+                state.tip_906(),
+            );
+        }
     }
 
     Ok(())

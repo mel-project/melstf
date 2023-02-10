@@ -32,6 +32,7 @@ impl<C: ContentAddrStore> CoinMapping<C> {
 
     /// Inserts a coin into the coin mapping.
     pub fn insert_coin(&mut self, id: CoinID, data: CoinDataHeight, tip_906: bool) {
+        eprintln!("inserting into coin mapping: {id} => {:?}", data);
         let id = id.stdcode();
         let preexist = !self.inner.get(tmelcrypt::hash_single(&id).0).is_empty();
         self.inner
