@@ -570,6 +570,7 @@ mod tests {
     use tmelcrypt::Hashable;
 
     use crate::{
+        state::applytx::faucet_dedup_pseudocoin,
         testing::functions::{create_state, valid_txx},
         StateError,
         StateError::{
@@ -951,6 +952,40 @@ mod tests {
                 sigs: vec![],
             })
             .unwrap_err();
+    }
+
+    #[test]
+    fn allow_buggy_mainnet_faucet() {
+        let mut state = create_state(&HashMap::new(), 0);
+        state.fee_multiplier = 0;
+        state.network = NetID::Mainnet;
+        let exceptional_tx = Transaction {
+            kind: TxKind::Faucet,
+            inputs: vec![],
+            outputs: vec![CoinData {
+                value: CoinValue::from_millions(1001u64),
+                denom: Denom::Mel,
+                covhash: "t3ew4xh2yts8j1a8vzdfpbkzzvb5gz3sn7s9jw7qc9djrph2wpg52g"
+                    .parse()
+                    .unwrap(),
+                additional_data: vec![].into(),
+            }],
+            data: hex::decode("202fb0573b6dfe780f249bec6069bb39dbccb7ed9536c0480e20e1e29050f430")
+                .unwrap()
+                .into(),
+            fee: CoinValue::from_millions(1001u64),
+            covenants: vec![],
+            sigs: vec![],
+        };
+        assert_eq!(
+            exceptional_tx.hash_nosigs().to_string(),
+            "30a60b20830f000f755b70c57c998553a303cc11f8b1f574d5e9f7e26b645d8b"
+        );
+        state.apply_tx(&exceptional_tx).unwrap();
+        assert!(state
+            .coins
+            .get_coin(faucet_dedup_pseudocoin(exceptional_tx.hash_nosigs()))
+            .is_none());
     }
 
     #[test]

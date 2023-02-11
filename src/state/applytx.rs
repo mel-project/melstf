@@ -528,7 +528,7 @@ fn validate_and_get_doscmint_speed<C: ContentAddrStore>(
     Ok(my_speed)
 }
 
-fn faucet_dedup_pseudocoin(txhash: TxHash) -> CoinID {
+pub(crate) fn faucet_dedup_pseudocoin(txhash: TxHash) -> CoinID {
     CoinID {
         txhash: tmelcrypt::hash_keyed(b"fdp", txhash.0).into(),
         index: 0,
