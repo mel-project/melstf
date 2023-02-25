@@ -10,9 +10,11 @@ license="MPL-2.0"
 
 [dependencies]
 imbl = "2.0.0"
-novasmt = { git = "https://github.com/themeliolabs/novasmt", branch = "tip-911"}
+# novasmt = { git = "https://github.com/themeliolabs/novasmt", branch = "tip-911"}
 stdcode = "0.1.13"
 
 tmelcrypt = "0.2.6"
 # themelio-structs= "0.3.1"
 melstructs = "0.3.1"
+novasmt = "0.2.19"
+ 
