@@ -59,7 +59,7 @@ fastrand = "1.7.0"
 serde_with = "1"
 bytes = { version = "1.2.1", features = ["serde"] }
 imbl = "2.0.0"
-tip911-stakeset  = {path="./lib/tip911-stakeset"}
+tip911-stakeset  = {version="0.0.2", path="./lib/tip911-stakeset"}
 melvm  = {version="0.1", path="./lib/melvm"}
 melstructs = "0.3.1"
 
