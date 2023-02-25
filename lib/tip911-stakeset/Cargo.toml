@@ -1,6 +1,6 @@
 [package]
 name = "tip911-stakeset"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2021"
 description = "utility crate that keeps track of a bunch of Mel stakes"
 repository="https://github.com/mel-project/melstf"
