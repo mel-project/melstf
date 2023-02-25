@@ -1,9 +1,7 @@
-use std::collections::BTreeMap;
-
+use melstructs::{CoinID, CoinValue, StakeDoc, TxHash};
 use novasmt::{dense::DenseMerkleTree, Database, InMemoryCas};
 use stdcode::StdcodeSerializeExt;
-use melstructs::{CoinID, CoinValue, StakeDoc, TxHash};
-use tmelcrypt::{Ed25519PK, Hashable, HashVal};
+use tmelcrypt::{Ed25519PK, Hashable};
 
 /// Keeps track of all the active stakes in the blockchain. Abstracts over the pre-TIP911 and post-TIP911 representations.
 #[derive(Clone, Debug)]
@@ -21,8 +19,7 @@ impl StakeSet {
 
     /// Returns stakes as an iterator
     pub fn iter(&self) -> impl Iterator<Item = (&TxHash, &StakeDoc)> {
-        self.stakes
-            .iter()
+        self.stakes.iter()
     }
 
     /// Adds another stake to the set. The transaction hash of the staking transaction, as well as the parsed [StakeDoc], must be given.

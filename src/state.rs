@@ -16,14 +16,14 @@ use std::fmt::Debug;
 
 use crate::state::melmint::PoolMapping;
 use derivative::Derivative;
-use novasmt::{dense::DenseMerkleTree, ContentAddrStore, Database, InMemoryCas};
-use stdcode::StdcodeSerializeExt;
-use tap::Pipe;
 use melstructs::{
     Address, Block, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, ConsensusProof,
     Denom, Header, NetID, PoolKey, PoolState, ProposerAction, StakeDoc, Transaction, TxHash,
     STAKE_EPOCH,
 };
+use novasmt::{dense::DenseMerkleTree, ContentAddrStore, Database, InMemoryCas};
+use stdcode::StdcodeSerializeExt;
+use tap::Pipe;
 use thiserror::Error;
 use tip911_stakeset::StakeSet;
 use tmelcrypt::{HashVal, Hashable};
@@ -50,14 +50,14 @@ pub enum StateError {
     #[error("invalid sequential proof of work")]
     InvalidMelPoW,
     #[error("block has wrong header after applying to previous block: post-apply {:?}, declared {:?}", .0, .1)]
-    WrongHeader(Header, Header),
+    WrongHeader(HashVal, HashVal),
     #[error("tried to spend locked coin")]
     CoinLocked,
     #[error("duplicate transaction")]
     DuplicateTx,
 }
 
-/// An "unsealed" world state of the Themelio blockchain.
+/// An "unsealed" world state of the Mel blockchain.
 ///
 /// We intentionally do not expose the internal details of the state from this type. Instead, use the [SealedState] type, which can be constructed from a [State] through [State::seal], which represents a "sealed" state at a definite block height that can be queried for sparse Merkle trees and such.
 #[derive(Debug, Derivative)]
@@ -479,7 +479,10 @@ impl<C: ContentAddrStore> SealedState<C> {
 
             log::warn!("pre-apply header: {:#?}", self.header());
 
-            Err(StateError::WrongHeader(basis.header(), block.header))
+            Err(StateError::WrongHeader(
+                basis.header().hash(),
+                block.header.hash(),
+            ))
         } else {
             Ok(basis)
         }
@@ -556,6 +559,10 @@ impl<C: ContentAddrStore> ConfirmedState<C> {
 mod tests {
     use std::collections::HashMap;
 
+    use melstructs::{
+        Address, CoinData, CoinID, CoinValue, Denom, NetID, StakeDoc, Transaction,
+        TransactionBuilder, TxKind, MAX_COINVAL,
+    };
     use melvm::{opcode::OpCode, Covenant};
     use novasmt::InMemoryCas;
     use rand::prelude::SliceRandom;
@@ -563,10 +570,6 @@ mod tests {
     use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
     use stdcode::StdcodeSerializeExt;
     use tap::Tap;
-    use melstructs::{
-        Address, CoinData, CoinID, CoinValue, Denom, NetID, StakeDoc, Transaction,
-        TransactionBuilder, TxKind, MAX_COINVAL,
-    };
     use tmelcrypt::Hashable;
 
     use crate::{
@@ -608,8 +611,7 @@ mod tests {
         let (public_key, _secret_key): (tmelcrypt::Ed25519PK, tmelcrypt::Ed25519SK) =
             tmelcrypt::ed25519_keygen();
 
-        let covenant_hash: melstructs::Address =
-            Covenant::std_ed25519_pk_legacy(public_key).hash();
+        let covenant_hash: melstructs::Address = Covenant::std_ed25519_pk_legacy(public_key).hash();
 
         let first_transaction: Transaction = Transaction {
             kind: TxKind::Faucet,
@@ -768,8 +770,7 @@ mod tests {
         let (public_key, _secret_key): (tmelcrypt::Ed25519PK, tmelcrypt::Ed25519SK) =
             tmelcrypt::ed25519_keygen();
 
-        let covenant_hash: melstructs::Address =
-            Covenant::std_ed25519_pk_legacy(public_key).hash();
+        let covenant_hash: melstructs::Address = Covenant::std_ed25519_pk_legacy(public_key).hash();
 
         let first_transaction: Transaction = Transaction {
             kind: TxKind::Faucet,

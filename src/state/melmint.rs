@@ -3,15 +3,15 @@ use crate::UnsealedState;
 use std::{cell::RefCell, convert::TryInto};
 
 use melpow::HashFunction;
+use melstructs::{
+    BlockHeight, CoinData, CoinDataHeight, CoinValue, Denom, NetID, PoolKey, PoolState,
+    Transaction, TxKind, MAX_COINVAL, MICRO_CONVERTER,
+};
 use novasmt::ContentAddrStore;
 use num::{integer::Roots, rational::Ratio, BigInt, BigRational};
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use tap::Pipe;
-use melstructs::{
-    BlockHeight, CoinData, CoinDataHeight, CoinValue, Denom, NetID, PoolKey, PoolState,
-    Transaction, TxKind, MAX_COINVAL, MICRO_CONVERTER,
-};
 
 thread_local! {
     static INFLATOR_TABLE: RefCell<Vec<u128>> = Default::default();
@@ -521,8 +521,8 @@ fn multiply_frac(x: u128, frac: Ratio<u128>) -> u128 {
 #[cfg(test)]
 mod tests {
 
-    use melvm::Covenant;
     use melstructs::CoinID;
+    use melvm::Covenant;
 
     use crate::testing::functions::{genesis_mel_coin_id, genesis_state};
 
@@ -568,7 +568,7 @@ mod tests {
                 CoinData {
                     covhash: my_covhash,
                     value: 10000.into(),
-                    denom: Denom::NewCoin,
+                    denom: Denom::NewCustom,
                     additional_data: vec![].into(),
                 },
             ],

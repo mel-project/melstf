@@ -1,10 +1,10 @@
 use std::{collections::BinaryHeap, path::Path, time::Instant};
 
+use melstf::GenesisConfig;
+use melstructs::{CoinData, CoinValue, Denom, NetID, Transaction, TxKind};
 use melvm::Covenant;
 use novasmt::{ContentAddrStore, Database};
 use rand::RngCore;
-use themelio_stf::GenesisConfig;
-use melstructs::{CoinData, CoinValue, Denom, NetID, Transaction, TxKind};
 
 fn main() {
     env_logger::init();

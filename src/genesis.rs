@@ -1,12 +1,12 @@
 use std::{collections::BTreeMap, convert::TryInto};
 
-use melvm::Covenant;
-use novasmt::ContentAddrStore;
-use serde::{Deserialize, Serialize};
 use melstructs::{
     BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc, TxHash,
     MICRO_CONVERTER,
 };
+use melvm::Covenant;
+use novasmt::ContentAddrStore;
+use serde::{Deserialize, Serialize};
 use tip911_stakeset::StakeSet;
 use tmelcrypt::{Ed25519PK, HashVal};
 
@@ -114,7 +114,7 @@ impl GenesisConfig {
             tips: 0.into(),
 
             dosc_speed: MICRO_CONVERTER,
-            pools: SmtMapping::new(empty_tree.clone()),
+            pools: SmtMapping::new(empty_tree),
             stakes: StakeSet::new(self.stakes.into_iter()),
         };
         // init micromels etc

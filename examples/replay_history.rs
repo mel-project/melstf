@@ -1,8 +1,8 @@
 use argh::FromArgs;
+use melstf::GenesisConfig;
+use melstructs::{Block, ConsensusProof};
 use novasmt::{Database, InMemoryCas};
 use std::{fs::read_dir, path::PathBuf};
-use themelio_stf::GenesisConfig;
-use melstructs::{Block, ConsensusProof};
 
 fn main() -> anyhow::Result<()> {
     let args: Args = argh::from_env();

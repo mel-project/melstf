@@ -2,16 +2,16 @@ use std::{collections::HashMap, hash::BuildHasherDefault, time::Instant};
 
 use bytes::Bytes;
 use melpow::Proof;
+use melstructs::{
+    Address, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, Header, NetID,
+    StakeDoc, Transaction, TxHash, TxKind,
+};
 use melvm::{covenant_weight_from_bytes, Covenant, CovenantEnv};
 use novasmt::ContentAddrStore;
 use rayon::iter::{
     IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
 };
 use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
-use melstructs::{
-    Address, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, Header, NetID,
-    StakeDoc, Transaction, TxHash, TxKind,
-};
 use tmelcrypt::HashVal;
 
 use crate::{melmint, LegacyMelPowHash, StateError, Tip910MelPowHash, UnsealedState};
@@ -230,7 +230,7 @@ fn output_coins_from_tx(
         .enumerate()
         .filter_map(|(i, coin_data)| {
             let mut coin_data = coin_data.clone();
-            if coin_data.denom == Denom::NewCoin {
+            if coin_data.denom == Denom::NewCustom {
                 coin_data.denom = Denom::Custom(tx.hash_nosigs());
             }
 
@@ -347,7 +347,7 @@ fn check_tx_coins_balanced(
     if tx_kind != TxKind::Faucet {
         for (currency, value) in out_coins.iter() {
             // we skip the created doscs for a DoscMint transaction, which are left for later.
-            if *currency == Denom::NewCoin
+            if *currency == Denom::NewCustom
                 || (tx_kind == TxKind::DoscMint && *currency == Denom::Erg)
             {
                 continue;
