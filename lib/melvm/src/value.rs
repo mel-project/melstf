@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use catvec::CatVec;
 use ethnum::U256;
-use themelio_structs::{CoinData, CoinDataHeight, CoinID, Denom, Header, Transaction};
+use melstructs::{CoinData, CoinDataHeight, CoinID, Denom, Header, Transaction};
 use tmelcrypt::HashVal;
 
 use super::Covenant;

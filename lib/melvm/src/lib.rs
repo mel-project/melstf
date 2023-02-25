@@ -11,7 +11,7 @@ use consts::{HADDR_SPENDER_INDEX, HADDR_SPENDER_TX};
 use executor::Executor;
 use opcode::{opcodes_weight, DecodeError, OpCode};
 use serde::{Deserialize, Serialize};
-use themelio_structs::{Address, CoinDataHeight, CoinID, Header, Transaction};
+use melstructs::{Address, CoinDataHeight, CoinID, Header, Transaction};
 use thiserror::Error;
 pub use value::*;
 

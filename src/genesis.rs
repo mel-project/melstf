@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, convert::TryInto};
 use melvm::Covenant;
 use novasmt::ContentAddrStore;
 use serde::{Deserialize, Serialize};
-use themelio_structs::{
+use melstructs::{
     BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc, TxHash,
     MICRO_CONVERTER,
 };

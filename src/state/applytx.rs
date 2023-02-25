@@ -8,7 +8,7 @@ use rayon::iter::{
     IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
 };
 use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
-use themelio_structs::{
+use melstructs::{
     Address, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, Header, NetID,
     StakeDoc, Transaction, TxHash, TxKind,
 };

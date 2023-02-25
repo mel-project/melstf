@@ -1,4 +1,4 @@
-use themelio_structs::BlockHeight;
+use melstructs::BlockHeight;
 
 /// TIP 901: change fee multiplier calculation. More details [here](https://github.com/themeliolabs/themelio-node/issues/26).
 pub const TIP_901_HEIGHT: BlockHeight = BlockHeight(42700);

@@ -4,7 +4,7 @@ use melvm::Covenant;
 use novasmt::ContentAddrStore;
 use once_cell::sync::Lazy;
 use themelio_stf::{GenesisConfig, UnsealedState};
-use themelio_structs::{Address, CoinData, Denom, NetID, Transaction, TxKind};
+use melstructs::{Address, CoinData, Denom, NetID, Transaction, TxKind};
 
 fn main() {
     let mut state = zerofee_state().seal(None).next_unsealed();

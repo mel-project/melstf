@@ -17,7 +17,7 @@ use std::collections::HashMap;
 
 use novasmt::{Database, InMemoryCas};
 use tap::Tap;
-use themelio_structs::{
+use melstructs::{
     Address, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc, Transaction,
     MICRO_CONVERTER,
 };

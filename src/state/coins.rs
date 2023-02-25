@@ -1,7 +1,7 @@
 use derivative::Derivative;
 use novasmt::ContentAddrStore;
 use stdcode::StdcodeSerializeExt;
-use themelio_structs::{Address, CoinDataHeight, CoinID};
+use melstructs::{Address, CoinDataHeight, CoinID};
 use tmelcrypt::{HashVal, Hashable};
 
 const COIN_COUNT_STR_AS_BYTES: &[u8] = "coin_count".as_bytes();

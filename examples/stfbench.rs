@@ -4,7 +4,7 @@ use melvm::Covenant;
 use novasmt::{ContentAddrStore, Database};
 use rand::RngCore;
 use themelio_stf::GenesisConfig;
-use themelio_structs::{CoinData, CoinValue, Denom, NetID, Transaction, TxKind};
+use melstructs::{CoinData, CoinValue, Denom, NetID, Transaction, TxKind};
 
 fn main() {
     env_logger::init();

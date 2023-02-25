@@ -1,7 +1,7 @@
 use std::collections::BinaryHeap;
 
 use melvm::Covenant;
-use themelio_structs::{CoinData, CoinID, CoinValue, Denom, Transaction, TxKind};
+use melstructs::{CoinData, CoinID, CoinValue, Denom, Transaction, TxKind};
 
 pub fn random_valid_txx_count(
     rng: &mut impl rand::Rng,

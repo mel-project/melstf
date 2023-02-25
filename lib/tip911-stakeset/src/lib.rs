@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use novasmt::{dense::DenseMerkleTree, Database, InMemoryCas};
 use stdcode::StdcodeSerializeExt;
-use themelio_structs::{CoinID, CoinValue, StakeDoc, TxHash};
+use melstructs::{CoinID, CoinValue, StakeDoc, TxHash};
 use tmelcrypt::{Ed25519PK, Hashable, HashVal};
 
 /// Keeps track of all the active stakes in the blockchain. Abstracts over the pre-TIP911 and post-TIP911 representations.

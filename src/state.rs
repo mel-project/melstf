@@ -19,7 +19,7 @@ use derivative::Derivative;
 use novasmt::{dense::DenseMerkleTree, ContentAddrStore, Database, InMemoryCas};
 use stdcode::StdcodeSerializeExt;
 use tap::Pipe;
-use themelio_structs::{
+use melstructs::{
     Address, Block, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, ConsensusProof,
     Denom, Header, NetID, PoolKey, PoolState, ProposerAction, StakeDoc, Transaction, TxHash,
     STAKE_EPOCH,
@@ -563,7 +563,7 @@ mod tests {
     use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
     use stdcode::StdcodeSerializeExt;
     use tap::Tap;
-    use themelio_structs::{
+    use melstructs::{
         Address, CoinData, CoinID, CoinValue, Denom, NetID, StakeDoc, Transaction,
         TransactionBuilder, TxKind, MAX_COINVAL,
     };
@@ -585,7 +585,7 @@ mod tests {
         let state: UnsealedState<InMemoryCas> = create_state(&HashMap::new(), 0);
 
         let maximum_coin_value_exceeded: CoinValue =
-            themelio_structs::MAX_COINVAL + themelio_structs::CoinValue(1);
+            melstructs::MAX_COINVAL + melstructs::CoinValue(1);
 
         let mut transactions: Vec<Transaction> = valid_txx(tmelcrypt::ed25519_keygen());
 
@@ -608,7 +608,7 @@ mod tests {
         let (public_key, _secret_key): (tmelcrypt::Ed25519PK, tmelcrypt::Ed25519SK) =
             tmelcrypt::ed25519_keygen();
 
-        let covenant_hash: themelio_structs::Address =
+        let covenant_hash: melstructs::Address =
             Covenant::std_ed25519_pk_legacy(public_key).hash();
 
         let first_transaction: Transaction = Transaction {
@@ -670,7 +670,7 @@ mod tests {
     //     ])
     //         .expect("Failed to create a Add covenant.");
     //
-    //     let covenant_hash: themelio_structs::Address = covenant.hash();
+    //     let covenant_hash: melstructs::Address = covenant.hash();
     //
     //     let first_transaction: Transaction = Transaction {
     //         kind: TxKind::Faucet,
@@ -768,7 +768,7 @@ mod tests {
         let (public_key, _secret_key): (tmelcrypt::Ed25519PK, tmelcrypt::Ed25519SK) =
             tmelcrypt::ed25519_keygen();
 
-        let covenant_hash: themelio_structs::Address =
+        let covenant_hash: melstructs::Address =
             Covenant::std_ed25519_pk_legacy(public_key).hash();
 
         let first_transaction: Transaction = Transaction {

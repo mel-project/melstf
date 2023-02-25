@@ -1,14 +1,12 @@
-cargo-features=["edition2021"]
 
 [package]
-name = "themelio-stf"
+name = "melstf"
 version = "0.11.13"
-authors = ["Themelio Labs"]
 edition = "2021"
 
 description = "Core state-transition function and data structures for Themelio"
 license = "MPL-2.0"
-repository = "https://github.com/themeliolabs/themelio-stf"
+repository = "https://github.com/themeliolabs/melstf"
 
 [workspace]
 members = ["lib/*"]

@@ -8,7 +8,7 @@ use num::{integer::Roots, rational::Ratio, BigInt, BigRational};
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use tap::Pipe;
-use themelio_structs::{
+use melstructs::{
     BlockHeight, CoinData, CoinDataHeight, CoinValue, Denom, NetID, PoolKey, PoolState,
     Transaction, TxKind, MAX_COINVAL, MICRO_CONVERTER,
 };
@@ -522,7 +522,7 @@ fn multiply_frac(x: u128, frac: Ratio<u128>) -> u128 {
 mod tests {
 
     use melvm::Covenant;
-    use themelio_structs::CoinID;
+    use melstructs::CoinID;
 
     use crate::testing::functions::{genesis_mel_coin_id, genesis_state};
 

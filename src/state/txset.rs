@@ -1,4 +1,4 @@
-use themelio_structs::{Transaction, TxHash};
+use melstructs::{Transaction, TxHash};
 
 #[derive(Default, Debug, Clone)]
 pub struct TransactionSet {
