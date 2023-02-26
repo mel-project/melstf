@@ -103,7 +103,7 @@ impl<C: ContentAddrStore> UnsealedState<C> {
             // incomplete things are always
             self.height >= activation
         } else if self.network == NetID::Testnet {
-            self.height >= BlockHeight(27501)
+            self.height >= BlockHeight(500)
         } else {
             true
         }
