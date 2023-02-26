@@ -67,37 +67,7 @@ impl GenesisConfig {
 
     /// The "standard" testnet genesis.
     pub fn std_testnet() -> Self {
-        Self {
-            network: NetID::Testnet,
-            init_coindata: CoinData {
-                covhash: Covenant::always_true().hash(),
-                value: (1 << 32).into(),
-                denom: Denom::Mel,
-                additional_data: Default::default(),
-            },
-            stakes: [
-                "fae1ff56a62639c7959bf200465f4e06291e4e4dbd751cf4d2c13a8a6bea537c",
-                "2ae54755b2e98a3059c68334af97b38603032be53bb2a1a3a183ae0f9d3bdaaf",
-                "3aa3b5e2d64916a055da79635a4406999b66dfbe25afb10fa306aa01e42308a6",
-                "85e374cc3e4dbf47b9a9697126e2e2ae90011b78a54b84adeb2ffe516b79769a",
-            ]
-            .iter()
-            .map(|v| Ed25519PK(hex::decode(v).unwrap().try_into().unwrap()))
-            .map(|pubkey| {
-                (
-                    tmelcrypt::hash_single(pubkey.0).into(),
-                    StakeDoc {
-                        pubkey,
-                        e_start: 0,
-                        e_post_end: 1 << 32,
-                        syms_staked: 1.into(),
-                    },
-                )
-            })
-            .collect(),
-            init_fee_pool: (1 << 64).into(),
-            init_fee_multiplier: MICRO_CONVERTER,
-        }
+        serde_yaml::from_slice(include_bytes!("genesis-testnet.yaml")).unwrap()
     }
 
     /// Creates an [UnsealedState] from this configuration.

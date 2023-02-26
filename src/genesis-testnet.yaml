@@ -1,0 +1,59 @@
+network: testnet
+init_coindata:
+  covhash: t40000000000000000000000000000000000000000000000000000
+  value: 0
+  denom: MEL
+  additional_data: ""
+stakes:
+  394bda6175d5ed416cd9ed5071ad918348562921298b08a0155ce544e0a8f283:
+    pubkey: d4f167080fc254e1af9c58adccfe4e13de7695177ff63aa6cfe194183c7852a3
+    e_start: 0
+    e_post_end: 1000000
+    syms_staked: 10000000000
+  4de7f04f985a5be8f55326a853750eeb97e0a5635de5ef81e2af9751132ccb82:
+    pubkey: c954c7634015855680f24811c1ae21811edfb386ded08293cb5348e07512ba8c
+    e_start: 0
+    e_post_end: 1000000
+    syms_staked: 10000000000
+  55ba126ccac55b655fd7a678a86864bbf0dfcd31268d04f7c676403ec152df45:
+    pubkey: a4236386f4b1e9e5e4467523ffc94020d5a3c4beea35f800b554dc3c5b2d120f
+    e_start: 0
+    e_post_end: 1000000
+    syms_staked: 10000000000
+  5b3ecf542f4f5f755c3b0ae58452510ecb6a1f80b99525152e1a51e84694dd24:
+    pubkey: bc855649565f43318a07c4464e214e2757953d229a37d40e51689b82a7843525
+    e_start: 0
+    e_post_end: 1000000
+    syms_staked: 10000000000
+  5fb0f261fe0b6b9d0c9f52c9b2233089ee5bb197975da0e896f7c40f65f16022:
+    pubkey: e0619044342a3c0fa528efb3748fa27982e052f282799cdedf1993ab5b4ab58a
+    e_start: 0
+    e_post_end: 1000000
+    syms_staked: 10000000000
+  86835848cbb911efff3aaaa4e429cadea0374f5899eb7befd2720857ecc3680f:
+    pubkey: adaf9587c944ff6f4a368319c1e7605a672a89dfad08d91cf6b644df379ddeae
+    e_start: 0
+    e_post_end: 1000000
+    syms_staked: 10000000000
+  945a8bb6c30d6f1dc529eb1291ddd07d9583a2db90cfaaaabf0bead7b6ef3c68:
+    pubkey: f55715530d6a76d2356c81513b35b2d829a8f716e4cc4df4090e0ba78537833b
+    e_start: 0
+    e_post_end: 1000000
+    syms_staked: 10000000000
+  952a74af499b4b02a46faf7eaa278ed42370c777bde1449511ee2907f86cfdb5:
+    pubkey: 5f860db49fd5e1c0bcf83ec97b956a6df5a3a70c3f49463eb14a23c18f69719f
+    e_start: 0
+    e_post_end: 1000000
+    syms_staked: 10000000000
+  a6955bb61d51e5c84764874f697968d77355a1f8e581b22b3de136197a382dad:
+    pubkey: 67434925f009988630d15b6569dc4df1095299b539ddf755c617fc8e578d5cec
+    e_start: 0
+    e_post_end: 1000000
+    syms_staked: 10000000000
+  ff5898572dc3fc0564bc491c375677b9daad821d9033b3cdc79d9cd9c1d3c267:
+    pubkey: d97e54054d88f42bb4ae695176ca537201be3d29a02ecedd6bc9068103e6f573
+    e_start: 0
+    e_post_end: 1000000
+    syms_staked: 10000000000
+init_fee_pool: 0
+init_fee_multiplier: 100
