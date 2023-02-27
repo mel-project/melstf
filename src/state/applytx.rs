@@ -77,11 +77,12 @@ fn handle_faucet_tx<C: ContentAddrStore>(
             );
             return Err(StateError::MalformedTx);
         }
-
-        log::error!(
-            "allowing mainnet faucet with hash {:?}",
-            tx.hash_nosigs().to_string()
-        );
+        if bug_compatible_with_inflation_exploit {
+            log::error!(
+                "allowing mainnet faucet with hash {:?}",
+                tx.hash_nosigs().to_string()
+            );
+        }
 
         let pseudocoin = faucet_dedup_pseudocoin(tx.hash_nosigs());
         if state.coins.get_coin(pseudocoin).is_some() {
@@ -417,10 +418,7 @@ fn check_tx_validity<C: ContentAddrStore>(
                         scripts.clone(),
                         &good_scripts,
                     )?;
-                    eprintln!(
-                        "INSERTING GOOD SCRIPT {} for {} / {spend_idx}",
-                        coin_data.coin_data.covhash, txhash
-                    );
+
                     good_scripts.insert(coin_data.coin_data.covhash);
                 }
 

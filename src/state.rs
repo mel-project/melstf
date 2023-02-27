@@ -99,6 +99,9 @@ pub struct UnsealedState<C: ContentAddrStore> {
 
 impl<C: ContentAddrStore> UnsealedState<C> {
     fn tip_condition(&self, activation: BlockHeight) -> bool {
+        if activation.0 == u64::MAX {
+            return false;
+        }
         if self.network == NetID::Mainnet {
             // incomplete things are always
             self.height >= activation
