@@ -8,7 +8,8 @@ use bytes::Bytes;
 use consts::{HADDR_SPENDER_INDEX, HADDR_SPENDER_TX};
 // pub use executor::*;
 
-use executor::{ExecuteError, Executor};
+pub use executor::ExecuteError;
+use executor::Executor;
 use melstructs::{Address, CoinDataHeight, CoinID, Header, Transaction};
 use opcode::{DecodeError, OpCode};
 use serde::{Deserialize, Serialize};

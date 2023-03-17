@@ -27,14 +27,12 @@ fn test_once(data: &[u8]) {
     let (first, second) = data.split_at(data.len() / 2);
     let covenant = Covenant::from_bytes(first);
     if let Ok(covenant) = covenant {
-        if covenant.weight() > 10000000 {
-            return;
-        }
-
         eprintln!("{:?}", covenant.to_ops());
         eprintln!("{:?}", second.len());
-        covenant
-            .debug_execute(&[Bytes::from(second.iter().map(|_f| 0u8).collect::<Vec<_>>()).into()]);
+        let _ = covenant.debug_execute(
+            &[Bytes::from(second.iter().map(|_f| 0u8).collect::<Vec<_>>()).into()],
+            1_000_000,
+        );
         assert_eq!(Covenant::from_ops(&covenant.to_ops()), covenant);
     }
 }

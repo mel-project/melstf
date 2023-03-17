@@ -41,8 +41,8 @@ pub enum StateError {
     NonexistentCoin(CoinID),
     #[error("unbalanced inputs and outputs")]
     UnbalancedInOut,
-    #[error("insufficient fees (requires {0})")]
-    InsufficientFees(CoinValue),
+    #[error("insufficient fees")]
+    InsufficientFees,
     #[error("referenced non-existent script {:?}", .0)]
     NonexistentScript(Address),
     #[error("does not satisfy script {:?}", .0)]
@@ -867,7 +867,7 @@ mod tests {
             inputs: vec![],
             outputs: vec![],
             data: vec![].into(),
-            fee: CoinValue(1000),
+            fee: CoinValue(0),
             covenants: vec![covenant.to_bytes()],
             sigs: vec![],
         };
@@ -875,12 +875,12 @@ mod tests {
         let transaction_result: Result<(), StateError> =
             state.clone().apply_tx_batch(&[transaction]);
 
-        assert_eq!(transaction_result, Err(InsufficientFees(CoinValue(1861))));
+        assert_eq!(transaction_result, Err(InsufficientFees));
     }
 
     #[test]
     fn unbalanced_input_and_output() {
-        let state: UnsealedState<InMemoryCas> = create_state(&HashMap::new(), 0);
+        let mut state: UnsealedState<InMemoryCas> = create_state(&HashMap::new(), 0);
 
         let spend_nonexistant_coins_transaction: Transaction = Transaction {
             kind: TxKind::Normal,
@@ -892,9 +892,8 @@ mod tests {
             sigs: vec![],
         };
 
-        let spend_nonexistant_coins_transaction_result: Result<(), StateError> = state
-            .clone()
-            .apply_tx_batch(&[spend_nonexistant_coins_transaction]);
+        let spend_nonexistant_coins_transaction_result: Result<(), StateError> =
+            state.apply_tx_batch(&[spend_nonexistant_coins_transaction]);
 
         assert_eq!(
             spend_nonexistant_coins_transaction_result,

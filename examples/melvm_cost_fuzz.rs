@@ -19,13 +19,13 @@ fn eval_fitness(input: &[u8]) -> OF64 {
     let mut runtime = f64::MAX;
     for _ in 0..10 {
         let start = CLOCK.start();
-        val.debug_execute(&[]);
+        let _ = val.debug_execute(&[], 100000);
         runtime = runtime.min((CLOCK.end() - start) as f64);
     }
     if val.to_ops().iter().any(|f| matches!(f, OpCode::Noop)) {
         return 0.0.into();
     };
-    let _weight = val.weight() as f64;
+
     let ilen = input.len() as f64;
     if ilen == 0.0 {
         return 0.0.into();

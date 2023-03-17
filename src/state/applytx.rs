@@ -6,7 +6,7 @@ use melstructs::{
     Address, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, Header, NetID,
     StakeDoc, Transaction, TxHash, TxKind,
 };
-use melvm::{Covenant, CovenantEnv};
+use melvm::{Covenant, CovenantEnv, ExecuteError};
 use novasmt::ContentAddrStore;
 use rayon::iter::{
     IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
@@ -52,7 +52,13 @@ pub fn apply_tx_batch_impl<C: ContentAddrStore>(
         .try_reduce(|| this.dosc_speed, |a, b| Ok(a.max(b)))?;
 
     // great, now we create the new state from the transactions
-    let mut next_state = create_next_state(this.clone(), txx, &relevant_coins, this.tip_906())?;
+    let mut next_state = create_next_state(
+        this.clone(),
+        txx,
+        &txx_base_fees,
+        &relevant_coins,
+        this.tip_906(),
+    )?;
 
     // dosc
     next_state.dosc_speed = new_max_speed;
@@ -115,11 +121,12 @@ fn handle_faucet_tx<C: ContentAddrStore>(
 
 fn create_next_state<C: ContentAddrStore>(
     mut next_state: UnsealedState<C>,
-    transactions_with_base_fees: &[(Transaction, CoinValue)],
+    transactions: &[Transaction],
+    base_fees: &[CoinValue],
     coins_spent_in_batch: &FxHashMap<CoinID, CoinDataHeight>,
     is_tip_906: bool,
 ) -> Result<UnsealedState<C>, StateError> {
-    for (tx, base_fee) in transactions_with_base_fees {
+    for (tx, base_fee) in transactions.iter().zip(base_fees.iter()) {
         let txhash = tx.hash_nosigs();
 
         if tx.kind == TxKind::Faucet {
@@ -368,8 +375,22 @@ fn check_tx_validity<C: ContentAddrStore>(
         .get(&(this.height.0.saturating_sub(1).into()))
         .unwrap_or_else(|| this.clone().seal(None).header());
 
-    let mut good_scripts: FxHashSet<Address> = FxHashSet::default();
+    // calculate the gas limit, from the fee
+    let noscript_base_fee = tx.base_fee(this.fee_multiplier, 0, |_| 0);
+    let mut fuel_limit = tx
+        .fee
+        .0
+        .checked_sub(noscript_base_fee.0)
+        .ok_or(StateError::InsufficientFees)?
+        / this.fee_multiplier.max(1);
+    eprintln!(
+        "fuel limit = {fuel_limit}; noscript base fee = {noscript_base_fee}; fee multiplier {}; weight {}",
+        this.fee_multiplier, tx.weight(|_| 0)
+    );
+    let init_fuel_limit = fuel_limit;
+
     for (spend_idx, coin_id) in tx.inputs.iter().enumerate() {
+        eprintln!("fuel limit = {fuel_limit}");
         // Workaround for BUGGY old code!
         // TODO: add some details for this
         if (new_stakes.contains_key(&coin_id.txhash)
@@ -390,20 +411,28 @@ fn check_tx_validity<C: ContentAddrStore>(
                         .clone(),
                 )
                 .map_err(|_| StateError::MalformedTx)?;
-                if !script
-                    .execute(
-                        tx,
-                        Some(CovenantEnv {
-                            parent_coinid: *coin_id,
-                            parent_cdh: coin_data.clone(),
-                            spender_index: spend_idx as u8,
-                            last_header,
-                        }),
-                    )
-                    .map(|v| v.into_bool())
-                    .unwrap_or(false)
-                {
-                    return Err(StateError::ViolatesScript(coin_data.coin_data.covhash));
+                match script.execute(
+                    tx,
+                    Some(CovenantEnv {
+                        parent_coinid: *coin_id,
+                        parent_cdh: coin_data.clone(),
+                        spender_index: spend_idx as u8,
+                        last_header,
+                    }),
+                    fuel_limit,
+                ) {
+                    Ok((value, left)) => {
+                        fuel_limit = left;
+                        if !value.into_bool() {
+                            return Err(StateError::ViolatesScript(coin_data.coin_data.covhash));
+                        }
+                    }
+                    Err(err) => {
+                        if let ExecuteError::OutOfFuel = err {
+                            return Err(StateError::InsufficientFees);
+                        }
+                        return Err(StateError::ViolatesScript(coin_data.coin_data.covhash));
+                    }
                 }
 
                 let amount = in_coins.get(&coin_data.coin_data.denom).unwrap_or(&0)
@@ -416,7 +445,7 @@ fn check_tx_validity<C: ContentAddrStore>(
     log::trace!("{}: processed all inputs {:?}", txhash, start.elapsed());
     let out_coins = tx.total_outputs();
     check_tx_coins_balanced(tx.kind, in_coins, out_coins)?;
-    Ok(())
+    Ok(CoinValue((fuel_limit - init_fuel_limit) * this.fee_multiplier) + noscript_base_fee)
 }
 
 fn proof_is_tip910(proof: Proof, puzzle: &HashVal, difficulty: u32) -> Result<bool, StateError> {
