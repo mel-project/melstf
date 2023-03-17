@@ -18,7 +18,6 @@ melstructs = "0.3.0"
 serde = {version="1.0.149", features=["derive"]}
 stdcode = "0.1.13"
 tap = "1.0.1"
-
 thiserror = "1.0.37"
 tmelcrypt = "0.2.6"
 # themelio-structs= "0.3.0-beta.4"

@@ -8,17 +8,12 @@ use bytes::Bytes;
 use consts::{HADDR_SPENDER_INDEX, HADDR_SPENDER_TX};
 // pub use executor::*;
 
-use executor::Executor;
-use opcode::{opcodes_weight, DecodeError, OpCode};
-use serde::{Deserialize, Serialize};
+use executor::{ExecuteError, Executor};
 use melstructs::{Address, CoinDataHeight, CoinID, Header, Transaction};
+use opcode::{DecodeError, OpCode};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 pub use value::*;
-
-/// Weight calculator from bytes, to use in Transaction::weight etc.
-pub fn covenant_weight_from_bytes(b: &[u8]) -> u128 {
-    Covenant::from_bytes(b).map(|b| b.weight()).unwrap_or(0)
-}
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 /// A MelVM covenant. Essentially, given a transaction that attempts to spend it, it either allows the transaction through or doesn't.
@@ -73,12 +68,17 @@ impl Covenant {
     /// Executes this covenant against a transaction, returning whether or not the transaction is valid.
     ///
     /// The caller must also pass in the [CoinID] and [CoinDataHeight] corresponding to the coin that's being spent, as well as the [Header] of the *previous* block (if this transaction is trying to go into block N, then the header of block N-1). This allows the covenant to access (a commitment to) its execution environment, allowing constructs like timelock contracts and colored-coin-like systems.
-    pub fn execute(&self, tx: &Transaction, env: Option<CovenantEnv>) -> Option<Value> {
-        Executor::new_from_env(self.0.to_vec(), tx.clone(), env).run_to_end()
+    pub fn execute(
+        &self,
+        tx: &Transaction,
+        env: Option<CovenantEnv>,
+        fuel: u128,
+    ) -> Result<(Value, u128), ExecuteError> {
+        Executor::new_from_env(self.0.to_vec(), tx.clone(), env).run_to_end(fuel)
     }
 
     /// Executes this covenant in isolation, with a particular melvm heap.
-    pub fn debug_execute(&self, env: &[Value]) -> Option<Value> {
+    pub fn debug_execute(&self, env: &[Value], fuel: u128) -> Result<(Value, u128), ExecuteError> {
         Executor::new(
             self.0.to_vec(),
             env.iter()
@@ -86,7 +86,7 @@ impl Covenant {
                 .map(|(i, k)| (i as u16, k.clone()))
                 .collect(),
         )
-        .run_to_end()
+        .run_to_end(fuel)
     }
 
     /// The hash of the covenant.
@@ -124,10 +124,6 @@ impl Covenant {
 
     pub fn always_true() -> Self {
         Covenant::from_ops(&[OpCode::PushI(1u32.into())])
-    }
-
-    pub fn weight(&self) -> u128 {
-        opcodes_weight(&self.0)
     }
 }
 
@@ -212,7 +208,7 @@ mod tests {
                 hm.insert(0, Bytes::from(vec![0u8; 4096]).into());
             }),
         );
-        exec.run_to_end();
+        exec.run_to_end(10000).unwrap();
     }
 
     #[test]
@@ -220,7 +216,6 @@ mod tests {
         let (pk, sk) = tmelcrypt::ed25519_keygen();
         // (SIGEOK (LOAD 1) (PUSH pk) (VREF (VREF (LOAD 0) 6) 0))
         let check_sig_script = Covenant::from_ops(&[
-            OpCode::Loop(5, 8),
             OpCode::PushI(0u32.into()),
             OpCode::PushI(6u32.into()),
             OpCode::LoadImm(0),
@@ -232,10 +227,18 @@ mod tests {
         ]);
         println!("script length is {}", check_sig_script.0.len());
         let mut tx = Transaction::default().signed_ed25519(sk);
-        assert!(check_sig_script.execute(&tx, None).unwrap().into_bool());
+        assert!(check_sig_script
+            .execute(&tx, None, 10000)
+            .unwrap()
+            .0
+            .into_bool());
         let mut sig = tx.sigs[0].to_vec();
         sig[0] ^= 123;
         tx.sigs[0] = sig.into();
-        assert!(!check_sig_script.execute(&tx, None).unwrap().into_bool());
+        assert!(!check_sig_script
+            .execute(&tx, None, 10000)
+            .unwrap()
+            .0
+            .into_bool());
     }
 }

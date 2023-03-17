@@ -6,7 +6,7 @@ use melstructs::{
     Address, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, Header, NetID,
     StakeDoc, Transaction, TxHash, TxKind,
 };
-use melvm::{covenant_weight_from_bytes, Covenant, CovenantEnv};
+use melvm::{Covenant, CovenantEnv};
 use novasmt::ContentAddrStore;
 use rayon::iter::{
     IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
@@ -31,9 +31,12 @@ pub fn apply_tx_batch_impl<C: ContentAddrStore>(
     // apply the stake transactions
     let new_stakes = load_stake_info(this, txx)?;
 
-    // check validity of every transaction, with respect to the relevant coins and stakes
-    txx.par_iter()
-        .try_for_each(|tx| check_tx_validity(this, tx, &relevant_coins, &new_stakes))?;
+    // check validity of every transaction, with respect to the relevant coins and stakes.
+    // this runs the covenants and returns the correct base fees
+    let txx_base_fees = txx
+        .par_iter()
+        .map(|tx| check_tx_validity(this, tx, &relevant_coins, &new_stakes))
+        .collect::<Result<Vec<_>, _>>()?;
 
     // check the stake txx
     let new_max_speed = txx
@@ -112,11 +115,11 @@ fn handle_faucet_tx<C: ContentAddrStore>(
 
 fn create_next_state<C: ContentAddrStore>(
     mut next_state: UnsealedState<C>,
-    transactions: &[Transaction],
-    relevant_coins: &FxHashMap<CoinID, CoinDataHeight>,
+    transactions_with_base_fees: &[(Transaction, CoinValue)],
+    coins_spent_in_batch: &FxHashMap<CoinID, CoinDataHeight>,
     is_tip_906: bool,
 ) -> Result<UnsealedState<C>, StateError> {
-    for tx in transactions {
+    for (tx, base_fee) in transactions_with_base_fees {
         let txhash = tx.hash_nosigs();
 
         if tx.kind == TxKind::Faucet {
@@ -126,7 +129,7 @@ fn create_next_state<C: ContentAddrStore>(
         for (i, _) in tx.outputs.iter().enumerate() {
             let coinid = CoinID::new(txhash, i as u8);
             // this filters out coins that we get rid of (e.g. due to them going to the coin destruction cov)
-            if let Some(coin_data) = relevant_coins.get(&coinid) {
+            if let Some(coin_data) = coins_spent_in_batch.get(&coinid) {
                 next_state
                     .coins
                     .insert_coin(coinid, coin_data.clone(), is_tip_906);
@@ -136,17 +139,12 @@ fn create_next_state<C: ContentAddrStore>(
             next_state.coins.remove_coin(*coinid, is_tip_906);
         }
 
-        // fees
-        let min_fee = tx.base_fee(next_state.fee_multiplier, 0, |c| {
-            covenant_weight_from_bytes(c)
-        });
-        if tx.fee < min_fee {
-            return Err(StateError::InsufficientFees(min_fee));
-        } else {
-            let tips = tx.fee - min_fee;
-            next_state.tips.0 = next_state.tips.0.saturating_add(tips.0);
-            next_state.fee_pool.0 = next_state.fee_pool.0.saturating_add(min_fee.0);
-        }
+        // we first calculate a mapping from covenant to weight
+        assert!(tx.fee >= *base_fee);
+        let tips = tx.fee - *base_fee;
+        next_state.tips.0 = next_state.tips.0.saturating_add(tips.0);
+        next_state.fee_pool.0 = next_state.fee_pool.0.saturating_add(base_fee.0);
+
         next_state.transactions.insert(tx.clone());
     }
     Ok(next_state)
@@ -311,30 +309,6 @@ fn validate_tx_scripts(
         coin_data,
         tx.hash_nosigs()
     );
-    if !good_scripts.contains(&coin_data.coin_data.covhash) {
-        let script = Covenant::from_bytes(
-            &scripts
-                .get(&coin_data.coin_data.covhash)
-                .ok_or(StateError::NonexistentScript(coin_data.coin_data.covhash))?
-                .clone(),
-        )
-        .map_err(|_| StateError::MalformedTx)?;
-        if !script
-            .execute(
-                tx,
-                Some(CovenantEnv {
-                    parent_coinid: *coin_id,
-                    parent_cdh: coin_data.clone(),
-                    spender_index: spend_idx as u8,
-                    last_header,
-                }),
-            )
-            .map(|v| v.into_bool())
-            .unwrap_or(false)
-        {
-            return Err(StateError::ViolatesScript(coin_data.coin_data.covhash));
-        }
-    }
 
     Ok(())
 }
@@ -375,12 +349,13 @@ fn check_tx_coins_balanced(
     Ok(())
 }
 
+/// Checks the validity of this transaction. If valid, returns the correct base fee for the transaction.
 fn check_tx_validity<C: ContentAddrStore>(
     this: &UnsealedState<C>,
     tx: &Transaction,
     relevant_coins: &FxHashMap<CoinID, CoinDataHeight>,
     new_stakes: &FxHashMap<TxHash, StakeDoc>,
-) -> Result<(), StateError> {
+) -> Result<CoinValue, StateError> {
     let txhash = tx.hash_nosigs();
     let start = Instant::now();
     let scripts = tx.covenants_as_map();
@@ -408,18 +383,27 @@ fn check_tx_validity<C: ContentAddrStore>(
         match coin_data {
             None => return Err(StateError::NonexistentCoin(*coin_id)),
             Some(coin_data) => {
-                if !good_scripts.contains(&coin_data.coin_data.covhash) {
-                    validate_tx_scripts(
-                        spend_idx,
-                        coin_id,
+                let script = Covenant::from_bytes(
+                    &scripts
+                        .get(&coin_data.coin_data.covhash)
+                        .ok_or(StateError::NonexistentScript(coin_data.coin_data.covhash))?
+                        .clone(),
+                )
+                .map_err(|_| StateError::MalformedTx)?;
+                if !script
+                    .execute(
                         tx,
-                        coin_data,
-                        last_header,
-                        scripts.clone(),
-                        &good_scripts,
-                    )?;
-
-                    good_scripts.insert(coin_data.coin_data.covhash);
+                        Some(CovenantEnv {
+                            parent_coinid: *coin_id,
+                            parent_cdh: coin_data.clone(),
+                            spender_index: spend_idx as u8,
+                            last_header,
+                        }),
+                    )
+                    .map(|v| v.into_bool())
+                    .unwrap_or(false)
+                {
+                    return Err(StateError::ViolatesScript(coin_data.coin_data.covhash));
                 }
 
                 let amount = in_coins.get(&coin_data.coin_data.denom).unwrap_or(&0)

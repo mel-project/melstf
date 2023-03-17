@@ -5,11 +5,11 @@ use crate::consts::{
     OPCODE_ADD, OPCODE_AND, OPCODE_BAPPEND, OPCODE_BCONS, OPCODE_BEMPTY, OPCODE_BEZ,
     OPCODE_BLENGTH, OPCODE_BNZ, OPCODE_BPUSH, OPCODE_BREF, OPCODE_BSET, OPCODE_BSLICE, OPCODE_BTOI,
     OPCODE_DIV, OPCODE_DUP, OPCODE_EQL, OPCODE_EXP, OPCODE_GT, OPCODE_HASH, OPCODE_ITOB,
-    OPCODE_JMP, OPCODE_LOAD, OPCODE_LOADIMM, OPCODE_LOOP, OPCODE_LT, OPCODE_MUL, OPCODE_NOOP,
-    OPCODE_NOT, OPCODE_OR, OPCODE_PUSHB, OPCODE_PUSHI, OPCODE_PUSHIC, OPCODE_REM, OPCODE_SHL,
-    OPCODE_SHR, OPCODE_SIGEOK, OPCODE_STORE, OPCODE_STOREIMM, OPCODE_SUB, OPCODE_TYPEQ,
-    OPCODE_VAPPEND, OPCODE_VCONS, OPCODE_VEMPTY, OPCODE_VLENGTH, OPCODE_VPUSH, OPCODE_VREF,
-    OPCODE_VSET, OPCODE_VSLICE, OPCODE_XOR,
+    OPCODE_JMP, OPCODE_LOAD, OPCODE_LOADIMM, OPCODE_LT, OPCODE_MUL, OPCODE_NOOP, OPCODE_NOT,
+    OPCODE_OR, OPCODE_PUSHB, OPCODE_PUSHI, OPCODE_PUSHIC, OPCODE_REM, OPCODE_SHL, OPCODE_SHR,
+    OPCODE_SIGEOK, OPCODE_STORE, OPCODE_STOREIMM, OPCODE_SUB, OPCODE_TYPEQ, OPCODE_VAPPEND,
+    OPCODE_VCONS, OPCODE_VEMPTY, OPCODE_VLENGTH, OPCODE_VPUSH, OPCODE_VREF, OPCODE_VSET,
+    OPCODE_VSLICE, OPCODE_XOR,
 };
 
 use std::{fmt::Display, io::Write};
@@ -19,9 +19,6 @@ use thiserror::Error;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OpCode {
-    #[cfg(feature = "print")]
-    Print,
-
     Noop,
     // arithmetic
     Add,
@@ -71,11 +68,9 @@ pub enum OpCode {
     BCons,
 
     // control flow
-    Bez(u16),
-    Bnz(u16),
-    Jmp(u16),
-    // Loop(iterations, instructions)
-    Loop(u16, u16),
+    Bez(i16),
+    Bnz(i16),
+    Jmp(i16),
 
     // type conversions
     ItoB,
@@ -144,7 +139,6 @@ impl Display for OpCode {
             OpCode::Bez(i) => format!("bez {}", i).fmt(f),
             OpCode::Bnz(i) => format!("bnz {}", i).fmt(f),
             OpCode::Jmp(i) => format!("jmp {}", i).fmt(f),
-            OpCode::Loop(i, j) => format!("loop {} {}", i, j).fmt(f),
             OpCode::ItoB => "itob".fmt(f),
             OpCode::BtoI => "btoi".fmt(f),
             OpCode::TypeQ => "typeq".fmt(f),
@@ -183,6 +177,71 @@ fn read_byte<T: std::io::Read>(input: &mut T) -> std::io::Result<u8> {
 }
 
 impl OpCode {
+    /// Returns the fuel weight of this opcode.
+    pub fn fuel_weight(&self) -> u128 {
+        match self {
+            OpCode::Noop => 1,
+
+            OpCode::Add => 4,
+            OpCode::Sub => 4,
+            OpCode::Mul => 6,
+            OpCode::Div => 6,
+            // We add 1 to k bcs the max is 256 bits and min is 1, so 0=>1, 2^8=>256
+            OpCode::Exp(k) => 6u128.saturating_add(10u128.saturating_mul(*k as u128 + 1)),
+            OpCode::Rem => 6,
+
+            OpCode::And => 4,
+            OpCode::Or => 4,
+            OpCode::Xor => 4,
+            OpCode::Not => 4,
+            OpCode::Eql => 4,
+            OpCode::Lt => 4,
+            OpCode::Gt => 4,
+            OpCode::Shl => 4,
+            OpCode::Shr => 4,
+
+            OpCode::Hash(n) => 50u128.saturating_add(*n as u128),
+            OpCode::SigEOk(n) => 100u128.saturating_add(*n as u128),
+
+            OpCode::Store => 10,
+            OpCode::Load => 10,
+            OpCode::StoreImm(_) => 4,
+            OpCode::LoadImm(_) => 4,
+
+            OpCode::VRef => 10,
+            OpCode::VSet => 20,
+            OpCode::VAppend => 50,
+            OpCode::VSlice => 50,
+            OpCode::VLength => 4,
+            OpCode::VEmpty => 4,
+            OpCode::BEmpty => 4,
+            OpCode::BPush => 10,
+            OpCode::VPush => 10,
+            OpCode::VCons => 10,
+            OpCode::BRef => 10,
+            OpCode::BAppend => 10,
+            OpCode::BLength => 4,
+            OpCode::BSlice => 50,
+            OpCode::BSet => 20,
+            OpCode::BCons => 10,
+
+            OpCode::TypeQ => 4,
+
+            OpCode::ItoB => 50,
+            OpCode::BtoI => 50,
+
+            OpCode::Bez(_) => 1,
+            OpCode::Bnz(_) => 1,
+            OpCode::Jmp(_) => 1,
+
+            OpCode::PushB(_) => 1,
+            OpCode::PushI(_) => 1,
+            OpCode::PushIC(_) => 1,
+
+            OpCode::Dup => 4,
+        }
+    }
+
     /// Encodes an opcode.
     pub fn encode(&self, output: &mut Vec<u8>) -> Result<(), EncodeError> {
         match self {
@@ -261,11 +320,6 @@ impl OpCode {
                 output.write_all(&[OPCODE_BNZ]).unwrap();
                 output.write_all(&i.to_be_bytes()).unwrap()
             }
-            OpCode::Loop(iter, count) => {
-                output.write_all(&[OPCODE_LOOP]).unwrap();
-                output.write_all(&iter.to_be_bytes()).unwrap();
-                output.write_all(&count.to_be_bytes()).unwrap()
-            }
 
             OpCode::BtoI => output.write_all(&[OPCODE_BTOI]).unwrap(),
             OpCode::ItoB => output.write_all(&[OPCODE_ITOB]).unwrap(),
@@ -301,6 +355,12 @@ impl OpCode {
             let mut buffer: [u8; 2] = [0; 2];
             input.read_exact(&mut buffer)?;
             Ok::<_, DecodeError>(u16::from_be_bytes(buffer))
+        };
+
+        let i16arg = |input: &mut T| {
+            let mut buffer: [u8; 2] = [0; 2];
+            input.read_exact(&mut buffer)?;
+            Ok::<_, DecodeError>(i16::from_be_bytes(buffer))
         };
 
         let u8arg = |input: &mut T| {
@@ -359,14 +419,10 @@ impl OpCode {
             OPCODE_BCONS => Ok(OpCode::BCons),
             // control flow
             OPCODE_TYPEQ => Ok(OpCode::TypeQ),
-            OPCODE_JMP => Ok(OpCode::Jmp(u16arg(input)?)),
-            OPCODE_BEZ => Ok(OpCode::Bez(u16arg(input)?)),
-            OPCODE_BNZ => Ok(OpCode::Bnz(u16arg(input)?)),
-            OPCODE_LOOP => {
-                let iterations = u16arg(input)?;
-                let count = u16arg(input)?;
-                Ok(OpCode::Loop(iterations, count))
-            }
+            OPCODE_JMP => Ok(OpCode::Jmp(i16arg(input)?)),
+            OPCODE_BEZ => Ok(OpCode::Bez(i16arg(input)?)),
+            OPCODE_BNZ => Ok(OpCode::Bnz(i16arg(input)?)),
+
             OPCODE_ITOB => Ok(OpCode::ItoB),
             OPCODE_BTOI => Ok(OpCode::BtoI),
             // literals
@@ -405,101 +461,11 @@ impl OpCode {
     }
 }
 
-/// Computes the weight of a bunch of opcodes.
-pub fn opcodes_weight(opcodes: &[OpCode]) -> u128 {
-    let (mut sum, mut rest) = opcodes_car_weight(opcodes);
-    while !rest.is_empty() {
-        let (delta_sum, new_rest) = opcodes_car_weight(rest);
-        rest = new_rest;
-        sum = sum.saturating_add(delta_sum);
-    }
-    sum
-}
-
-/// Compute the weight of the first bit of opcodes, returning a weight and what remains.
-fn opcodes_car_weight(opcodes: &[OpCode]) -> (u128, &[OpCode]) {
-    if opcodes.is_empty() {
-        return (0, opcodes);
-    }
-    let (first, rest) = opcodes.split_first().unwrap();
-    match first {
-        #[cfg(feature = "print")]
-        OpCode::Print => (0, rest),
-        OpCode::Noop => (1, rest),
-        // handle loops specially
-        OpCode::Loop(iters, body_len) => {
-            let sum = opcodes_weight(&rest[..(*body_len as usize).min(rest.len())]);
-
-            (sum.saturating_mul(*iters as u128).saturating_add(1), rest)
-        }
-        OpCode::Add => (4, rest),
-        OpCode::Sub => (4, rest),
-        OpCode::Mul => (6, rest),
-        OpCode::Div => (6, rest),
-        // We add 1 to k bcs the max is 256 bits and min is 1, so 0=>1, 2^8=>256
-        OpCode::Exp(k) => (
-            6u128.saturating_add(10u128.saturating_mul(*k as u128 + 1)),
-            rest,
-        ),
-        OpCode::Rem => (6, rest),
-
-        OpCode::And => (4, rest),
-        OpCode::Or => (4, rest),
-        OpCode::Xor => (4, rest),
-        OpCode::Not => (4, rest),
-        OpCode::Eql => (4, rest),
-        OpCode::Lt => (4, rest),
-        OpCode::Gt => (4, rest),
-        OpCode::Shl => (4, rest),
-        OpCode::Shr => (4, rest),
-
-        OpCode::Hash(n) => (50u128.saturating_add(*n as u128), rest),
-        OpCode::SigEOk(n) => (100u128.saturating_add(*n as u128), rest),
-
-        OpCode::Store => (10, rest),
-        OpCode::Load => (10, rest),
-        OpCode::StoreImm(_) => (4, rest),
-        OpCode::LoadImm(_) => (4, rest),
-
-        OpCode::VRef => (10, rest),
-        OpCode::VSet => (20, rest),
-        OpCode::VAppend => (50, rest),
-        OpCode::VSlice => (50, rest),
-        OpCode::VLength => (4, rest),
-        OpCode::VEmpty => (4, rest),
-        OpCode::BEmpty => (4, rest),
-        OpCode::BPush => (10, rest),
-        OpCode::VPush => (10, rest),
-        OpCode::VCons => (10, rest),
-        OpCode::BRef => (10, rest),
-        OpCode::BAppend => (10, rest),
-        OpCode::BLength => (4, rest),
-        OpCode::BSlice => (50, rest),
-        OpCode::BSet => (20, rest),
-        OpCode::BCons => (10, rest),
-
-        OpCode::TypeQ => (4, rest),
-
-        OpCode::ItoB => (50, rest),
-        OpCode::BtoI => (50, rest),
-
-        OpCode::Bez(_) => (1, rest),
-        OpCode::Bnz(_) => (1, rest),
-        OpCode::Jmp(_) => (1, rest),
-
-        OpCode::PushB(_) => (1, rest),
-        OpCode::PushI(_) => (1, rest),
-        OpCode::PushIC(_) => (1, rest),
-
-        OpCode::Dup => (4, rest),
-    }
-}
-
 #[cfg(test)]
 #[allow(clippy::bool_assert_comparison)]
 mod tests {
-    use crate::opcode::OpCode;
     use crate::Covenant;
+    use crate::{executor::ExecuteError, opcode::OpCode};
 
     use std::str::FromStr;
 
@@ -510,7 +476,10 @@ mod tests {
     #[test]
     fn test_noop() {
         let covenant: Covenant = Covenant::from_ops(&[OpCode::Noop]);
-        assert_eq!(covenant.debug_execute(&[]), None)
+        assert_eq!(
+            covenant.debug_execute(&[], 10000),
+            Err(ExecuteError::EmptyStack)
+        )
     }
 
     #[test]
@@ -522,7 +491,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
 
@@ -533,7 +502,7 @@ mod tests {
             OpCode::PushI(4_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, false);
     }
@@ -555,7 +524,7 @@ mod tests {
             OpCode::PushI(0_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 100000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
 
@@ -566,7 +535,7 @@ mod tests {
             OpCode::PushI(4_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 100000).unwrap().0.into_bool();
 
         assert_eq!(output, false);
     }
@@ -580,7 +549,7 @@ mod tests {
             OpCode::PushI(0_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 100000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -594,7 +563,7 @@ mod tests {
             OpCode::PushI(2_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 100000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
 
@@ -605,7 +574,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 1000000).unwrap().0.into_bool();
 
         assert_eq!(output, false);
     }
@@ -619,7 +588,7 @@ mod tests {
             OpCode::PushI(u256::MAX),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 1000000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -633,7 +602,7 @@ mod tests {
             OpCode::PushI(6_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 1000000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
 
@@ -644,7 +613,7 @@ mod tests {
             OpCode::PushI(7_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 1000000).unwrap().0.into_bool();
 
         assert_eq!(output, false);
     }
@@ -661,7 +630,7 @@ mod tests {
             OpCode::PushI(2_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 100000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -675,7 +644,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 100000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
 
@@ -686,7 +655,7 @@ mod tests {
             OpCode::PushI(0_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 1000000).unwrap().0.into_bool();
 
         assert_eq!(output, false);
     }
@@ -700,7 +669,7 @@ mod tests {
             OpCode::PushI(0_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 100000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -714,7 +683,7 @@ mod tests {
             OpCode::PushI(1_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 100000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -728,7 +697,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
 
@@ -739,7 +708,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, false);
     }
@@ -753,7 +722,7 @@ mod tests {
             OpCode::PushI(0_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -767,7 +736,7 @@ mod tests {
             OpCode::PushI(1_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
 
@@ -778,7 +747,7 @@ mod tests {
             OpCode::PushI(2_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
 
@@ -789,7 +758,7 @@ mod tests {
             OpCode::PushI(2_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, false);
     }
@@ -803,7 +772,7 @@ mod tests {
             OpCode::PushI(7_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
 
@@ -814,7 +783,7 @@ mod tests {
             OpCode::PushI(10_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
 
@@ -825,7 +794,7 @@ mod tests {
             OpCode::PushI(10_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, false);
     }
@@ -839,7 +808,7 @@ mod tests {
             OpCode::PushI(6_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
 
@@ -850,7 +819,7 @@ mod tests {
             OpCode::PushI(8_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
 
@@ -861,7 +830,7 @@ mod tests {
             OpCode::PushI(8_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, false);
     }
@@ -874,7 +843,7 @@ mod tests {
             OpCode::PushI(u256::MAX),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -886,7 +855,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
 
@@ -895,7 +864,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, false);
     }
@@ -907,7 +876,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Lt,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
 
@@ -916,7 +885,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Lt,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, false);
 
@@ -925,7 +894,7 @@ mod tests {
             OpCode::PushI(4_u8.into()),
             OpCode::Lt,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, false);
     }
@@ -937,7 +906,7 @@ mod tests {
             OpCode::PushI(4_u8.into()),
             OpCode::Gt,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
 
@@ -946,7 +915,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Lt,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, false);
 
@@ -955,7 +924,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Lt,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
 
@@ -964,7 +933,7 @@ mod tests {
             OpCode::PushI(7_u8.into()),
             OpCode::Lt,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, false);
     }
@@ -978,7 +947,7 @@ mod tests {
             OpCode::PushI(6_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
 
@@ -990,7 +959,7 @@ mod tests {
             OpCode::PushI(u256::MAX - 1),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
 
@@ -1002,7 +971,7 @@ mod tests {
             OpCode::PushI(u256::MAX - 1),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, false);
     }
@@ -1016,7 +985,7 @@ mod tests {
             OpCode::PushI(1_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
 
@@ -1027,7 +996,7 @@ mod tests {
             OpCode::PushI(2_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
 
@@ -1038,7 +1007,7 @@ mod tests {
             OpCode::PushI(2_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, false);
     }
@@ -1064,7 +1033,7 @@ mod tests {
             OpCode::BtoI,
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1085,7 +1054,7 @@ mod tests {
             OpCode::PushB(message_byte_vector),
             OpCode::SigEOk(number_of_bytes_to_hash),
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1103,7 +1072,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1119,7 +1088,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1137,7 +1106,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1163,7 +1132,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1190,7 +1159,7 @@ mod tests {
             OpCode::PushI(6_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1212,7 +1181,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1243,7 +1212,7 @@ mod tests {
             OpCode::PushI(2_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1273,7 +1242,7 @@ mod tests {
             OpCode::PushI(length.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1303,7 +1272,7 @@ mod tests {
             OpCode::PushI(length.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1321,7 +1290,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1347,7 +1316,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1363,7 +1332,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
 
@@ -1376,7 +1345,7 @@ mod tests {
             OpCode::PushI(5_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, false);
     }
@@ -1398,7 +1367,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1420,7 +1389,7 @@ mod tests {
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1447,7 +1416,7 @@ mod tests {
             OpCode::PushI(6_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1478,7 +1447,7 @@ mod tests {
             OpCode::PushI(2_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1508,7 +1477,7 @@ mod tests {
             OpCode::PushI(length.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1538,7 +1507,7 @@ mod tests {
             OpCode::PushI(length.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, false);
     }
@@ -1553,7 +1522,7 @@ mod tests {
             OpCode::PushI(5_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1567,7 +1536,7 @@ mod tests {
             OpCode::PushI(5_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1582,7 +1551,7 @@ mod tests {
             OpCode::PushI(5_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1596,7 +1565,7 @@ mod tests {
             OpCode::PushI(5_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1610,7 +1579,7 @@ mod tests {
             OpCode::PushI(5_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1620,13 +1589,12 @@ mod tests {
         // This will add 1 to 3, two times, and assert that it's equal to 5.
         let covenant: Covenant = Covenant::from_ops(&[
             OpCode::PushI(3_u8.into()),
-            OpCode::Loop(2, 2),
             OpCode::PushI(1_u8.into()),
             OpCode::Add,
             OpCode::PushI(5_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1636,12 +1604,11 @@ mod tests {
         // This will loop the PushI(3) opcode twice, and then run PushI(5).
         // Comparing equality will fail because it is comparing 5 and 3.
         let covenant: Covenant = Covenant::from_ops(&[
-            OpCode::Loop(2, 1),
             OpCode::PushI(3_u8.into()),
             OpCode::PushI(5_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, false);
     }
@@ -1651,13 +1618,12 @@ mod tests {
         // This will add 1 to 3, zero times, and assert that it's equal to 3.
         let covenant: Covenant = Covenant::from_ops(&[
             OpCode::PushI(3_u8.into()),
-            OpCode::Loop(0, 2),
             OpCode::PushI(1_u8.into()),
             OpCode::Add,
             OpCode::PushI(3_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1665,7 +1631,7 @@ mod tests {
     // #[test]
     // fn test_loop_inputs_being_not_positive() {
     //     let covenant: Covenant = Covenant::from_ops(&[OpCode::Loop(0, 0)]);
-    //     let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+    //     let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
     //     assert_eq!(output, false);
     // }
@@ -1685,7 +1651,7 @@ mod tests {
             OpCode::PushI(number),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1695,9 +1661,9 @@ mod tests {
         let array: [u8; 4] = [3; 4];
 
         let covenant: Covenant = Covenant::from_ops(&[OpCode::PushB(array.to_vec()), OpCode::BtoI]);
-        let output = covenant.debug_execute(&[]);
+        let output = covenant.debug_execute(&[], 10000);
 
-        assert_eq!(output, None);
+        assert_eq!(output, Err(ExecuteError::ExecutionFailed(2)));
     }
 
     // #[test]
@@ -1733,7 +1699,7 @@ mod tests {
             OpCode::PushIC(3_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1748,7 +1714,7 @@ mod tests {
             OpCode::TypeQ,
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1763,7 +1729,7 @@ mod tests {
             OpCode::TypeQ,
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1780,7 +1746,7 @@ mod tests {
             OpCode::TypeQ,
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }
@@ -1789,7 +1755,7 @@ mod tests {
     fn test_dup() {
         let covenant: Covenant =
             Covenant::from_ops(&[OpCode::PushI(3_u8.into()), OpCode::Dup, OpCode::Eql]);
-        let output: bool = covenant.debug_execute(&[]).unwrap().into_bool();
+        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
 
         assert_eq!(output, true);
     }

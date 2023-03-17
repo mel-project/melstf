@@ -4,6 +4,7 @@ use catvec::CatVec;
 use ethnum::U256;
 use tap::Tap;
 use melstructs::{CoinData, CoinDataHeight, CoinID, Transaction};
+use thiserror::Error;
 
 use super::{
     consts::{
@@ -18,26 +19,25 @@ use super::{
 /// A pointer to the currently executing instruction.
 type ProgramCounter = usize;
 
-/// Internal tracking of state during a loop in [Executor].
-#[derive(Debug)]
-struct LoopState {
-    /// Pointer to first op in loop
-    begin: ProgramCounter,
-    /// Pointer to last op in loop (inclusive)
-    end: ProgramCounter,
-    /// Total number of iterations
-    iterations_left: u16,
+/// An error returned by an executor.
+#[derive(Clone, Copy, Debug, Error, PartialEq, PartialOrd, Eq)]
+pub enum ExecuteError {
+    #[error("ran out of fuel")]
+    OutOfFuel,
+    #[error("execution failed at position {0}")]
+    ExecutionFailed(usize),
+    #[error("nothing on stack")]
+    EmptyStack
 }
+
 
 /// An object that executes MelVM code.
 pub struct Executor {
-    pub stack: Vec<Value>,
-    pub heap: HashMap<u16, Value>,
+    stack: Vec<Value>,
+    heap: HashMap<u16, Value>,
     instrs: Vec<OpCode>,
     /// Program counter
     pc: ProgramCounter,
-    /// Marks the (begin, end) of the loop if currently in one
-    loop_state: Vec<LoopState>,
 }
 
 impl Executor {
@@ -48,7 +48,7 @@ impl Executor {
             heap: heap_init,
             instrs,
             pc: 0,
-            loop_state: vec![],
+
         }
     }
 
@@ -86,6 +86,7 @@ impl Executor {
 
         Executor::new(instrs, hm)
     }
+
     fn do_triop(&mut self, op: impl Fn(Value, Value, Value) -> Option<Value>) -> Option<()> {
         let stack = &mut self.stack;
         let x = stack.pop()?;
@@ -112,56 +113,33 @@ impl Executor {
     /// Obtains the current program counter.
     pub fn pc(&self) -> ProgramCounter {
         self.pc
-    }
+    } 
 
-    /// Update program pointer state (for loops etc)
-    fn update_pc_state(&mut self) {
-        while let Some(mut state) = self.loop_state.pop() {
-            // If done with body of loop
-            if self.pc > state.end {
-                // But not finished with all iterations, and did not jump outside the loop
-                if state.iterations_left > 0 && self.pc.saturating_sub(state.end) == 1 {
-                    log::trace!("{} iterations left", state.iterations_left);
-                    // loop again
-                    state.iterations_left -= 1;
-                    self.pc = state.begin;
-                    self.loop_state.push(state);
-                    break;
-                }
-            } else {
-                // If not done with loop body, resume
-                self.loop_state.push(state);
-                break;
-            }
-        }
-    }
 
-    /// Execute to the end
-    pub fn run_to_end(&mut self) -> Option<Value> {
+
+    /// Execute to the end, with a given gas amount. Returns the return value, as well as the remaining amount of fuel.
+    pub fn run_to_end(&mut self, mut fuel: u128) -> Result<(Value, u128), ExecuteError> {
         while self.pc < self.instrs.len() {
-            self.step()?;
+            let cost = self.step()?;
+            fuel = fuel.checked_sub(cost).ok_or(ExecuteError::OutOfFuel)?;
         }
 
-        self.stack.pop()
+        self.stack.pop().ok_or(ExecuteError::EmptyStack).map(|s| (s, fuel))
     }
 
 
-    /// Execute an instruction, modifying state and program counter.
-    pub fn step(&mut self) -> Option<()> {
-        let mut inner = || {
+    /// Execute an instruction, modifying state and program counter, and returning the fuel cost
+    pub fn step(&mut self) -> Result<u128, ExecuteError> {
+        (|| {
             let op = self.instrs.get(self.pc)?.clone();
-            // eprintln!("OPS: {:?}", self.instrs);
-            // eprintln!("PC:  {}", self.pc);
-            // eprintln!("OP:  {:?}", op);
-            // eprintln!("STK: {:?}", self.stack);
-            // eprintln!();
             self.pc += 1;
             // eprintln!("running {:?}", op);
             log::debug!(
-                "Getting next instruction {op:?} @ {}, loop state {:?}",
+                "Getting next instruction {op:?} @ {}",
                 self.pc + 1,
-                self.loop_state
             );
+            let cost = op.fuel_weight();
+
             match op {
                 #[cfg(feature = "print")]
                 OpCode::Print => self.do_monop(|x| {
@@ -494,7 +472,6 @@ impl Executor {
 
                         self.pc += jgap as usize;
 
-                        return Some(());
                     } else {
                         log::trace!("In a call to Bez, the top of the stack was not zero. It was {}. Not skipping any operations.", &jgap);
                     }
@@ -506,7 +483,7 @@ impl Executor {
                         log::trace!("In a call to Bnz, the top of the stack was not zero. Skipping to {}", &jgap);
 
                         self.pc += jgap as usize;
-                        return Some(());
+
                     } else {
                         log::trace!("In a call to Bnz, the top of the stack was not zero. It was {}. Not skipping any operations.", &jgap);
                     }
@@ -515,30 +492,9 @@ impl Executor {
                     log::trace!("Jumping ahead to instruction number {}", &jgap);
 
                     self.pc += jgap as usize;
-                    return Some(());
+
                 }
-                OpCode::Loop(iterations, op_count) => {
-                    if iterations > 0 { 
-                        if let Some(last) = self.loop_state.last() {
-                            let previous_loop_end = last.end;
-                            let this_end = self.pc + op_count as usize - 1;
-                            if this_end > previous_loop_end {
-                                log::debug!("FAIL due to loop not nested properly");
-                                return None;
-                            }
-                        }
-                        self.loop_state.push(LoopState {
-                            // start after loop instruction
-                            begin: self.pc,
-                            // final op is inclusive
-                            end: self.pc + op_count as usize - 1,
-                            // dec happens after an iteration so -1 for first loop
-                            iterations_left: iterations -1 ,
-                        });
-                    } else {
-                        self.pc += op_count as usize;
-                    }
-                    }
+                
                 // Conversions
                 OpCode::BtoI => self.do_monop(|input_byte_vector| {
                     log::trace!("Converting bytes {:?} into an integer.", &input_byte_vector);
@@ -631,12 +587,8 @@ impl Executor {
                     self.stack.push(value);
                 }
             }
-            Some(())
-        };
-        let res: Option<()> = inner();
-        self.update_pc_state();
-
-        res
+            Some(cost)
+        })().ok_or(ExecuteError::ExecutionFailed(self.pc))
     }
 }
 
