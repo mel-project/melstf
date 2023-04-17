@@ -1,6 +1,6 @@
 [package]
 name = "melvm"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "low-level vm for Mel on-chain code"
 repository="https://github.com/mel-project/melstf"
