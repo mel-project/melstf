@@ -15,9 +15,12 @@ use crate::consts::{
 use std::{fmt::Display, io::Write};
 
 use ethnum::U256;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+/// A single opcode. This implements Serialize and Deserialize for convenience, but the serde representation is *not* used in the state-transition function and may not be prefectly stable.
 pub enum OpCode {
     #[cfg(feature = "print")]
     Print,
