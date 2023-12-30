@@ -524,7 +524,18 @@ mod tests {
             OpCode::PushI(0_u8.into()),
             OpCode::Eql,
         ]);
-        let output: bool = covenant.debug_execute(&[], 100000).unwrap().0.into_bool();
+        let output: bool = covenant
+            .debug_execute(
+                &[],
+                covenant
+                    .to_ops()
+                    .into_iter()
+                    .map(|op| op.fuel_weight())
+                    .sum(),
+            )
+            .unwrap()
+            .0
+            .into_bool();
 
         assert_eq!(output, true);
 
@@ -1585,58 +1596,6 @@ mod tests {
     }
 
     #[test]
-    fn test_loop() {
-        // This will add 1 to 3, two times, and assert that it's equal to 5.
-        let covenant: Covenant = Covenant::from_ops(&[
-            OpCode::PushI(3_u8.into()),
-            OpCode::PushI(1_u8.into()),
-            OpCode::Add,
-            OpCode::PushI(5_u8.into()),
-            OpCode::Eql,
-        ]);
-        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
-
-        assert_eq!(output, true);
-    }
-
-    #[test]
-    fn test_loop_fail() {
-        // This will loop the PushI(3) opcode twice, and then run PushI(5).
-        // Comparing equality will fail because it is comparing 5 and 3.
-        let covenant: Covenant = Covenant::from_ops(&[
-            OpCode::PushI(3_u8.into()),
-            OpCode::PushI(5_u8.into()),
-            OpCode::Eql,
-        ]);
-        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
-
-        assert_eq!(output, false);
-    }
-
-    #[test]
-    fn test_loop_zero_times() {
-        // This will add 1 to 3, zero times, and assert that it's equal to 3.
-        let covenant: Covenant = Covenant::from_ops(&[
-            OpCode::PushI(3_u8.into()),
-            OpCode::PushI(1_u8.into()),
-            OpCode::Add,
-            OpCode::PushI(3_u8.into()),
-            OpCode::Eql,
-        ]);
-        let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
-
-        assert_eq!(output, true);
-    }
-
-    // #[test]
-    // fn test_loop_inputs_being_not_positive() {
-    //     let covenant: Covenant = Covenant::from_ops(&[OpCode::Loop(0, 0)]);
-    //     let output: bool = covenant.debug_execute(&[], 10000).unwrap().0.into_bool();
-
-    //     assert_eq!(output, false);
-    // }
-
-    #[test]
     fn test_convert_bytes_to_integer() {
         let array: [u8; 32] = [3; 32];
 
@@ -1665,32 +1624,6 @@ mod tests {
 
         assert_eq!(output, Err(ExecuteError::ExecutionFailed(2)));
     }
-
-    // #[test]
-    // fn test_convert_integer_to_bytes() {
-    //     let array: [u8; 32] = [3; 32];
-
-    //     let catvec_array: CatVec<u8, 256_usize> = CatVec::from(array);
-
-    //     let number: u256 = U256::from_str(
-    //         "1362259873380190534394952764808093033567882172536947812228912753034272113411",
-    //     )
-    //     .expect("could not create a U256 from a str.");
-
-    //     let covenant: Covenant = Covenant::from_ops(&[OpCode::PushI(number), OpCode::ItoB]);
-    //     let (stack, _heap): (Vec<Value>, HashMap<u16, Value>) = covenant
-    //         .debug_run_outputting_stack_and_heap(&[])
-    //         .expect("Covenant returned a None value.");
-
-    //     dbg!("{}", &stack);
-
-    //     let byte_vector: CatVec<u8, 256_usize> = stack[0]
-    //         .clone()
-    //         .into_bytes()
-    //         .expect("Could not convert stack index into bytes.");
-
-    //     assert_eq!(catvec_array, byte_vector);
-    // }
 
     #[test]
     fn test_pushic() {

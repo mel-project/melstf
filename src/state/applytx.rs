@@ -34,7 +34,7 @@ pub fn apply_tx_batch_impl<C: ContentAddrStore>(
     // check validity of every transaction, with respect to the relevant coins and stakes.
     // this runs the covenants and returns the correct base fees
     let txx_base_fees = txx
-        .par_iter()
+        .iter()
         .map(|tx| check_tx_validity(this, tx, &relevant_coins, &new_stakes))
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -375,22 +375,19 @@ fn check_tx_validity<C: ContentAddrStore>(
         .get(&(this.height.0.saturating_sub(1).into()))
         .unwrap_or_else(|| this.clone().seal(None).header());
 
-    // calculate the gas limit, from the fee
-    let noscript_base_fee = tx.base_fee(this.fee_multiplier, 0, |_| 0);
-    let mut fuel_limit = tx
-        .fee
-        .0
-        .checked_sub(noscript_base_fee.0)
-        .ok_or(StateError::InsufficientFees)?
-        / this.fee_multiplier.max(1);
+    // we use a two step-process.
+    // first, we execute all the covenants with a generous overestimate of the fuel needed.
+    // then, we calculate the weight of the whole transaction using how much fuel was actually consumed.
+    let usable_fees = tx.usable_fees(this.fee_multiplier);
+    let mut fuel_limit = (usable_fees.0 << 16) / this.fee_multiplier.max(1) * 2;
     eprintln!(
-        "fuel limit = {fuel_limit}; noscript base fee = {noscript_base_fee}; fee multiplier {}; weight {}",
+        "fuel limit = {fuel_limit}; fee = {}, usable fee = {usable_fees}; fee multiplier {}; weight {}",
+        tx.fee,
         this.fee_multiplier, tx.weight(|_| 0)
     );
     let init_fuel_limit = fuel_limit;
-
+    let mut fuel_consumed_mapping = HashMap::new();
     for (spend_idx, coin_id) in tx.inputs.iter().enumerate() {
-        eprintln!("fuel limit = {fuel_limit}");
         // Workaround for BUGGY old code!
         // TODO: add some details for this
         if (new_stakes.contains_key(&coin_id.txhash)
@@ -422,6 +419,8 @@ fn check_tx_validity<C: ContentAddrStore>(
                     fuel_limit,
                 ) {
                     Ok((value, left)) => {
+                        let consumed = fuel_limit - left;
+                        fuel_consumed_mapping.insert(script.hash(), consumed);
                         fuel_limit = left;
                         if !value.into_bool() {
                             return Err(StateError::ViolatesScript(coin_data.coin_data.covhash));
@@ -442,10 +441,19 @@ fn check_tx_validity<C: ContentAddrStore>(
         }
     }
 
-    log::trace!("{}: processed all inputs {:?}", txhash, start.elapsed());
+    eprintln!("{}: processed all inputs {:?}. fuel_limit = {fuel_limit}, init_fuel_limit = {init_fuel_limit}", txhash, start.elapsed());
     let out_coins = tx.total_outputs();
     check_tx_coins_balanced(tx.kind, in_coins, out_coins)?;
-    Ok(CoinValue((fuel_limit - init_fuel_limit) * this.fee_multiplier) + noscript_base_fee)
+
+    // compute the right base fee
+    let base_fee = tx.base_fee(this.fee_multiplier, 0, |cov| {
+        fuel_consumed_mapping
+            .get(&Covenant::from_bytes(cov).unwrap().hash())
+            .copied()
+            .unwrap()
+    });
+
+    Ok(base_fee)
 }
 
 fn proof_is_tip910(proof: Proof, puzzle: &HashVal, difficulty: u32) -> Result<bool, StateError> {

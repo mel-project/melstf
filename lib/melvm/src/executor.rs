@@ -121,7 +121,8 @@ impl Executor {
     pub fn run_to_end(&mut self, mut fuel: u128) -> Result<(Value, u128), ExecuteError> {
         while self.pc < self.instrs.len() {
             let cost = self.step()?;
-            fuel = fuel.checked_sub(cost).ok_or(ExecuteError::OutOfFuel)?;
+            log::debug!("fuel left: {fuel}, cost of the step: {cost}");
+            fuel = fuel.checked_sub(cost).ok_or_else(|| {log::debug!("RAN OUT OF FUEL"); ExecuteError::OutOfFuel})?;
         }
 
         self.stack.pop().ok_or(ExecuteError::EmptyStack).map(|s| (s, fuel))

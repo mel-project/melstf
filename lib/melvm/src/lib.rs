@@ -26,7 +26,7 @@ pub enum AddrParseError {
     CannotParse,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Hash, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 /// The execution environment of a covenant. Serializable to make use with yaml/toml/etc more convenient.
 pub struct CovenantEnv {
     pub parent_coinid: CoinID,
