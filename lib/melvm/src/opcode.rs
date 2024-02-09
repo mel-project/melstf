@@ -4,12 +4,12 @@ use crate::consts::OPCODE_PRINT;
 use crate::consts::{
     OPCODE_ADD, OPCODE_AND, OPCODE_BAPPEND, OPCODE_BCONS, OPCODE_BEMPTY, OPCODE_BEZ,
     OPCODE_BLENGTH, OPCODE_BNZ, OPCODE_BPUSH, OPCODE_BREF, OPCODE_BSET, OPCODE_BSLICE, OPCODE_BTOI,
-    OPCODE_DIV, OPCODE_DUP, OPCODE_EQL, OPCODE_EXP, OPCODE_GT, OPCODE_HASH, OPCODE_ITOB,
-    OPCODE_JMP, OPCODE_LOAD, OPCODE_LOADIMM, OPCODE_LT, OPCODE_MUL, OPCODE_NOOP, OPCODE_NOT,
-    OPCODE_OR, OPCODE_PUSHB, OPCODE_PUSHI, OPCODE_PUSHIC, OPCODE_REM, OPCODE_SHL, OPCODE_SHR,
-    OPCODE_SIGEOK, OPCODE_STORE, OPCODE_STOREIMM, OPCODE_SUB, OPCODE_TYPEQ, OPCODE_VAPPEND,
-    OPCODE_VCONS, OPCODE_VEMPTY, OPCODE_VLENGTH, OPCODE_VPUSH, OPCODE_VREF, OPCODE_VSET,
-    OPCODE_VSLICE, OPCODE_XOR,
+    OPCODE_DIV, OPCODE_DUP, OPCODE_DYNJMP, OPCODE_EQL, OPCODE_EXP, OPCODE_GT, OPCODE_HASH,
+    OPCODE_ITOB, OPCODE_JMP, OPCODE_LOAD, OPCODE_LOADIMM, OPCODE_LT, OPCODE_MUL, OPCODE_NOOP,
+    OPCODE_NOT, OPCODE_OR, OPCODE_PUSHB, OPCODE_PUSHI, OPCODE_PUSHIC, OPCODE_REM, OPCODE_SHL,
+    OPCODE_SHR, OPCODE_SIGEOK, OPCODE_STORE, OPCODE_STOREIMM, OPCODE_SUB, OPCODE_TYPEQ,
+    OPCODE_VAPPEND, OPCODE_VCONS, OPCODE_VEMPTY, OPCODE_VLENGTH, OPCODE_VPUSH, OPCODE_VREF,
+    OPCODE_VSET, OPCODE_VSLICE, OPCODE_XOR,
 };
 
 use std::{fmt::Display, io::Write};
@@ -71,6 +71,7 @@ pub enum OpCode {
     Bez(i16),
     Bnz(i16),
     Jmp(i16),
+    DynJmp,
 
     // type conversions
     ItoB,
@@ -146,6 +147,7 @@ impl Display for OpCode {
             OpCode::PushI(i) => format!("pushi {}", i).fmt(f),
             OpCode::PushIC(i) => format!("pushic {}", i).fmt(f),
             OpCode::Dup => "dup".fmt(f),
+            OpCode::DynJmp => "dynjmp".fmt(f),
         }
     }
 }
@@ -239,6 +241,7 @@ impl OpCode {
             OpCode::PushIC(_) => 1,
 
             OpCode::Dup => 4,
+            OpCode::DynJmp => 4,
         }
     }
 
@@ -345,6 +348,7 @@ impl OpCode {
                 output.write_all(&bytes_repr[leading_zeros..]).unwrap();
             }
             OpCode::Dup => output.write_all(&[OPCODE_DUP]).unwrap(),
+            OpCode::DynJmp => output.write_all(&[OPCODE_DYNJMP]).unwrap(),
         };
         Ok(())
     }
@@ -422,6 +426,7 @@ impl OpCode {
             OPCODE_JMP => Ok(OpCode::Jmp(i16arg(input)?)),
             OPCODE_BEZ => Ok(OpCode::Bez(i16arg(input)?)),
             OPCODE_BNZ => Ok(OpCode::Bnz(i16arg(input)?)),
+            OPCODE_DYNJMP => Ok(OpCode::DynJmp),
 
             OPCODE_ITOB => Ok(OpCode::ItoB),
             OPCODE_BTOI => Ok(OpCode::BtoI),

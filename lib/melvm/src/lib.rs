@@ -4,6 +4,7 @@ pub mod opcode;
 mod value;
 use std::sync::Arc;
 
+use arrayref::array_ref;
 use bytes::Bytes;
 use consts::{HADDR_SPENDER_INDEX, HADDR_SPENDER_TX};
 // pub use executor::*;
@@ -18,7 +19,11 @@ pub use value::*;
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 /// A MelVM covenant. Essentially, given a transaction that attempts to spend it, it either allows the transaction through or doesn't.
-pub struct Covenant(Arc<Vec<OpCode>>);
+pub struct Covenant {
+    opcodes: Arc<Vec<OpCode>>,
+    fuel: u128,
+    trad_fuel: bool,
+}
 
 #[derive(Error, Debug)]
 pub enum AddrParseError {
@@ -38,29 +43,52 @@ pub struct CovenantEnv {
 impl Covenant {
     /// Parses a covenant from its binary representation.
     pub fn from_bytes(mut b: &[u8]) -> Result<Self, DecodeError> {
+        let (mut b, fuel) = if b.len() > 5 {
+            if b[0] == 0xff {
+                (
+                    &b[5..],
+                    Some(u128::from(u32::from_be_bytes(*array_ref![b, 1, 4]))),
+                )
+            } else {
+                (b, None)
+            }
+        } else {
+            (b, None)
+        };
         let mut opcodes: Vec<OpCode> = Vec::with_capacity(128);
+        let mut trad_fuel = 0;
 
         while !b.is_empty() {
-            opcodes.push(OpCode::decode(&mut b)?);
+            let op = OpCode::decode(&mut b)?;
+            opcodes.push(op);
+            trad_fuel += op.fuel_weight();
         }
 
-        Ok(Self(opcodes.into()))
+        Ok(Self {
+            fuel: fuel.unwrap_or(trad_fuel),
+            opcodes: opcodes.into(),
+            trad_fuel: fuel.is_none(),
+        })
     }
 
     /// Parses a covenant from a list of opcodes.
-    pub fn from_ops(ops: &[OpCode]) -> Self {
-        Self(Arc::new(ops.to_vec()))
+    pub fn from_ops(ops: &[OpCode], fuel: u128) -> Self {
+        Self {
+            fuel,
+            opcodes: ops.to_vec().into(),
+            trad_fuel: false,
+        }
     }
 
     /// Converts to a list of opcodes.
     pub fn to_ops(&self) -> Vec<OpCode> {
-        self.0.as_ref().clone()
+        self.opcodes.as_ref().clone()
     }
 
     /// Converts to a byte vector.
     pub fn to_bytes(&self) -> Bytes {
         let mut out: Vec<u8> = vec![];
-        for op in self.0.iter() {
+        for op in self.opcodes.iter() {
             op.encode(&mut out).unwrap();
         }
         out.into()
@@ -73,15 +101,14 @@ impl Covenant {
         &self,
         tx: &Transaction,
         env: Option<CovenantEnv>,
-        fuel: u128,
     ) -> Result<(Value, u128), ExecuteError> {
-        Executor::new_from_env(self.0.to_vec(), tx.clone(), env).run_to_end(fuel)
+        Executor::new_from_env(self.opcodes.to_vec(), tx.clone(), env).run_to_end(self.fuel)
     }
 
     /// Executes this covenant in isolation, with a particular melvm heap.
     pub fn debug_execute(&self, env: &[Value], fuel: u128) -> Result<(Value, u128), ExecuteError> {
         Executor::new(
-            self.0.to_vec(),
+            self.opcodes.to_vec(),
             env.iter()
                 .enumerate()
                 .map(|(i, k)| (i as u16, k.clone()))
@@ -97,34 +124,40 @@ impl Covenant {
 
     /// Returns a legacy ed25519 signature checking covenant, which checks the *first* signature.
     pub fn std_ed25519_pk_legacy(pk: tmelcrypt::Ed25519PK) -> Self {
-        Covenant::from_ops(&[
-            OpCode::PushI(0u32.into()),
-            OpCode::PushI(6u32.into()),
-            OpCode::LoadImm(HADDR_SPENDER_TX),
-            OpCode::VRef,
-            OpCode::VRef,
-            OpCode::PushB(pk.0.to_vec()),
-            OpCode::LoadImm(1),
-            OpCode::SigEOk(32),
-        ])
+        Covenant::from_ops(
+            &[
+                OpCode::PushI(0u32.into()),
+                OpCode::PushI(6u32.into()),
+                OpCode::LoadImm(HADDR_SPENDER_TX),
+                OpCode::VRef,
+                OpCode::VRef,
+                OpCode::PushB(pk.0.to_vec()),
+                OpCode::LoadImm(1),
+                OpCode::SigEOk(32),
+            ],
+            1000,
+        )
     }
 
     /// Returns a new ed25519 signature checking covenant, which checks the *nth* signature when spent as the nth input.
     pub fn std_ed25519_pk_new(pk: tmelcrypt::Ed25519PK) -> Self {
-        Covenant::from_ops(&[
-            OpCode::LoadImm(HADDR_SPENDER_INDEX),
-            OpCode::PushI(6u32.into()),
-            OpCode::LoadImm(HADDR_SPENDER_TX),
-            OpCode::VRef,
-            OpCode::VRef,
-            OpCode::PushB(pk.0.to_vec()),
-            OpCode::LoadImm(1),
-            OpCode::SigEOk(32),
-        ])
+        Covenant::from_ops(
+            &[
+                OpCode::LoadImm(HADDR_SPENDER_INDEX),
+                OpCode::PushI(6u32.into()),
+                OpCode::LoadImm(HADDR_SPENDER_TX),
+                OpCode::VRef,
+                OpCode::VRef,
+                OpCode::PushB(pk.0.to_vec()),
+                OpCode::LoadImm(1),
+                OpCode::SigEOk(32),
+            ],
+            1000,
+        )
     }
 
     pub fn always_true() -> Self {
-        Covenant::from_ops(&[OpCode::PushI(1u32.into())])
+        Covenant::from_ops(&[OpCode::PushI(1u32.into())], 10)
     }
 }
 

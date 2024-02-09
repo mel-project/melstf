@@ -113,9 +113,7 @@ impl Executor {
     /// Obtains the current program counter.
     pub fn pc(&self) -> ProgramCounter {
         self.pc
-    } 
-
-
+    }
 
     /// Execute to the end, with a given gas amount. Returns the return value, as well as the remaining amount of fuel.
     pub fn run_to_end(&mut self, mut fuel: u128) -> Result<(Value, u128), ExecuteError> {
@@ -133,12 +131,12 @@ impl Executor {
     pub fn step(&mut self) -> Result<u128, ExecuteError> {
         (|| {
             let op = self.instrs.get(self.pc)?.clone();
-            self.pc += 1;
-            // eprintln!("running {:?}", op);
             log::debug!(
                 "Getting next instruction {op:?} @ {}",
-                self.pc + 1,
+                self.pc ,
             );
+            self.pc += 1;
+            // eprintln!("running {:?}", op);
             let cost = op.fuel_weight();
 
             match op {
@@ -494,6 +492,10 @@ impl Executor {
 
                     self.pc += jgap as usize;
 
+                }
+                OpCode::DynJmp => {
+                    let addr = self.stack.pop()?.into_int()?.as_usize();
+                    self.pc = addr;
                 }
                 
                 // Conversions

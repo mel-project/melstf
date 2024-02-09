@@ -72,6 +72,7 @@ pub(crate) const OPCODE_BCONS: u8 = 0x77;
 pub(crate) const OPCODE_JMP: u8 = 0xa0;
 pub(crate) const OPCODE_BEZ: u8 = 0xa1;
 pub(crate) const OPCODE_BNZ: u8 = 0xa2;
+pub(crate) const OPCODE_DYNJMP: u8 = 0xaf;
 
 pub(crate) const OPCODE_ITOB: u8 = 0xc0;
 pub(crate) const OPCODE_BTOI: u8 = 0xc1;
