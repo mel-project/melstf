@@ -20,9 +20,9 @@ This crate is the **most consensus-critical part of Mel**, and essentially defin
 
 Versions incompatible with the latest Mel state are thus _all yanked_.
 
-## Example Usage in `themelio-node`
+## Example Usage in `melnode`
 
-To illustrate STF's usage, let's look at [`themelio-node`](https://github.com/themeliolabs/themelio-node) as an example.
+To illustrate STF's usage, let's look at [`melnode`](https://github.com/mel-project/melnode) as an example.
 
 When a node is run for the first time, it will instantiate storage to keep track of the `State`. It does this by reading it from persisted history data, or create a new genesis state.
 
