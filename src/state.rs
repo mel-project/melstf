@@ -3,14 +3,7 @@ mod coins;
 pub(crate) mod melmint;
 pub(crate) mod txset;
 
-use crate::tip_heights::TIP_902_HEIGHT;
-use crate::{
-    smtmapping::*,
-    state::applytx::apply_tx_batch_impl,
-    tip_heights::{
-        TIP_901_HEIGHT, TIP_906_HEIGHT, TIP_908_HEIGHT, TIP_909A_HEIGHT, TIP_909_HEIGHT,
-    },
-};
+use crate::{smtmapping::*, state::applytx::apply_tx_batch_impl};
 
 use std::fmt::Debug;
 
@@ -21,7 +14,7 @@ use melstructs::{
     Denom, Header, NetID, PoolKey, PoolState, ProposerAction, StakeDoc, Transaction, TxHash,
     STAKE_EPOCH,
 };
-use novasmt::{dense::DenseMerkleTree, ContentAddrStore, Database, InMemoryCas};
+use novasmt::{dense::DenseMerkleTree, ContentAddrStore, Database};
 use stdcode::StdcodeSerializeExt;
 use tap::Pipe;
 use thiserror::Error;
@@ -112,36 +105,6 @@ impl<C: ContentAddrStore> UnsealedState<C> {
         }
     }
 
-    /// Returns true iff TIP 901 rule changes apply.
-    pub(crate) fn tip_901(&self) -> bool {
-        self.tip_condition(TIP_901_HEIGHT)
-    }
-
-    /// Returns true iff TIP 902 rule changes apply.
-    pub(crate) fn tip_902(&self) -> bool {
-        self.tip_condition(TIP_902_HEIGHT)
-    }
-
-    /// Returns true iff TIP 906 rule changes apply.
-    pub(crate) fn tip_906(&self) -> bool {
-        self.tip_condition(TIP_906_HEIGHT)
-    }
-
-    /// Returns true iff TIP 908 rule changes apply.
-    pub(crate) fn tip_908(&self) -> bool {
-        self.tip_condition(TIP_908_HEIGHT) || self.network == NetID::Custom08
-    }
-
-    /// Returns true iff TIP 909 rule changes apply.
-    pub(crate) fn tip_909(&self) -> bool {
-        self.tip_condition(TIP_909_HEIGHT)
-    }
-
-    /// Returns true iff TIP 909a rule changes apply.
-    pub(crate) fn tip_909a(&self) -> bool {
-        self.tip_condition(TIP_909A_HEIGHT)
-    }
-
     /// Applies a single transaction.
     /// Internally, this calls [`apply_tx_batch`](Self::apply_tx_batch) on a slice with a length of 1.
     pub fn apply_tx(&mut self, tx: &Transaction) -> Result<(), StateError> {
@@ -170,16 +133,7 @@ impl<C: ContentAddrStore> UnsealedState<C> {
 
     /// Calculates the "transactions" root hash. Note that this is different depending on whether the block is pre-TIP-908 or post-TIP-908.
     pub(crate) fn transactions_root_hash(&self) -> HashVal {
-        if self.tip_908() {
-            HashVal(self.tip908_transactions().root_hash())
-        } else {
-            let db = Database::new(InMemoryCas::default());
-            let mut smt = SmtMapping::new(db.get_tree(Default::default()).unwrap());
-            for txn in self.transactions.iter() {
-                smt.insert(txn.hash_nosigs(), txn.clone());
-            }
-            smt.root_hash()
-        }
+        HashVal(self.tip908_transactions().root_hash())
     }
 
     /// Obtains the dense merkle tree (TIP-908)
@@ -198,15 +152,11 @@ impl<C: ContentAddrStore> UnsealedState<C> {
     }
 
     fn apply_tip_909(&mut self) {
-        let divider = self.height.0.saturating_sub(TIP_909_HEIGHT.0) / 1_000_000;
+        let divider = self.height.0 / 1_000_000;
         let reward = (1u128 << 20) >> divider;
         let tip909a_erg_subsidy = reward >> 8;
         // fee subsidy
-        let fee_subsidy = if self.tip_909a() {
-            reward - tip909a_erg_subsidy
-        } else {
-            reward / 2
-        };
+        let fee_subsidy = reward - tip909a_erg_subsidy;
         let mut smpool = self
             .pools
             .get(&PoolKey::new(Denom::Mel, Denom::Sym))
@@ -216,11 +166,7 @@ impl<C: ContentAddrStore> UnsealedState<C> {
             .insert(PoolKey::new(Denom::Mel, Denom::Sym), smpool);
         self.fee_pool += CoinValue(mel);
         // erg subsidy
-        let erg_subsidy = if self.tip_909a() {
-            tip909a_erg_subsidy
-        } else {
-            reward - fee_subsidy
-        };
+        let erg_subsidy = tip909a_erg_subsidy;
         let mut espool = self
             .pools
             .get(&PoolKey::new(Denom::Erg, Denom::Sym))
@@ -230,12 +176,8 @@ impl<C: ContentAddrStore> UnsealedState<C> {
             .insert(PoolKey::new(Denom::Erg, Denom::Sym), espool);
     }
 
-    fn move_action_fee_multiplier(&mut self, after_tip_901: bool, action: ProposerAction) {
-        let max_movement = if after_tip_901 {
-            ((self.fee_multiplier >> 7) as i64).max(2)
-        } else {
-            (self.fee_multiplier >> 7) as i64
-        };
+    fn move_action_fee_multiplier(&mut self, action: ProposerAction) {
+        let max_movement = ((self.fee_multiplier >> 7) as i64).max(2);
         let scaled_movement = max_movement * action.fee_multiplier_delta as i64 / 128;
         log::debug!(
             "changing fee multiplier {} by {}",
@@ -265,13 +207,12 @@ impl<C: ContentAddrStore> UnsealedState<C> {
             height: self.height,
         };
         // insert the fake coin
-        self.coins
-            .insert_coin(pseudocoin_id, pseudocoin_data, self.tip_906());
+        self.coins.insert_coin(pseudocoin_id, pseudocoin_data);
     }
 
-    fn apply_proposer_action(&mut self, action: ProposerAction, after_tip_901: bool) {
+    fn apply_proposer_action(&mut self, action: ProposerAction) {
         // first let's move the fee multiplier
-        self.move_action_fee_multiplier(after_tip_901, action);
+        self.move_action_fee_multiplier(action);
 
         // collect the fees due! We synthesize a coin with 1/65536 of the fee pool and all the tips.
         self.collect_proposer_action_fee(action);
@@ -287,13 +228,11 @@ impl<C: ContentAddrStore> UnsealedState<C> {
         assert!(self.pools.val_iter().count() >= 2);
 
         // then apply tip 909
-        if self.tip_909() {
-            self.apply_tip_909();
-        }
+        self.apply_tip_909();
 
         // apply the proposer action
         if let Some(action) = action {
-            self.apply_proposer_action(action, self.tip_901());
+            self.apply_proposer_action(action);
         }
         // create the finalized state
         SealedState(self, action)
@@ -415,24 +354,6 @@ impl<C: ContentAddrStore> SealedState<C> {
         self.0.transactions.iter()
     }
 
-    fn apply_tip_906_for_next_state(next_state: &mut UnsealedState<C>) {
-        log::warn!("DOING TIP-906 TRANSITION NOW!");
-        let old_tree = next_state.coins.inner().clone();
-        let mut count = old_tree.count();
-        for (_, v) in old_tree.iter() {
-            let cdh: CoinDataHeight =
-                stdcode::deserialize(&v).expect("pre-tip906 coin tree has non-cdh elements?!");
-            let old_count = next_state.coins.coin_count(cdh.coin_data.covhash);
-            next_state
-                .coins
-                .insert_coin_count(cdh.coin_data.covhash, old_count + 1);
-            if count % 100 == 0 {
-                log::warn!("{} left", count);
-            }
-            count -= 1;
-        }
-    }
-
     /// Creates a new unfinalized state representing the next block.
     ///
     /// This is the "main" operation on a `SealedState` used to advance it to a `State` that can start accepting further transactions for the next block.
@@ -443,12 +364,6 @@ impl<C: ContentAddrStore> SealedState<C> {
         new.height += BlockHeight(1);
         new.stakes.unlock_old((new.height / STAKE_EPOCH).0);
         new.transactions = Default::default();
-
-        // TIP-906 transition
-        if new.tip_906() && !self.0.tip_906() {
-            Self::apply_tip_906_for_next_state(&mut new);
-        }
-
         new
     }
 

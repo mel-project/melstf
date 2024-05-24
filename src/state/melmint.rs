@@ -4,8 +4,8 @@ use std::{cell::RefCell, convert::TryInto};
 
 use melpow::HashFunction;
 use melstructs::{
-    BlockHeight, CoinData, CoinDataHeight, CoinValue, Denom, NetID, PoolKey, PoolState,
-    Transaction, TxKind, MAX_COINVAL, MICRO_CONVERTER,
+    BlockHeight, CoinData, CoinDataHeight, CoinValue, Denom, PoolKey, PoolState, Transaction,
+    TxKind, MAX_COINVAL, MICRO_CONVERTER,
 };
 use novasmt::ContentAddrStore;
 use num::{integer::Roots, rational::Ratio, BigInt, BigRational};
@@ -87,7 +87,7 @@ pub fn calculate_reward(my_speed: u128, dosc_speed: u128, difficulty: u32, tip91
     };
     // correct calculation with bigints
     let result = (BigInt::from(work_done) * BigInt::from(my_speed) * BigInt::from(MICRO_CONVERTER))
-        / (BigInt::from(dosc_speed).pow(2) * BigInt::from(2880));
+        / (BigInt::from(dosc_speed).pow(2) * BigInt::from(2880)); // 2880 = # of blocks made in a day
     result.try_into().unwrap_or(u128::MAX)
 }
 
@@ -151,11 +151,10 @@ fn create_builtins<C: ContentAddrStore>(mut state: UnsealedState<C>) -> Unsealed
             .pools
             .insert(PoolKey::new(Denom::Mel, Denom::Erg), def)
     }
-    if state.tip_902()
-        && state
-            .pools
-            .get(&PoolKey::new(Denom::Erg, Denom::Sym))
-            .is_none()
+    if state
+        .pools
+        .get(&PoolKey::new(Denom::Erg, Denom::Sym))
+        .is_none()
     {
         state
             .pools
@@ -219,7 +218,6 @@ fn process_swaps_for_single_pool<C: ContentAddrStore>(
                 coin_data: swap.outputs[0].clone(),
                 height: state.height,
             },
-            state.tip_906(),
         );
     });
 
@@ -312,20 +310,8 @@ fn process_deposits_for_single_pool<C: ContentAddrStore>(
                 coin_data: deposit.outputs[0].clone(),
                 height: state.height,
             },
-            state.tip_906(),
         );
-        if (state.network == NetID::Mainnet || state.network == NetID::Testnet)
-            && state.height.0 < 978392
-        {
-            log::warn!("APPLYING OLD RULES THAT LEAD TO INFLATION BUG!!!!!");
-            state
-                .coins
-                .remove_coin(deposit.output_coinid(1), state.tip_906());
-        } else {
-            state
-                .coins
-                .remove_coin(original_tx.output_coinid(1), state.tip_906());
-        }
+        state.coins.remove_coin(original_tx.output_coinid(1));
     });
 }
 
@@ -398,7 +384,6 @@ fn process_withdrawals_for_single_pool<C: ContentAddrStore>(
                 coin_data: deposit.outputs[0].clone(),
                 height: state.height,
             },
-            state.tip_906(),
         );
         state.coins.insert_coin(
             coinid_1,
@@ -406,7 +391,6 @@ fn process_withdrawals_for_single_pool<C: ContentAddrStore>(
                 coin_data: synth,
                 height: state.height,
             },
-            state.tip_906(),
         );
     });
 }
@@ -446,30 +430,16 @@ fn process_withdrawals<C: ContentAddrStore>(mut state: UnsealedState<C>) -> Unse
 /// Process pegging.
 fn process_pegging<C: ContentAddrStore>(mut state: UnsealedState<C>) -> UnsealedState<C> {
     // first calculate the implied sym/Erg exchange rate
-    let x_sd = if state.tip_902() {
+    let x_sd = 
         state
             .pools
             .get(&PoolKey::new(Denom::Sym, Denom::Erg))
             .unwrap()
             .implied_price() // doscs per sym
             .recip() // syms per dosc
-    } else {
-        let x_s = state
-            .pools
-            .get(&PoolKey::new(Denom::Mel, Denom::Sym))
-            .unwrap()
-            .implied_price()
-            .recip();
-        let x_d = state
-            .pools
-            .get(&PoolKey::new(Denom::Mel, Denom::Erg))
-            .unwrap()
-            .implied_price()
-            .recip();
-        x_s / x_d
-    };
+   ;
 
-    let throttler = if state.tip_902() { 200 } else { 1000 };
+    let throttler = 200;
 
     // get the right pool
     let mut sm_pool = state

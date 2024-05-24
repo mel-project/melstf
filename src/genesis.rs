@@ -94,7 +94,6 @@ impl GenesisConfig {
                 height: BlockHeight(0),
                 coin_data: self.init_coindata,
             },
-            new_state.tip_906(),
         );
         new_state
     }

@@ -15,12 +15,12 @@ use melvm::Covenant;
 
 use std::collections::HashMap;
 
-use novasmt::{Database, InMemoryCas};
-use tap::Tap;
 use melstructs::{
     Address, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc, Transaction,
     MICRO_CONVERTER,
 };
+use novasmt::{Database, InMemoryCas};
+use tap::Tap;
 use tmelcrypt::{Ed25519PK, Ed25519SK};
 
 use super::utils::random_valid_txx_count;
@@ -77,7 +77,6 @@ pub fn create_state(
             },
             height: 0.into(),
         },
-        state.tip_906(),
     );
 
     // Insert data need for staking proofs
@@ -113,11 +112,9 @@ pub fn genesis_state(
     let mut state = GenesisConfig::std_testnet().realize(&DB);
 
     // insert initial mel coin supply
-    state.coins.insert_coin(
-        genesis_mel_coin_id,
-        genesis_mel_coin_data_height,
-        state.tip_906(),
-    );
+    state
+        .coins
+        .insert_coin(genesis_mel_coin_id, genesis_mel_coin_data_height);
 
     // Insert stake holders
     for (i, (&keypair, &syms_staked)) in genesis_stakeholders.iter().enumerate() {

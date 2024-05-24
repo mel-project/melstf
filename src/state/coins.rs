@@ -1,7 +1,7 @@
 use derivative::Derivative;
+use melstructs::{Address, CoinDataHeight, CoinID};
 use novasmt::ContentAddrStore;
 use stdcode::StdcodeSerializeExt;
-use melstructs::{Address, CoinDataHeight, CoinID};
 use tmelcrypt::{HashVal, Hashable};
 
 const COIN_COUNT_STR_AS_BYTES: &[u8] = "coin_count".as_bytes();
@@ -31,13 +31,13 @@ impl<C: ContentAddrStore> CoinMapping<C> {
     }
 
     /// Inserts a coin into the coin mapping.
-    pub fn insert_coin(&mut self, id: CoinID, data: CoinDataHeight, tip_906: bool) {
+    pub fn insert_coin(&mut self, id: CoinID, data: CoinDataHeight) {
         log::trace!("inserting into coin mapping: {id} => {:?}", data);
         let id = id.stdcode();
         let preexist = !self.inner.get(tmelcrypt::hash_single(&id).0).is_empty();
         self.inner
             .insert(tmelcrypt::hash_single(&id).0, &data.stdcode());
-        if tip_906 && !preexist {
+        if !preexist {
             let count_key =
                 tmelcrypt::hash_keyed(COIN_COUNT_STR_AS_BYTES, data.coin_data.covhash.0);
             let previous_count: u64 = self.coin_count(data.coin_data.covhash);
@@ -56,16 +56,14 @@ impl<C: ContentAddrStore> CoinMapping<C> {
         }
     }
 
-    /// Removes a coin from the coin mapping.
-    pub fn remove_coin(&mut self, id: CoinID, tip_906: bool) {
+    /// Removes a coin from the coin mapping. Always apply TIP 906
+    pub fn remove_coin(&mut self, id: CoinID) {
         let id = id.stdcode();
-        if tip_906 {
-            let existing = self.inner.get(tmelcrypt::hash_single(&id).0);
-            if !existing.is_empty() {
-                let data: CoinDataHeight = stdcode::deserialize(&existing).unwrap();
-                let count = self.coin_count(data.coin_data.covhash);
-                self.insert_coin_count(data.coin_data.covhash, count - 1);
-            }
+        let existing = self.inner.get(tmelcrypt::hash_single(&id).0);
+        if !existing.is_empty() {
+            let data: CoinDataHeight = stdcode::deserialize(&existing).unwrap();
+            let count = self.coin_count(data.coin_data.covhash);
+            self.insert_coin_count(data.coin_data.covhash, count - 1);
         }
         self.inner
             .insert(tmelcrypt::hash_single(&id).0, EMPTY_STR_AS_BYTES);

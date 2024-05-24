@@ -7,7 +7,6 @@ mod smtmapping;
 mod state;
 pub mod stats;
 mod testing;
-pub mod tip_heights;
 
 pub use crate::genesis::*;
 pub use crate::smtmapping::*;
