@@ -14,7 +14,7 @@ use melstructs::{
     Denom, Header, NetID, PoolKey, PoolState, ProposerAction, StakeDoc, Transaction, TxHash,
     STAKE_EPOCH,
 };
-use novasmt::{dense::DenseMerkleTree, ContentAddrStore, Database};
+use novasmt::{dense::DenseMerkleTree, ContentAddrStore, Database, InMemoryCas};
 use stdcode::StdcodeSerializeExt;
 use tap::Pipe;
 use thiserror::Error;
@@ -133,7 +133,12 @@ impl<C: ContentAddrStore> UnsealedState<C> {
 
     /// Calculates the "transactions" root hash. Note that this is different depending on whether the block is pre-TIP-908 or post-TIP-908.
     pub(crate) fn transactions_root_hash(&self) -> HashVal {
-        HashVal(self.tip908_transactions().root_hash())
+        let db = Database::new(InMemoryCas::default());
+        let mut smt = SmtMapping::new(db.get_tree(Default::default()).unwrap());
+        for txn in self.transactions.iter() {
+            smt.insert(txn.hash_nosigs(), txn.clone());
+        }
+        smt.root_hash()
     }
 
     /// Obtains the dense merkle tree (TIP-908)
