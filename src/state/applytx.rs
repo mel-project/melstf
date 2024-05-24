@@ -344,7 +344,7 @@ fn check_tx_coins_balanced(
             let in_value = if let Some(in_value) = in_coins.get(currency) {
                 *in_value
             } else {
-                log::debug!("UnbalancedInOut: No {currency}");
+                // log::debug!("UnbalancedInOut: No {currency}");
                 return Err(StateError::UnbalancedInOut);
             };
 
@@ -430,7 +430,6 @@ fn proof_is_tip910(proof: Proof, puzzle: &HashVal, difficulty: u32) -> Result<bo
     } else if proof.verify(puzzle, difficulty as _, Tip910MelPowHash) {
         Ok(true)
     } else {
-        println!("proof_is_tip910() verification failed");
         Err(StateError::InvalidMelPoW)
     }
 }
@@ -452,8 +451,6 @@ fn check_dosc_total_output(tx: &Transaction, reward_nom: CoinValue) -> Result<()
         .get(&Denom::Erg)
         .cloned()
         .unwrap_or_default();
-    println!("claimed={total_dosc_output}, actual={reward_nom}");
-    println!("OUTPUTS: {:?}", tx.outputs);
     if total_dosc_output > reward_nom {
         return Err(StateError::InvalidMelPoW);
     }
@@ -470,7 +467,6 @@ fn validate_and_get_doscmint_speed<C: ContentAddrStore>(
     let coin_data = relevant_coins
         .get(&coin_id)
         .ok_or(StateError::NonexistentCoin(coin_id))?;
-    println!("COIN_DATA.HEIGHTTTTTTTTTTTTTT = {}", coin_data.height);
     // make sure the time is long enough that we can easily measure it
     if (this.height - coin_data.height).0 < 100 && this.network == NetID::Mainnet {
         log::warn!("rejecting doscmint due to too recent");
@@ -488,7 +484,6 @@ fn validate_and_get_doscmint_speed<C: ContentAddrStore>(
     let (difficulty, proof_bytes): (u32, Vec<u8>) =
         stdcode::deserialize(&tx.data).map_err(|e| {
             log::warn!("rejecting doscmint due to malformed proof: {:?}", e);
-            println!("malformed proof!");
             StateError::InvalidMelPoW
         })?;
     let proof = match melpow::Proof::from_bytes(&proof_bytes) {
