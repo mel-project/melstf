@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use derivative::Derivative;
 use melstructs::{Address, CoinDataHeight, CoinID};
 use novasmt::ContentAddrStore;
@@ -87,5 +89,9 @@ impl<C: ContentAddrStore> CoinMapping<C> {
         } else {
             self.inner.insert(count_key.0, &count.stdcode())
         }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = ([u8; 32], Cow<'_, [u8]>)> + '_{
+        self.inner.iter()
     }
 }
