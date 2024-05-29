@@ -91,7 +91,7 @@ impl<C: ContentAddrStore> CoinMapping<C> {
         }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = ([u8; 32], Cow<'_, [u8]>)> + '_{
+    pub fn iter(&self) -> impl Iterator<Item = ([u8; 32], Cow<'_, [u8]>)> + '_ {
         self.inner.iter()
     }
 }

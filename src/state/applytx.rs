@@ -16,10 +16,6 @@ use tmelcrypt::HashVal;
 
 use crate::{melmint, LegacyMelPowHash, StateError, Tip910MelPowHash, UnsealedState};
 
-// TODO: add proper description of this exploit
-const INFLATION_BUG_TX_HASH: &str =
-    "30a60b20830f000f755b70c57c998553a303cc11f8b1f574d5e9f7e26b645d8b";
-
 /// Applies a batch of transactions to the state and returns the new state afterwards.
 pub fn apply_tx_batch_impl<C: ContentAddrStore>(
     this: &UnsealedState<C>,
@@ -65,47 +61,32 @@ fn handle_faucet_tx<C: ContentAddrStore>(
     state: &mut UnsealedState<C>,
     tx: &Transaction,
 ) -> Result<(), StateError> {
-    // dedup faucet
-    if tx.kind == TxKind::Faucet {
-        let bug_compatible_with_inflation_exploit =
-            tx.hash_nosigs().to_string() == INFLATION_BUG_TX_HASH;
-        // exception to be bug-compatible with the one guy who exploited the inflation bug
-        if state.network == NetID::Mainnet && !bug_compatible_with_inflation_exploit {
-            log::error!(
-                "rejecting mainnet faucet with hash {:?}",
-                tx.hash_nosigs().to_string()
-            );
-            return Err(StateError::MalformedTx);
-        }
-        if bug_compatible_with_inflation_exploit {
-            log::error!(
-                "allowing mainnet faucet with hash {:?}",
-                tx.hash_nosigs().to_string()
-            );
-        }
-
-        let pseudocoin = faucet_dedup_pseudocoin(tx.hash_nosigs());
-        if state.coins.get_coin(pseudocoin).is_some() {
-            return Err(StateError::DuplicateTx);
-        }
-        // We do not insert the pseudocoin if this transaction is the one transaction that was buggy, in block 1214212, on the mainnet.
-        // Back then, we were buggy in two ways: we allowed mainnet faucets accidentally, and we didn't insert the dedup pseudocoin properly!
-        if !bug_compatible_with_inflation_exploit {
-            state.coins.insert_coin(
-                pseudocoin,
-                CoinDataHeight {
-                    coin_data: CoinData {
-                        denom: Denom::Mel,
-                        value: 0.into(),
-                        additional_data: vec![].into(),
-                        covhash: HashVal::default().into(),
-                    },
-                    height: 0.into(),
-                },
-            );
-        }
+    if state.network == NetID::Mainnet && state.height.0 != 0 {
+        log::error!(
+            "rejecting mainnet faucet with hash {:?}",
+            tx.hash_nosigs().to_string()
+        );
+        return Err(StateError::MalformedTx);
     }
 
+    let pseudocoin = faucet_dedup_pseudocoin(tx.hash_nosigs());
+    if state.coins.get_coin(pseudocoin).is_some() {
+        return Err(StateError::DuplicateTx);
+    }
+
+    // insert dedup pseudocoin
+    state.coins.insert_coin(
+        pseudocoin,
+        CoinDataHeight {
+            coin_data: CoinData {
+                denom: Denom::Mel,
+                value: 0.into(),
+                additional_data: vec![].into(),
+                covhash: HashVal::default().into(),
+            },
+            height: 0.into(),
+        },
+    );
     Ok(())
 }
 
