@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fs::File,
     path::PathBuf,
 };
@@ -17,14 +17,14 @@ fn read_from_file(path: &PathBuf) -> HashMap<Address, HashMap<Denom, CoinValue>>
 
 pub fn to_faucet_transactions(
     balances: HashMap<Address, HashMap<Denom, CoinValue>>,
-) -> HashSet<Transaction> {
-    let mut faucet_txs = HashSet::new();
+) -> Vec<Transaction> {
+    let mut faucet_txs = Vec::new();
     let mut tx = Transaction::new(TxKind::Faucet);
 
     for (covhash, denom_to_value) in balances {
         for (denom, value) in denom_to_value {
             if tx.outputs.len() == 255 {
-                faucet_txs.insert(tx.clone());
+                faucet_txs.push(tx.clone());
                 tx.outputs.clear();
             }
 
@@ -39,7 +39,7 @@ pub fn to_faucet_transactions(
     }
 
     if tx.outputs.len() > 0 {
-        faucet_txs.insert(tx);
+        faucet_txs.push(tx);
     }
 
     faucet_txs
