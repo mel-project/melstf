@@ -19,15 +19,10 @@ pub fn to_faucet_transactions(
     balances: HashMap<Address, HashMap<Denom, CoinValue>>,
 ) -> Vec<Transaction> {
     let mut faucet_txs = Vec::new();
-    let mut tx = Transaction::new(TxKind::Faucet);
 
     for (covhash, denom_to_value) in balances {
         for (denom, value) in denom_to_value {
-            if tx.outputs.len() == 255 {
-                faucet_txs.push(tx.clone());
-                tx.outputs.clear();
-            }
-
+            let mut tx = Transaction::new(TxKind::Faucet);
             let coin_data = CoinData {
                 covhash,
                 value,
@@ -35,11 +30,8 @@ pub fn to_faucet_transactions(
                 additional_data: Bytes::new(),
             };
             tx.outputs.push(coin_data);
+            faucet_txs.push(tx);
         }
-    }
-
-    if tx.outputs.len() > 0 {
-        faucet_txs.push(tx);
     }
 
     faucet_txs
