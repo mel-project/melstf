@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, convert::TryInto};
+use std::{collections::BTreeMap, convert::TryInto, path::PathBuf};
 
 use melstructs::{
     BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc, TxHash,
@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use tip911_stakeset::StakeSet;
 use tmelcrypt::{Ed25519PK, HashVal};
 
-use crate::{CoinMapping, SmtMapping, UnsealedState};
+use crate::{init_balances, CoinMapping, SmtMapping, UnsealedState};
 
 /// Configuration of a genesis state. Serializable via serde.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -26,6 +26,8 @@ pub struct GenesisConfig {
     pub init_fee_pool: CoinValue,
     /// Initial fee multipliier
     pub init_fee_multiplier: u128,
+    /// Path to initial balances json
+    pub init_balances: PathBuf,
 }
 
 impl GenesisConfig {
@@ -35,7 +37,7 @@ impl GenesisConfig {
             network: NetID::Mainnet,
             init_coindata: CoinData {
                 covhash: Covenant::std_ed25519_pk_legacy(Ed25519PK(
-                    hex::decode("7323dcb65513b84470a76339cdf0062d47d82e205e834f2d7159684a0cb3b5ba")
+                    hex::decode("4ce983d241f1d40b0e5b65e0bd1a6877a35acaec5182f110810f1276103c829e")
                         .unwrap()
                         .try_into()
                         .unwrap(),
@@ -45,7 +47,7 @@ impl GenesisConfig {
                 denom: Denom::Sym,
                 additional_data: Default::default(),
             },
-            stakes: ["7323dcb65513b84470a76339cdf0062d47d82e205e834f2d7159684a0cb3b5ba"]
+            stakes: ["4ce983d241f1d40b0e5b65e0bd1a6877a35acaec5182f110810f1276103c829e"]
                 .iter()
                 .map(|v| Ed25519PK(hex::decode(v).unwrap().try_into().unwrap()))
                 .map(|pubkey| {
@@ -62,6 +64,7 @@ impl GenesisConfig {
                 .collect(),
             init_fee_pool: CoinValue::from_millions(6553600u64), // subsidy, decreasing rapidly
             init_fee_multiplier: MICRO_CONVERTER,
+            init_balances: PathBuf::from("init_balances.json"),
         }
     }
 
@@ -95,6 +98,9 @@ impl GenesisConfig {
                 coin_data: self.init_coindata,
             },
         );
+        // add balances using faucet transactions in block 0
+        new_state.apply_tx_batch(&init_balances::faucet_txs(self.init_balances)).expect("error applying initial balances");
+
         new_state
     }
 }

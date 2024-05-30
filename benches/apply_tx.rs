@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use melvm::Covenant;
 use novasmt::InMemoryCas;
 
@@ -52,6 +54,7 @@ fn zerofee_state() -> UnsealedState<InMemoryCas> {
         stakes: Default::default(),
         init_fee_pool: 0.into(),
         init_fee_multiplier: 0,
+        init_balances: PathBuf::from(""),
     };
     cfg.realize(&novasmt::Database::new(InMemoryCas::default()))
 }

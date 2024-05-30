@@ -117,10 +117,10 @@ fn create_next_state<C: ContentAddrStore>(
         let min_fee = tx.base_fee(next_state.fee_multiplier, 0, |c| {
             covenant_weight_from_bytes(c)
         });
-        if tx.fee < min_fee {
+        if tx.fee < min_fee && tx.kind != TxKind::Faucet {
             return Err(StateError::InsufficientFees(min_fee));
         } else {
-            let tips = tx.fee - min_fee;
+            let tips = tx.fee.checked_sub(min_fee).unwrap_or_default();
             next_state.tips.0 = next_state.tips.0.saturating_add(tips.0);
             next_state.fee_pool.0 = next_state.fee_pool.0.saturating_add(min_fee.0);
         }
