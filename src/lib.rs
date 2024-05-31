@@ -3,11 +3,11 @@
 
 mod genesis;
 
+mod genesis_balances;
 mod smtmapping;
 mod state;
 pub mod stats;
 mod testing;
-mod init_balances;
 
 pub use crate::genesis::*;
 pub use crate::smtmapping::*;

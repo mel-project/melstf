@@ -1,4 +1,8 @@
-use std::{collections::BinaryHeap, path::{Path, PathBuf}, time::Instant};
+use std::{
+    collections::BinaryHeap,
+    path::Path,
+    time::Instant,
+};
 
 use melstf::GenesisConfig;
 use melstructs::{CoinData, CoinValue, Denom, NetID, Transaction, TxKind};
@@ -21,7 +25,6 @@ fn main() {
         stakes: Default::default(),
         init_fee_pool: CoinValue(0),
         init_fee_multiplier: 0,
-        init_balances: PathBuf::from(""),
     }
     .realize(&Database::new(meshacas))
     .seal(None)

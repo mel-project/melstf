@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, convert::TryInto, path::PathBuf};
+use std::{collections::BTreeMap, convert::TryInto};
 
 use melstructs::{
     BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc, TxHash,
@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use tip911_stakeset::StakeSet;
 use tmelcrypt::{Ed25519PK, HashVal};
 
-use crate::{init_balances, CoinMapping, SmtMapping, UnsealedState};
+use crate::{genesis_balances, CoinMapping, SmtMapping, UnsealedState};
 
 /// Configuration of a genesis state. Serializable via serde.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -26,8 +26,6 @@ pub struct GenesisConfig {
     pub init_fee_pool: CoinValue,
     /// Initial fee multipliier
     pub init_fee_multiplier: u128,
-    /// Path to initial balances json
-    pub init_balances: PathBuf,
 }
 
 impl GenesisConfig {
@@ -64,7 +62,6 @@ impl GenesisConfig {
                 .collect(),
             init_fee_pool: CoinValue::from_millions(6553600u64), // subsidy, decreasing rapidly
             init_fee_multiplier: MICRO_CONVERTER,
-            init_balances: PathBuf::from("init_balances.json"),
         }
     }
 
@@ -99,7 +96,9 @@ impl GenesisConfig {
             },
         );
         // add balances using faucet transactions in block 0
-        new_state.apply_tx_batch(&init_balances::faucet_txs(self.init_balances)).expect("error applying initial balances");
+        new_state
+            .apply_tx_batch(&genesis_balances::faucet_txs())
+            .expect("error applying genesis balances");
 
         new_state
     }

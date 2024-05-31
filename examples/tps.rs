@@ -1,4 +1,8 @@
-use std::{borrow::Cow, path::{Path, PathBuf}, time::Instant};
+use std::{
+    borrow::Cow,
+    path::Path,
+    time::Instant,
+};
 
 use melstf::{GenesisConfig, UnsealedState};
 use melstructs::{Address, CoinData, Denom, NetID, Transaction, TxKind};
@@ -62,7 +66,6 @@ fn zerofee_state() -> UnsealedState<MeshaCas> {
         stakes: Default::default(),
         init_fee_pool: 0.into(),
         init_fee_multiplier: 0,
-        init_balances: PathBuf::from(""),
     };
 
     let meshacas = MeshaCas::new(meshanina::Mapping::open(Path::new("test.db")).unwrap());
