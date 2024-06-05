@@ -1,11 +1,10 @@
 use std::{collections::BTreeMap, convert::TryInto};
 
 use melstructs::{
-    BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc, TxHash,
-    MICRO_CONVERTER,
+    Block, BlockHeight, CoinData, CoinDataHeight, CoinID, CoinValue, Denom, NetID, StakeDoc, TxHash, MICRO_CONVERTER
 };
 use melvm::Covenant;
-use novasmt::ContentAddrStore;
+use novasmt::{ContentAddrStore, InMemoryCas};
 use serde::{Deserialize, Serialize};
 use tip911_stakeset::StakeSet;
 use tmelcrypt::{Ed25519PK, HashVal};
@@ -101,5 +100,11 @@ impl GenesisConfig {
             .expect("error applying genesis balances");
 
         new_state
+    }
+
+    pub fn block_zero(self) -> Block {
+        let forest = novasmt::Database::new(InMemoryCas::default());
+        let unsealed = self.realize(&forest);
+        unsealed.seal(None).to_block()
     }
 }
